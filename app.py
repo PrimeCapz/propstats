@@ -1334,7 +1334,6 @@ if st.session_state.view == 'slate':
                 </div>
                 <div class="game-card-body">
                     <div style="display: flex; align-items: center; justify-content: space-between; gap: 1.5rem; position: relative;">
-                        <!-- Away Team -->
                         <div style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 0.75rem;">
                             <img src="{away_logo}" class="team-logo" alt="{game['away_team']}" onerror="this.style.display='none'">
                             <div style="text-align: center;">
@@ -1353,10 +1352,8 @@ if st.session_state.view == 'slate':
                             </div>
                         </div>
 
-                        <!-- VS Indicator -->
                         <div class="vs-indicator">VS</div>
 
-                        <!-- Home Team -->
                         <div style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 0.75rem;">
                             <img src="{home_logo}" class="team-logo" alt="{game['home_team']}" onerror="this.style.display='none'">
                             <div style="text-align: center;">
