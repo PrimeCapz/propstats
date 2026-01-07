@@ -147,7 +147,30 @@ export default function App() {
   const calc = list => { const h = list.filter(g => g.hit).length; return { hits: h, total: list.length, pct: list.length ? Math.round(h/list.length*100) : 0 }; };
   const l5 = calc(games.slice(0,5)), l10 = calc(games.slice(0,10)), l20 = calc(games.slice(0,20));
   const avg = games.length ? (games.reduce((a,g) => a+g.value, 0)/games.length).toFixed(1) : 0;
-  const verdict = l10.pct >= 70 && avg > line ? {t:'STRONG OVER',c:'emerald'} : l10.pct >= 55 && avg > line ? {t:'LEAN OVER',c:'emerald'} : l10.pct <= 30 && avg < line ? {t:'STRONG UNDER',c:'red'} : l10.pct <= 45 && avg < line ? {t:'LEAN UNDER',c:'red'} : {t:'TOSS UP',c:'zinc'};
+
+  // Calculate verdict based on L10 hit rate and average performance vs line
+  const calculateVerdict = (hitRate, average, targetLine) => {
+    // Strong confidence thresholds: 70%+ over or 30%- under
+    if (hitRate >= 70 && average > targetLine) {
+      return { t: 'STRONG OVER', c: 'emerald' };
+    }
+    if (hitRate <= 30 && average < targetLine) {
+      return { t: 'STRONG UNDER', c: 'red' };
+    }
+
+    // Moderate confidence thresholds: 55%+ over or 45%- under
+    if (hitRate >= 55 && average > targetLine) {
+      return { t: 'LEAN OVER', c: 'emerald' };
+    }
+    if (hitRate <= 45 && average < targetLine) {
+      return { t: 'LEAN UNDER', c: 'red' };
+    }
+
+    // No clear trend
+    return { t: 'TOSS UP', c: 'zinc' };
+  };
+
+  const verdict = calculateVerdict(l10.pct, avg, line);
   const teamColor = player ? TEAM_COLORS[player.team] || '#666' : '#666';
 
   return (
