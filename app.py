@@ -27,58 +27,131 @@ st.markdown("""
         font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     }
 
-    /* Clean Background with Subtle Pattern */
+    /* Layered Background with Depth */
     .stApp {
-        background: #f8f9fa;
+        background: #f1f3f5;
         background-image:
-            radial-gradient(circle at 20% 50%, rgba(59, 130, 246, 0.03) 0%, transparent 50%),
-            radial-gradient(circle at 80% 80%, rgba(16, 185, 129, 0.03) 0%, transparent 50%);
+            radial-gradient(circle at 20% 50%, rgba(59, 130, 246, 0.05) 0%, transparent 50%),
+            radial-gradient(circle at 80% 80%, rgba(16, 185, 129, 0.05) 0%, transparent 50%),
+            repeating-linear-gradient(0deg, transparent, transparent 100px, rgba(59, 130, 246, 0.02) 100px, rgba(59, 130, 246, 0.02) 200px);
         background-attachment: fixed;
     }
 
     #MainMenu, footer, header { visibility: hidden; }
 
-    /* Professional Header */
+    /* Layered Professional Header */
     .main-header {
-        background: white;
+        background: linear-gradient(180deg, #ffffff 0%, #fafbfc 100%);
         border-bottom: 1px solid #e5e7eb;
         padding: 1.25rem 0;
         position: sticky;
         top: 0;
         z-index: 999;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        box-shadow:
+            0 1px 3px rgba(0, 0, 0, 0.05),
+            0 4px 12px rgba(0, 0, 0, 0.03),
+            inset 0 -1px 0 rgba(255, 255, 255, 0.8);
     }
 
-    /* Clean Card Style */
+    /* Layered Prop Card */
     .prop-card {
         background: white;
         border: 1px solid #e5e7eb;
-        border-radius: 12px;
-        padding: 1.5rem;
+        border-radius: 14px;
+        padding: 0;
         margin: 0.75rem 0;
-        transition: all 0.2s ease;
-        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow:
+            0 2px 4px rgba(0, 0, 0, 0.04),
+            0 8px 16px rgba(0, 0, 0, 0.04),
+            inset 0 1px 0 rgba(255, 255, 255, 0.5);
+        position: relative;
+    }
+
+    .prop-card::after {
+        content: '';
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: linear-gradient(90deg, #3b82f6, #8b5cf6, #ec4899);
+        border-radius: 0 0 14px 14px;
+        opacity: 0;
+        transition: opacity 0.3s;
     }
 
     .prop-card:hover {
-        border-color: #3b82f6;
-        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.1);
-        transform: translateY(-2px);
+        border-color: #d1d5db;
+        box-shadow:
+            0 4px 12px rgba(59, 130, 246, 0.08),
+            0 12px 24px rgba(0, 0, 0, 0.06);
+        transform: translateY(-3px);
     }
 
-    /* Game Card */
+    .prop-card:hover::after {
+        opacity: 1;
+    }
+
+    .prop-card-header {
+        background: linear-gradient(135deg, #fafbfc 0%, #ffffff 100%);
+        padding: 1.25rem 1.5rem;
+        border-bottom: 1px solid #f3f4f6;
+    }
+
+    .prop-card-body {
+        padding: 1.5rem;
+    }
+
+    /* Game Card - Multi-Layer Depth */
     .game-card {
         background: white;
         border: 1px solid #e5e7eb;
         border-radius: 16px;
-        padding: 1.75rem;
+        padding: 0;
         margin: 1rem 0;
-        transition: all 0.2s ease;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow:
+            0 1px 3px rgba(0, 0, 0, 0.05),
+            0 4px 12px rgba(0, 0, 0, 0.03),
+            inset 0 1px 0 rgba(255, 255, 255, 0.5);
+        position: relative;
+        overflow: hidden;
+    }
+
+    .game-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 4px;
+        height: 100%;
+        background: linear-gradient(180deg, #3b82f6, #8b5cf6);
+        opacity: 0;
+        transition: opacity 0.3s;
     }
 
     .game-card:hover {
-        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
-        border-color: #d1d5db;
+        transform: translateY(-4px);
+        box-shadow:
+            0 4px 12px rgba(59, 130, 246, 0.1),
+            0 12px 40px rgba(0, 0, 0, 0.08),
+            inset 0 1px 0 rgba(255, 255, 255, 0.8);
+        border-color: rgba(59, 130, 246, 0.3);
+    }
+
+    .game-card:hover::before {
+        opacity: 1;
+    }
+
+    .game-card-header {
+        background: linear-gradient(135deg, #f9fafb 0%, #ffffff 100%);
+        border-bottom: 1px solid #f3f4f6;
+        padding: 1.25rem 1.75rem;
+    }
+
+    .game-card-body {
+        padding: 1.5rem 1.75rem;
     }
 
     /* Player Card - PrizePicks Style */
@@ -149,32 +222,77 @@ st.markdown("""
         box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
     }
 
-    /* Hit Rate Indicators */
+    /* Layered Hit Rate Cards */
     .hit-rate-card {
         background: white;
         border: 2px solid #f3f4f6;
         border-radius: 12px;
-        padding: 1.25rem;
-        margin: 0.5rem 0;
+        padding: 1.25rem 1.5rem;
+        margin: 0.75rem 0;
         display: flex;
         justify-content: space-between;
         align-items: center;
-        transition: all 0.2s;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+        position: relative;
+        overflow: hidden;
+    }
+
+    .hit-rate-card::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: 5px;
+        transition: width 0.3s;
+    }
+
+    .hit-rate-card:hover {
+        transform: translateX(4px);
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
     }
 
     .hit-rate-high {
-        border-left: 4px solid #10b981;
-        background: linear-gradient(90deg, #f0fdf4 0%, white 100%);
+        background: linear-gradient(135deg, #f0fdf4 0%, #ffffff 50%, #fafafa 100%);
+        border-left: 5px solid #10b981;
+    }
+
+    .hit-rate-high::before {
+        background: linear-gradient(180deg, #10b981, #059669);
+    }
+
+    .hit-rate-high:hover::before {
+        width: 100%;
+        opacity: 0.05;
     }
 
     .hit-rate-medium {
-        border-left: 4px solid #f59e0b;
-        background: linear-gradient(90deg, #fffbeb 0%, white 100%);
+        background: linear-gradient(135deg, #fffbeb 0%, #ffffff 50%, #fafafa 100%);
+        border-left: 5px solid #f59e0b;
+    }
+
+    .hit-rate-medium::before {
+        background: linear-gradient(180deg, #f59e0b, #d97706);
+    }
+
+    .hit-rate-medium:hover::before {
+        width: 100%;
+        opacity: 0.05;
     }
 
     .hit-rate-low {
-        border-left: 4px solid #ef4444;
-        background: linear-gradient(90deg, #fef2f2 0%, white 100%);
+        background: linear-gradient(135deg, #fef2f2 0%, #ffffff 50%, #fafafa 100%);
+        border-left: 5px solid #ef4444;
+    }
+
+    .hit-rate-low::before {
+        background: linear-gradient(180deg, #ef4444, #dc2626);
+    }
+
+    .hit-rate-low:hover::before {
+        width: 100%;
+        opacity: 0.05;
     }
 
     /* Buttons - Clean & Modern */
@@ -757,51 +875,55 @@ if st.session_state.view == 'slate':
         with cols[idx % 2]:
             st.markdown(f"""
             <div class="game-card fade-in">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem;">
-                    <span class="tag tag-upcoming">{game['time']}</span>
-                    <div style="display: flex; gap: 0.5rem;">
-                        <div style="text-align: center;">
-                            <div style="font-size: 0.65rem; color: #9ca3af; font-weight: 600;">PLAYERS</div>
-                            <div style="font-size: 1.125rem; font-weight: 800; color: #3b82f6;">{len(game['away_players']) + len(game['home_players'])}</div>
+                <div class="game-card-header">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span class="tag tag-upcoming">{game['time']}</span>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <div style="text-align: center;">
+                                <div style="font-size: 0.65rem; color: #9ca3af; font-weight: 600;">PLAYERS</div>
+                                <div style="font-size: 1.125rem; font-weight: 800; color: #3b82f6;">{len(game['away_players']) + len(game['home_players'])}</div>
+                            </div>
                         </div>
                     </div>
                 </div>
-                <div style="display: grid; gap: 1rem;">
-                    <div style="display: flex; align-items: center; justify-content: space-between; gap: 1rem;">
-                        <div style="display: flex; align-items: center; gap: 0.75rem; flex: 1;">
-                            <div style="width: 14px; height: 14px; background: {away_color}; border-radius: 4px; box-shadow: 0 2px 4px {away_color}40;"></div>
-                            <div>
-                                <div style="font-weight: 800; font-size: 1.25rem; color: #111827; letter-spacing: -0.5px;">{game['away_team']}</div>
-                                <div style="font-size: 0.75rem; color: #6b7280; font-weight: 500;">{TEAM_NAMES[game['away_team']]}</div>
+                <div class="game-card-body">
+                    <div style="display: grid; gap: 1rem;">
+                        <div style="display: flex; align-items: center; justify-content: space-between; gap: 1rem;">
+                            <div style="display: flex; align-items: center; gap: 0.75rem; flex: 1;">
+                                <div style="width: 14px; height: 14px; background: {away_color}; border-radius: 4px; box-shadow: 0 2px 4px {away_color}40;"></div>
+                                <div>
+                                    <div style="font-weight: 800; font-size: 1.25rem; color: #111827; letter-spacing: -0.5px;">{game['away_team']}</div>
+                                    <div style="font-size: 0.75rem; color: #6b7280; font-weight: 500;">{TEAM_NAMES[game['away_team']]}</div>
+                                </div>
+                            </div>
+                            <div style="display: flex; gap: 0.75rem;">
+                                <div style="text-align: right;">
+                                    <div style="font-size: 0.65rem; color: #6b7280;">PPG</div>
+                                    <div style="font-size: 0.95rem; font-weight: 700; color: #111827;">{game['away_stats']['ppg']}</div>
+                                </div>
+                                <div style="text-align: right;">
+                                    <div style="font-size: 0.65rem; color: #6b7280;">PACE</div>
+                                    <div style="font-size: 0.95rem; font-weight: 700; color: #111827;">{game['away_stats']['pace']}</div>
+                                </div>
                             </div>
                         </div>
-                        <div style="display: flex; gap: 0.75rem;">
-                            <div style="text-align: right;">
-                                <div style="font-size: 0.65rem; color: #6b7280;">PPG</div>
-                                <div style="font-size: 0.95rem; font-weight: 700; color: #111827;">{game['away_stats']['ppg']}</div>
+                        <div style="display: flex; align-items: center; justify-content: space-between; gap: 1rem;">
+                            <div style="display: flex; align-items: center; gap: 0.75rem; flex: 1;">
+                                <div style="width: 14px; height: 14px; background: {home_color}; border-radius: 4px; box-shadow: 0 2px 4px {home_color}40;"></div>
+                                <div>
+                                    <div style="font-weight: 800; font-size: 1.25rem; color: #111827; letter-spacing: -0.5px;">{game['home_team']}</div>
+                                    <div style="font-size: 0.75rem; color: #6b7280; font-weight: 500;">{TEAM_NAMES[game['home_team']]}</div>
+                                </div>
                             </div>
-                            <div style="text-align: right;">
-                                <div style="font-size: 0.65rem; color: #6b7280;">PACE</div>
-                                <div style="font-size: 0.95rem; font-weight: 700; color: #111827;">{game['away_stats']['pace']}</div>
-                            </div>
-                        </div>
-                    </div>
-                    <div style="display: flex; align-items: center; justify-content: space-between; gap: 1rem;">
-                        <div style="display: flex; align-items: center; gap: 0.75rem; flex: 1;">
-                            <div style="width: 14px; height: 14px; background: {home_color}; border-radius: 4px; box-shadow: 0 2px 4px {home_color}40;"></div>
-                            <div>
-                                <div style="font-weight: 800; font-size: 1.25rem; color: #111827; letter-spacing: -0.5px;">{game['home_team']}</div>
-                                <div style="font-size: 0.75rem; color: #6b7280; font-weight: 500;">{TEAM_NAMES[game['home_team']]}</div>
-                            </div>
-                        </div>
-                        <div style="display: flex; gap: 0.75rem;">
-                            <div style="text-align: right;">
-                                <div style="font-size: 0.65rem; color: #6b7280;">PPG</div>
-                                <div style="font-size: 0.95rem; font-weight: 700; color: #111827;">{game['home_stats']['ppg']}</div>
-                            </div>
-                            <div style="text-align: right;">
-                                <div style="font-size: 0.65rem; color: #6b7280;">PACE</div>
-                                <div style="font-size: 0.95rem; font-weight: 700; color: #111827;">{game['home_stats']['pace']}</div>
+                            <div style="display: flex; gap: 0.75rem;">
+                                <div style="text-align: right;">
+                                    <div style="font-size: 0.65rem; color: #6b7280;">PPG</div>
+                                    <div style="font-size: 0.95rem; font-weight: 700; color: #111827;">{game['home_stats']['ppg']}</div>
+                                </div>
+                                <div style="text-align: right;">
+                                    <div style="font-size: 0.65rem; color: #6b7280;">PACE</div>
+                                    <div style="font-size: 0.95rem; font-weight: 700; color: #111827;">{game['home_stats']['pace']}</div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -840,36 +962,40 @@ elif st.session_state.view == 'matchup':
     with col1:
         st.markdown(f"""
         <div class="prop-card">
-            <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1.5rem;">
-                <div style="width: 16px; height: 16px; background: {TEAM_COLORS[game['away_team']]}; border-radius: 4px;"></div>
-                <h3 style="font-size: 1.25rem; font-weight: 700; color: #111827; margin: 0;">
-                    {game['away_team']} {TEAM_NAMES[game['away_team']]}
-                </h3>
+            <div class="prop-card-header">
+                <div style="display: flex; align-items: center; gap: 0.75rem;">
+                    <div style="width: 16px; height: 16px; background: {TEAM_COLORS[game['away_team']]}; border-radius: 4px;"></div>
+                    <h3 style="font-size: 1.25rem; font-weight: 700; color: #111827; margin: 0;">
+                        {game['away_team']} {TEAM_NAMES[game['away_team']]}
+                    </h3>
+                </div>
             </div>
-            <div style="display: grid; gap: 0.75rem;">
-                <div class="data-row">
-                    <span style="color: #6b7280; font-weight: 500;">PPG</span>
-                    <div class="progress-bar">
-                        <div class="progress-fill" style="width: {game['away_stats']['ppg']/1.3}%"></div>
+            <div class="prop-card-body">
+                <div style="display: grid; gap: 0.75rem;">
+                    <div class="data-row">
+                        <span style="color: #6b7280; font-weight: 500;">PPG</span>
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width: {game['away_stats']['ppg']/1.3}%"></div>
+                        </div>
+                        <span style="font-weight: 700; color: #111827;">{game['away_stats']['ppg']}</span>
                     </div>
-                    <span style="font-weight: 700; color: #111827;">{game['away_stats']['ppg']}</span>
-                </div>
-                <div class="data-row">
-                    <span style="color: #6b7280; font-weight: 500;">Pace</span>
-                    <div class="progress-bar">
-                        <div class="progress-fill" style="width: {game['away_stats']['pace']}%"></div>
+                    <div class="data-row">
+                        <span style="color: #6b7280; font-weight: 500;">Pace</span>
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width: {game['away_stats']['pace']}%"></div>
+                        </div>
+                        <span style="font-weight: 700; color: #111827;">{game['away_stats']['pace']}</span>
                     </div>
-                    <span style="font-weight: 700; color: #111827;">{game['away_stats']['pace']}</span>
-                </div>
-                <div class="data-row">
-                    <span style="color: #6b7280; font-weight: 500;">Off Rank</span>
-                    <span></span>
-                    <span style="font-weight: 700; color: #10b981;">#{game['away_stats']['off_rank']}</span>
-                </div>
-                <div class="data-row">
-                    <span style="color: #6b7280; font-weight: 500;">Def Rank</span>
-                    <span></span>
-                    <span style="font-weight: 700; color: #ef4444;">#{game['away_stats']['def_rank']}</span>
+                    <div class="data-row">
+                        <span style="color: #6b7280; font-weight: 500;">Off Rank</span>
+                        <span></span>
+                        <span style="font-weight: 700; color: #10b981;">#{game['away_stats']['off_rank']}</span>
+                    </div>
+                    <div class="data-row">
+                        <span style="color: #6b7280; font-weight: 500;">Def Rank</span>
+                        <span></span>
+                        <span style="font-weight: 700; color: #ef4444;">#{game['away_stats']['def_rank']}</span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -878,36 +1004,40 @@ elif st.session_state.view == 'matchup':
     with col2:
         st.markdown(f"""
         <div class="prop-card">
-            <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1.5rem;">
-                <div style="width: 16px; height: 16px; background: {TEAM_COLORS[game['home_team']]}; border-radius: 4px;"></div>
-                <h3 style="font-size: 1.25rem; font-weight: 700; color: #111827; margin: 0;">
-                    {game['home_team']} {TEAM_NAMES[game['home_team']]}
-                </h3>
+            <div class="prop-card-header">
+                <div style="display: flex; align-items: center; gap: 0.75rem;">
+                    <div style="width: 16px; height: 16px; background: {TEAM_COLORS[game['home_team']]}; border-radius: 4px;"></div>
+                    <h3 style="font-size: 1.25rem; font-weight: 700; color: #111827; margin: 0;">
+                        {game['home_team']} {TEAM_NAMES[game['home_team']]}
+                    </h3>
+                </div>
             </div>
-            <div style="display: grid; gap: 0.75rem;">
-                <div class="data-row">
-                    <span style="color: #6b7280; font-weight: 500;">PPG</span>
-                    <div class="progress-bar">
-                        <div class="progress-fill" style="width: {game['home_stats']['ppg']/1.3}%"></div>
+            <div class="prop-card-body">
+                <div style="display: grid; gap: 0.75rem;">
+                    <div class="data-row">
+                        <span style="color: #6b7280; font-weight: 500;">PPG</span>
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width: {game['home_stats']['ppg']/1.3}%"></div>
+                        </div>
+                        <span style="font-weight: 700; color: #111827;">{game['home_stats']['ppg']}</span>
                     </div>
-                    <span style="font-weight: 700; color: #111827;">{game['home_stats']['ppg']}</span>
-                </div>
-                <div class="data-row">
-                    <span style="color: #6b7280; font-weight: 500;">Pace</span>
-                    <div class="progress-bar">
-                        <div class="progress-fill" style="width: {game['home_stats']['pace']}%"></div>
+                    <div class="data-row">
+                        <span style="color: #6b7280; font-weight: 500;">Pace</span>
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width: {game['home_stats']['pace']}%"></div>
+                        </div>
+                        <span style="font-weight: 700; color: #111827;">{game['home_stats']['pace']}</span>
                     </div>
-                    <span style="font-weight: 700; color: #111827;">{game['home_stats']['pace']}</span>
-                </div>
-                <div class="data-row">
-                    <span style="color: #6b7280; font-weight: 500;">Off Rank</span>
-                    <span></span>
-                    <span style="font-weight: 700; color: #10b981;">#{game['home_stats']['off_rank']}</span>
-                </div>
-                <div class="data-row">
-                    <span style="color: #6b7280; font-weight: 500;">Def Rank</span>
-                    <span></span>
-                    <span style="font-weight: 700; color: #ef4444;">#{game['home_stats']['def_rank']}</span>
+                    <div class="data-row">
+                        <span style="color: #6b7280; font-weight: 500;">Off Rank</span>
+                        <span></span>
+                        <span style="font-weight: 700; color: #10b981;">#{game['home_stats']['off_rank']}</span>
+                    </div>
+                    <div class="data-row">
+                        <span style="color: #6b7280; font-weight: 500;">Def Rank</span>
+                        <span></span>
+                        <span style="font-weight: 700; color: #ef4444;">#{game['home_stats']['def_rank']}</span>
+                    </div>
                 </div>
             </div>
         </div>
