@@ -35,45 +35,81 @@ st.markdown("""
         font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     }
 
-    /* Layered Background with Depth */
+    /* Layered Background with Court-Inspired Depth */
     .stApp {
         background: #f1f3f5;
         background-image:
-            radial-gradient(circle at 20% 50%, rgba(59, 130, 246, 0.05) 0%, transparent 50%),
-            radial-gradient(circle at 80% 80%, rgba(16, 185, 129, 0.05) 0%, transparent 50%),
-            repeating-linear-gradient(0deg, transparent, transparent 100px, rgba(59, 130, 246, 0.02) 100px, rgba(59, 130, 246, 0.02) 200px);
+            radial-gradient(circle at 20% 50%, rgba(59, 130, 246, 0.08) 0%, transparent 50%),
+            radial-gradient(circle at 80% 80%, rgba(16, 185, 129, 0.08) 0%, transparent 50%),
+            radial-gradient(circle at 50% 20%, rgba(139, 92, 246, 0.05) 0%, transparent 50%),
+            repeating-linear-gradient(0deg, transparent, transparent 100px, rgba(59, 130, 246, 0.02) 100px, rgba(59, 130, 246, 0.02) 200px),
+            linear-gradient(180deg, rgba(255, 255, 255, 0.5) 0%, rgba(241, 243, 245, 0) 100%);
         background-attachment: fixed;
+        position: relative;
+    }
+
+    .stApp::before {
+        content: '';
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-image:
+            radial-gradient(circle at 50% 50%, transparent 40%, rgba(59, 130, 246, 0.03) 100%);
+        pointer-events: none;
+        z-index: 0;
     }
 
     #MainMenu, footer, header { visibility: hidden; }
 
-    /* Layered Professional Header */
+    /* Layered Professional Header with Glassmorphism */
     .main-header {
-        background: linear-gradient(180deg, #ffffff 0%, #fafbfc 100%);
-        border-bottom: 1px solid #e5e7eb;
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(250, 251, 252, 0.95) 100%);
+        backdrop-filter: blur(20px) saturate(180%);
+        -webkit-backdrop-filter: blur(20px) saturate(180%);
+        border-bottom: 1px solid rgba(229, 231, 235, 0.8);
         padding: 1.25rem 0;
         position: sticky;
         top: 0;
         z-index: 999;
         box-shadow:
             0 1px 3px rgba(0, 0, 0, 0.05),
-            0 4px 12px rgba(0, 0, 0, 0.03),
-            inset 0 -1px 0 rgba(255, 255, 255, 0.8);
+            0 4px 20px rgba(59, 130, 246, 0.08),
+            0 10px 40px rgba(0, 0, 0, 0.04),
+            inset 0 -1px 0 rgba(255, 255, 255, 0.9),
+            inset 0 1px 0 rgba(255, 255, 255, 0.5);
     }
 
-    /* Layered Prop Card */
+    /* Layered Prop Card - Enhanced with Glassmorphism */
     .prop-card {
-        background: white;
-        border: 1px solid #e5e7eb;
-        border-radius: 14px;
+        background: linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(255, 255, 255, 0.95) 100%);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(229, 231, 235, 0.8);
+        border-radius: 16px;
         padding: 0;
         margin: 0.75rem 0;
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
         box-shadow:
             0 2px 4px rgba(0, 0, 0, 0.04),
-            0 8px 16px rgba(0, 0, 0, 0.04),
-            inset 0 1px 0 rgba(255, 255, 255, 0.5);
+            0 8px 16px rgba(0, 0, 0, 0.05),
+            0 16px 32px rgba(0, 0, 0, 0.03),
+            inset 0 1px 0 rgba(255, 255, 255, 0.8);
         position: relative;
+        overflow: hidden;
+    }
+
+    .prop-card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        left: 0;
+        background: radial-gradient(circle at top right, rgba(59, 130, 246, 0.03) 0%, transparent 60%);
+        opacity: 0;
+        transition: opacity 0.4s;
+        pointer-events: none;
     }
 
     .prop-card::after {
@@ -82,19 +118,25 @@ st.markdown("""
         bottom: 0;
         left: 0;
         right: 0;
-        height: 3px;
+        height: 4px;
         background: linear-gradient(90deg, #3b82f6, #8b5cf6, #ec4899);
-        border-radius: 0 0 14px 14px;
+        border-radius: 0 0 16px 16px;
         opacity: 0;
-        transition: opacity 0.3s;
+        transition: opacity 0.4s;
     }
 
     .prop-card:hover {
-        border-color: #d1d5db;
+        border-color: rgba(59, 130, 246, 0.3);
         box-shadow:
-            0 4px 12px rgba(59, 130, 246, 0.08),
-            0 12px 24px rgba(0, 0, 0, 0.06);
-        transform: translateY(-3px);
+            0 4px 12px rgba(59, 130, 246, 0.1),
+            0 12px 32px rgba(59, 130, 246, 0.08),
+            0 20px 48px rgba(0, 0, 0, 0.06),
+            inset 0 1px 0 rgba(255, 255, 255, 1);
+        transform: translateY(-4px) scale(1.005);
+    }
+
+    .prop-card:hover::before {
+        opacity: 1;
     }
 
     .prop-card:hover::after {
@@ -102,27 +144,31 @@ st.markdown("""
     }
 
     .prop-card-header {
-        background: linear-gradient(135deg, #fafbfc 0%, #ffffff 100%);
-        padding: 1.25rem 1.5rem;
+        background: linear-gradient(135deg, #f9fafb 0%, #ffffff 100%);
+        padding: 1.5rem 1.75rem;
         border-bottom: 1px solid #f3f4f6;
+        position: relative;
     }
 
     .prop-card-body {
-        padding: 1.5rem;
+        padding: 1.75rem;
     }
 
-    /* Game Card - Multi-Layer Depth */
+    /* Game Card - Premium 3D Depth with Glassmorphism */
     .game-card {
-        background: white;
-        border: 1px solid #e5e7eb;
-        border-radius: 16px;
+        background: linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(255, 255, 255, 0.95) 100%);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(229, 231, 235, 0.8);
+        border-radius: 20px;
         padding: 0;
         margin: 1rem 0;
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
         box-shadow:
-            0 1px 3px rgba(0, 0, 0, 0.05),
-            0 4px 12px rgba(0, 0, 0, 0.03),
-            inset 0 1px 0 rgba(255, 255, 255, 0.5);
+            0 2px 4px rgba(0, 0, 0, 0.04),
+            0 8px 16px rgba(0, 0, 0, 0.06),
+            0 16px 32px rgba(0, 0, 0, 0.04),
+            inset 0 1px 0 rgba(255, 255, 255, 0.8),
+            inset 0 -1px 0 rgba(0, 0, 0, 0.02);
         position: relative;
         overflow: hidden;
     }
@@ -132,23 +178,43 @@ st.markdown("""
         position: absolute;
         top: 0;
         left: 0;
-        width: 4px;
+        width: 5px;
         height: 100%;
-        background: linear-gradient(180deg, #3b82f6, #8b5cf6);
+        background: linear-gradient(180deg, #3b82f6, #8b5cf6, #ec4899);
         opacity: 0;
-        transition: opacity 0.3s;
+        transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .game-card::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        left: 0;
+        background: radial-gradient(circle at top right, rgba(59, 130, 246, 0.05) 0%, transparent 60%);
+        opacity: 0;
+        transition: opacity 0.4s;
+        pointer-events: none;
     }
 
     .game-card:hover {
-        transform: translateY(-4px);
+        transform: translateY(-6px) scale(1.01);
         box-shadow:
-            0 4px 12px rgba(59, 130, 246, 0.1),
-            0 12px 40px rgba(0, 0, 0, 0.08),
-            inset 0 1px 0 rgba(255, 255, 255, 0.8);
-        border-color: rgba(59, 130, 246, 0.3);
+            0 4px 12px rgba(59, 130, 246, 0.15),
+            0 12px 40px rgba(59, 130, 246, 0.12),
+            0 20px 60px rgba(0, 0, 0, 0.1),
+            inset 0 1px 0 rgba(255, 255, 255, 1),
+            inset 0 -1px 0 rgba(59, 130, 246, 0.1);
+        border-color: rgba(59, 130, 246, 0.4);
     }
 
     .game-card:hover::before {
+        opacity: 1;
+        width: 6px;
+    }
+
+    .game-card:hover::after {
         opacity: 1;
     }
 
@@ -162,19 +228,56 @@ st.markdown("""
         padding: 1.5rem 1.75rem;
     }
 
-    /* Player Card - PrizePicks Style */
+    /* Player Card - Premium Sports Platform Style */
     .player-card {
         background: white;
-        border: 2px solid #f3f4f6;
-        border-radius: 16px;
+        border: 2px solid #e5e7eb;
+        border-radius: 20px;
         overflow: hidden;
         margin: 1rem 0;
+        box-shadow:
+            0 4px 12px rgba(0, 0, 0, 0.08),
+            0 12px 40px rgba(0, 0, 0, 0.06),
+            inset 0 1px 0 rgba(255, 255, 255, 0.5);
+        position: relative;
     }
 
     .player-card-header {
-        background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-        padding: 2rem;
+        background: linear-gradient(135deg, #3b82f6 0%, #2563eb 50%, #1d4ed8 100%);
+        padding: 2.5rem 2rem;
         color: white;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .player-card-header::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background:
+            radial-gradient(circle at top right, rgba(255, 255, 255, 0.15) 0%, transparent 60%),
+            radial-gradient(circle at bottom left, rgba(139, 92, 246, 0.2) 0%, transparent 50%);
+        pointer-events: none;
+    }
+
+    .player-card-header::after {
+        content: '';
+        position: absolute;
+        bottom: -2px;
+        left: 0;
+        right: 0;
+        height: 4px;
+        background: linear-gradient(90deg, #3b82f6, #8b5cf6, #ec4899, #3b82f6);
+        background-size: 200% 100%;
+        animation: shimmer 3s linear infinite;
+    }
+
+    @keyframes shimmer {
+        0% { background-position: 200% 0; }
+        100% { background-position: -200% 0; }
     }
 
     /* Stat Pill */
@@ -202,32 +305,104 @@ st.markdown("""
         box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
     }
 
-    /* PropScore Badge - Clean Version */
+    /* PropScore Badge - Premium Circular Design */
     .propscore-badge {
         display: inline-flex;
         flex-direction: column;
         align-items: center;
-        padding: 1.5rem;
-        border-radius: 12px;
-        min-width: 120px;
+        justify-content: center;
+        padding: 2rem;
+        border-radius: 20px;
+        min-width: 140px;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .propscore-badge::before {
+        content: '';
+        position: absolute;
+        top: -50%;
+        left: -50%;
+        width: 200%;
+        height: 200%;
+        background: radial-gradient(circle, rgba(255, 255, 255, 0.2) 0%, transparent 70%);
+        animation: pulse-glow 3s ease-in-out infinite;
+    }
+
+    @keyframes pulse-glow {
+        0%, 100% { opacity: 0.5; transform: scale(1); }
+        50% { opacity: 1; transform: scale(1.1); }
     }
 
     .propscore-high {
-        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        background: linear-gradient(135deg, #10b981 0%, #059669 50%, #047857 100%);
         color: white;
-        box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+        box-shadow:
+            0 4px 12px rgba(16, 185, 129, 0.4),
+            0 8px 24px rgba(16, 185, 129, 0.3),
+            inset 0 1px 0 rgba(255, 255, 255, 0.3);
     }
 
     .propscore-medium {
-        background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+        background: linear-gradient(135deg, #f59e0b 0%, #d97706 50%, #b45309 100%);
         color: white;
-        box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+        box-shadow:
+            0 4px 12px rgba(245, 158, 11, 0.4),
+            0 8px 24px rgba(245, 158, 11, 0.3),
+            inset 0 1px 0 rgba(255, 255, 255, 0.3);
     }
 
     .propscore-low {
-        background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+        background: linear-gradient(135deg, #ef4444 0%, #dc2626 50%, #b91c1c 100%);
         color: white;
-        box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+        box-shadow:
+            0 4px 12px rgba(239, 68, 68, 0.4),
+            0 8px 24px rgba(239, 68, 68, 0.3),
+            inset 0 1px 0 rgba(255, 255, 255, 0.3);
+    }
+
+    /* Circular Progress Indicator */
+    .circular-progress {
+        position: relative;
+        width: 160px;
+        height: 160px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 1rem auto;
+    }
+
+    .circular-progress-ring {
+        transform: rotate(-90deg);
+        width: 160px;
+        height: 160px;
+    }
+
+    .circular-progress-ring circle {
+        fill: none;
+        stroke-width: 12;
+        stroke-linecap: round;
+        transition: stroke-dashoffset 1s ease;
+    }
+
+    .progress-bg {
+        stroke: rgba(0, 0, 0, 0.1);
+    }
+
+    .progress-fill-high {
+        stroke: url(#gradient-green);
+        filter: drop-shadow(0 0 8px rgba(16, 185, 129, 0.5));
+    }
+
+    .progress-fill-medium {
+        stroke: url(#gradient-orange);
+        filter: drop-shadow(0 0 8px rgba(245, 158, 11, 0.5));
+    }
+
+    .progress-fill-low {
+        stroke: url(#gradient-red);
+        filter: drop-shadow(0 0 8px rgba(239, 68, 68, 0.5));
     }
 
     /* Layered Hit Rate Cards */
@@ -543,6 +718,141 @@ st.markdown("""
         border-bottom: 2px solid #f3f4f6;
     }
 
+    /* Team Logo Styling */
+    .team-logo {
+        width: 60px;
+        height: 60px;
+        object-fit: contain;
+        filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.15));
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .team-logo:hover {
+        transform: scale(1.1) rotate(5deg);
+        filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.25));
+    }
+
+    .team-logo-large {
+        width: 100px;
+        height: 100px;
+        object-fit: contain;
+        filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.2));
+    }
+
+    .team-logo-watermark {
+        position: absolute;
+        width: 200px;
+        height: 200px;
+        opacity: 0.08;
+        right: -20px;
+        top: 50%;
+        transform: translateY(-50%) rotate(-15deg);
+        pointer-events: none;
+        z-index: 0;
+    }
+
+    /* VS Indicator - Modern Battle Style */
+    .vs-indicator {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 50px;
+        height: 50px;
+        background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+        border-radius: 50%;
+        color: white;
+        font-weight: 900;
+        font-size: 0.875rem;
+        box-shadow:
+            0 4px 12px rgba(99, 102, 241, 0.4),
+            0 8px 24px rgba(139, 92, 246, 0.3),
+            inset 0 1px 0 rgba(255, 255, 255, 0.3);
+        position: relative;
+        z-index: 2;
+    }
+
+    .vs-indicator::before {
+        content: '';
+        position: absolute;
+        top: -3px;
+        left: -3px;
+        right: -3px;
+        bottom: -3px;
+        background: linear-gradient(135deg, #6366f1, #8b5cf6, #ec4899);
+        border-radius: 50%;
+        z-index: -1;
+        animation: rotate-border 3s linear infinite;
+    }
+
+    @keyframes rotate-border {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+
+    /* Enhanced Player Headshot */
+    .player-headshot {
+        width: 120px;
+        height: 120px;
+        border-radius: 50%;
+        border: 4px solid rgba(255, 255, 255, 0.3);
+        background: rgba(255, 255, 255, 0.1);
+        object-fit: cover;
+        box-shadow:
+            0 4px 12px rgba(0, 0, 0, 0.2),
+            0 8px 24px rgba(0, 0, 0, 0.15),
+            inset 0 1px 0 rgba(255, 255, 255, 0.2);
+        transition: all 0.3s ease;
+    }
+
+    .player-headshot:hover {
+        transform: scale(1.05);
+        border-color: rgba(255, 255, 255, 0.5);
+        box-shadow:
+            0 6px 16px rgba(0, 0, 0, 0.25),
+            0 12px 32px rgba(0, 0, 0, 0.2);
+    }
+
+    /* Live Pulse Animation */
+    .live-pulse {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        background: #10b981;
+        border-radius: 50%;
+        margin-right: 0.5rem;
+        animation: pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+        0%, 100% {
+            box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+        }
+        50% {
+            box-shadow: 0 0 0 8px rgba(16, 185, 129, 0);
+        }
+    }
+
+    /* Enhanced Stat Cards with Glassmorphism */
+    .stat-card-premium {
+        background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.9) 100%);
+        backdrop-filter: blur(10px) saturate(180%);
+        border: 1px solid rgba(255, 255, 255, 0.5);
+        border-radius: 16px;
+        padding: 1.5rem;
+        box-shadow:
+            0 4px 12px rgba(0, 0, 0, 0.08),
+            0 12px 32px rgba(0, 0, 0, 0.06),
+            inset 0 1px 0 rgba(255, 255, 255, 0.8);
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .stat-card-premium:hover {
+        transform: translateY(-2px);
+        box-shadow:
+            0 6px 16px rgba(0, 0, 0, 0.1),
+            0 16px 40px rgba(0, 0, 0, 0.08);
+    }
+
     /* Subtle Animations */
     @keyframes fadeIn {
         from { opacity: 0; transform: translateY(10px); }
@@ -550,12 +860,32 @@ st.markdown("""
     }
 
     .fade-in {
-        animation: fadeIn 0.3s ease;
+        animation: fadeIn 0.5s ease;
+    }
+
+    @keyframes slideIn {
+        from { opacity: 0; transform: translateX(-20px); }
+        to { opacity: 1; transform: translateX(0); }
+    }
+
+    .slide-in {
+        animation: slideIn 0.4s ease;
+    }
+
+    /* Gradient Overlays for Charts */
+    .chart-container {
+        background: white;
+        border-radius: 16px;
+        padding: 1.5rem;
+        box-shadow:
+            0 2px 8px rgba(0, 0, 0, 0.04),
+            0 8px 24px rgba(0, 0, 0, 0.04);
+        border: 1px solid #f3f4f6;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# Team Data
+# Team Data with Enhanced Branding
 TEAM_COLORS = {
     'ATL': '#E03A3E', 'BOS': '#007A33', 'BKN': '#000000', 'CHA': '#1D1160',
     'CHI': '#CE1141', 'CLE': '#860038', 'DAL': '#00538C', 'DEN': '#0E2240',
@@ -565,6 +895,40 @@ TEAM_COLORS = {
     'OKC': '#007AC1', 'ORL': '#0077C0', 'PHI': '#006BB6', 'PHX': '#1D1160',
     'POR': '#E03A3E', 'SAC': '#5A2D81', 'SAS': '#C4CED4', 'TOR': '#CE1141',
     'UTA': '#002B5C', 'WAS': '#002B5C'
+}
+
+# Team Logo URLs - Using ESPN's CDN (reliable and high quality)
+TEAM_LOGOS = {
+    'ATL': 'https://a.espncdn.com/combiner/i?img=/i/teamlogos/nba/500/atl.png',
+    'BOS': 'https://a.espncdn.com/combiner/i?img=/i/teamlogos/nba/500/bos.png',
+    'BKN': 'https://a.espncdn.com/combiner/i?img=/i/teamlogos/nba/500/bkn.png',
+    'CHA': 'https://a.espncdn.com/combiner/i?img=/i/teamlogos/nba/500/cha.png',
+    'CHI': 'https://a.espncdn.com/combiner/i?img=/i/teamlogos/nba/500/chi.png',
+    'CLE': 'https://a.espncdn.com/combiner/i?img=/i/teamlogos/nba/500/cle.png',
+    'DAL': 'https://a.espncdn.com/combiner/i?img=/i/teamlogos/nba/500/dal.png',
+    'DEN': 'https://a.espncdn.com/combiner/i?img=/i/teamlogos/nba/500/den.png',
+    'DET': 'https://a.espncdn.com/combiner/i?img=/i/teamlogos/nba/500/det.png',
+    'GSW': 'https://a.espncdn.com/combiner/i?img=/i/teamlogos/nba/500/gs.png',
+    'HOU': 'https://a.espncdn.com/combiner/i?img=/i/teamlogos/nba/500/hou.png',
+    'IND': 'https://a.espncdn.com/combiner/i?img=/i/teamlogos/nba/500/ind.png',
+    'LAC': 'https://a.espncdn.com/combiner/i?img=/i/teamlogos/nba/500/lac.png',
+    'LAL': 'https://a.espncdn.com/combiner/i?img=/i/teamlogos/nba/500/lal.png',
+    'MEM': 'https://a.espncdn.com/combiner/i?img=/i/teamlogos/nba/500/mem.png',
+    'MIA': 'https://a.espncdn.com/combiner/i?img=/i/teamlogos/nba/500/mia.png',
+    'MIL': 'https://a.espncdn.com/combiner/i?img=/i/teamlogos/nba/500/mil.png',
+    'MIN': 'https://a.espncdn.com/combiner/i?img=/i/teamlogos/nba/500/min.png',
+    'NOP': 'https://a.espncdn.com/combiner/i?img=/i/teamlogos/nba/500/no.png',
+    'NYK': 'https://a.espncdn.com/combiner/i?img=/i/teamlogos/nba/500/ny.png',
+    'OKC': 'https://a.espncdn.com/combiner/i?img=/i/teamlogos/nba/500/okc.png',
+    'ORL': 'https://a.espncdn.com/combiner/i?img=/i/teamlogos/nba/500/orl.png',
+    'PHI': 'https://a.espncdn.com/combiner/i?img=/i/teamlogos/nba/500/phi.png',
+    'PHX': 'https://a.espncdn.com/combiner/i?img=/i/teamlogos/nba/500/phx.png',
+    'POR': 'https://a.espncdn.com/combiner/i?img=/i/teamlogos/nba/500/por.png',
+    'SAC': 'https://a.espncdn.com/combiner/i?img=/i/teamlogos/nba/500/sac.png',
+    'SAS': 'https://a.espncdn.com/combiner/i?img=/i/teamlogos/nba/500/sa.png',
+    'TOR': 'https://a.espncdn.com/combiner/i?img=/i/teamlogos/nba/500/tor.png',
+    'UTA': 'https://a.espncdn.com/combiner/i?img=/i/teamlogos/nba/500/utah.png',
+    'WAS': 'https://a.espncdn.com/combiner/i?img=/i/teamlogos/nba/500/wsh.png'
 }
 
 TEAM_NAMES = {
@@ -797,57 +1161,90 @@ def get_matchup_difficulty(opponent_team, player_pos):
         return 'hard', f"#{def_rank} vs {player_pos}", 'difficulty-hard'
 
 def create_clean_chart(games, line, stat_name):
-    """Create clean, modern chart"""
+    """Create stunning, professional chart with enhanced visuals"""
     fig = go.Figure()
 
-    colors = ['#3b82f6' if g['value'] > line else '#94a3b8' for g in games[:10]]
+    # Enhanced colors with gradient effect
+    colors = []
+    for g in games[:10]:
+        if g['value'] > line:
+            # Green gradient for hits
+            colors.append('rgba(16, 185, 129, 0.9)')
+        else:
+            # Gray for misses
+            colors.append('rgba(148, 163, 184, 0.6)')
 
     fig.add_trace(go.Bar(
         x=[g['date'] for g in games[:10]],
         y=[g['value'] for g in games[:10]],
         marker=dict(
             color=colors,
-            line=dict(color='white', width=2),
+            line=dict(color='white', width=3),
+            cornerradius=6
         ),
         text=[g['value'] for g in games[:10]],
         textposition='outside',
-        textfont=dict(color='#374151', size=12, family='Inter', weight='bold'),
-        hovertemplate='<b>%{x}</b><br>%{y}<extra></extra>'
+        textfont=dict(color='#111827', size=13, family='Inter', weight='bold'),
+        hovertemplate='<b>%{x}</b><br><b style="font-size:16px;">%{y}</b><br><extra></extra>',
+        hoverlabel=dict(
+            bgcolor='white',
+            bordercolor='#e5e7eb',
+            font=dict(color='#111827', family='Inter', size=14)
+        )
     ))
 
+    # Enhanced line annotation
     fig.add_hline(
         y=line,
         line_dash="dash",
         line_color="#ef4444",
-        line_width=3,
-        annotation_text=f"Line: {line}",
+        line_width=4,
+        annotation_text=f"🎯 Line: {line}",
         annotation_position="right",
-        annotation_font=dict(color="#ef4444", size=12, family='Inter', weight='bold')
+        annotation_font=dict(
+            color="#ef4444",
+            size=13,
+            family='Inter',
+            weight='bold'
+        ),
+        annotation_bgcolor='rgba(255, 255, 255, 0.9)',
+        annotation_bordercolor='#ef4444',
+        annotation_borderwidth=2,
+        annotation_borderpad=8
     )
 
     fig.update_layout(
-        plot_bgcolor='#f9fafb',
-        paper_bgcolor='white',
+        plot_bgcolor='rgba(249, 250, 251, 0.5)',
+        paper_bgcolor='transparent',
         font=dict(color='#6b7280', family='Inter'),
-        height=280,
-        margin=dict(l=20, r=20, t=20, b=40),
+        height=300,
+        margin=dict(l=20, r=20, t=30, b=40),
         xaxis=dict(
             showgrid=False,
             showline=True,
             linecolor='#e5e7eb',
+            linewidth=2,
             zeroline=False,
-            color='#6b7280'
+            color='#374151',
+            tickfont=dict(size=11, weight='bold')
         ),
         yaxis=dict(
             showgrid=True,
-            gridcolor='#e5e7eb',
+            gridcolor='rgba(229, 231, 235, 0.5)',
+            gridwidth=1,
             showline=True,
             linecolor='#e5e7eb',
+            linewidth=2,
             zeroline=False,
             title="",
-            color='#6b7280'
+            color='#374151',
+            tickfont=dict(size=11, weight='bold')
         ),
-        hovermode='x unified'
+        hovermode='x unified',
+        hoverlabel=dict(
+            bgcolor='white',
+            bordercolor='#e5e7eb'
+        )
     )
 
     return fig
@@ -877,7 +1274,7 @@ st.markdown(f"""
             </div>
         </div>
         <div style="display: flex; gap: 1rem; align-items: center;">
-            <span class="tag tag-live">● LIVE</span>
+            <span class="tag tag-live"><span class="live-pulse"></span>LIVE</span>
             <div style="text-align: right;">
                 <div style="font-size: 0.7rem; color: #9ca3af; font-weight: 600; text-transform: uppercase;">Today</div>
                 <div style="color: #111827; font-size: 0.9rem; font-weight: 700;">{current_date}</div>
@@ -912,6 +1309,8 @@ if st.session_state.view == 'slate':
     for idx, game in enumerate(games):
         away_color = TEAM_COLORS.get(game['away_team'], '#666')
         home_color = TEAM_COLORS.get(game['home_team'], '#666')
+        away_logo = TEAM_LOGOS.get(game['away_team'], '')
+        home_logo = TEAM_LOGOS.get(game['home_team'], '')
 
         with cols[idx % 2]:
             # Safe stat access with defaults
@@ -921,7 +1320,7 @@ if st.session_state.view == 'slate':
             home_pace = game.get('home_stats', {}).get('pace', 'N/A')
 
             st.markdown(f"""
-            <div class="game-card fade-in">
+            <div class="game-card fade-in" style="animation-delay: {idx * 0.05}s;">
                 <div class="game-card-header">
                     <div style="display: flex; justify-content: space-between; align-items: center;">
                         <span class="tag tag-upcoming">{game['time']}</span>
@@ -934,41 +1333,43 @@ if st.session_state.view == 'slate':
                     </div>
                 </div>
                 <div class="game-card-body">
-                    <div style="display: grid; gap: 1rem;">
-                        <div style="display: flex; align-items: center; justify-content: space-between; gap: 1rem;">
-                            <div style="display: flex; align-items: center; gap: 0.75rem; flex: 1;">
-                                <div style="width: 14px; height: 14px; background: {away_color}; border-radius: 4px; box-shadow: 0 2px 4px {away_color}40;"></div>
-                                <div>
-                                    <div style="font-weight: 800; font-size: 1.25rem; color: #111827; letter-spacing: -0.5px;">{game['away_team']}</div>
-                                    <div style="font-size: 0.75rem; color: #6b7280; font-weight: 500;">{TEAM_NAMES.get(game['away_team'], game['away_team'])}</div>
-                                </div>
+                    <div style="display: flex; align-items: center; justify-content: space-between; gap: 1.5rem; position: relative;">
+                        <!-- Away Team -->
+                        <div style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 0.75rem;">
+                            <img src="{away_logo}" class="team-logo" alt="{game['away_team']}" onerror="this.style.display='none'">
+                            <div style="text-align: center;">
+                                <div style="font-weight: 800; font-size: 1.125rem; color: #111827; letter-spacing: -0.5px;">{game['away_team']}</div>
+                                <div style="font-size: 0.7rem; color: #6b7280; font-weight: 600;">{TEAM_NAMES.get(game['away_team'], game['away_team'])}</div>
                             </div>
-                            <div style="display: flex; gap: 0.75rem;">
-                                <div style="text-align: right;">
-                                    <div style="font-size: 0.65rem; color: #6b7280;">PPG</div>
+                            <div style="display: flex; gap: 1rem; margin-top: 0.5rem;">
+                                <div style="text-align: center;">
+                                    <div style="font-size: 0.65rem; color: #6b7280; font-weight: 600;">PPG</div>
                                     <div style="font-size: 0.95rem; font-weight: 700; color: #111827;">{away_ppg}</div>
                                 </div>
-                                <div style="text-align: right;">
-                                    <div style="font-size: 0.65rem; color: #6b7280;">PACE</div>
+                                <div style="text-align: center;">
+                                    <div style="font-size: 0.65rem; color: #6b7280; font-weight: 600;">PACE</div>
                                     <div style="font-size: 0.95rem; font-weight: 700; color: #111827;">{away_pace}</div>
                                 </div>
                             </div>
                         </div>
-                        <div style="display: flex; align-items: center; justify-content: space-between; gap: 1rem;">
-                            <div style="display: flex; align-items: center; gap: 0.75rem; flex: 1;">
-                                <div style="width: 14px; height: 14px; background: {home_color}; border-radius: 4px; box-shadow: 0 2px 4px {home_color}40;"></div>
-                                <div>
-                                    <div style="font-weight: 800; font-size: 1.25rem; color: #111827; letter-spacing: -0.5px;">{game['home_team']}</div>
-                                    <div style="font-size: 0.75rem; color: #6b7280; font-weight: 500;">{TEAM_NAMES.get(game['home_team'], game['home_team'])}</div>
-                                </div>
+
+                        <!-- VS Indicator -->
+                        <div class="vs-indicator">VS</div>
+
+                        <!-- Home Team -->
+                        <div style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 0.75rem;">
+                            <img src="{home_logo}" class="team-logo" alt="{game['home_team']}" onerror="this.style.display='none'">
+                            <div style="text-align: center;">
+                                <div style="font-weight: 800; font-size: 1.125rem; color: #111827; letter-spacing: -0.5px;">{game['home_team']}</div>
+                                <div style="font-size: 0.7rem; color: #6b7280; font-weight: 600;">{TEAM_NAMES.get(game['home_team'], game['home_team'])}</div>
                             </div>
-                            <div style="display: flex; gap: 0.75rem;">
-                                <div style="text-align: right;">
-                                    <div style="font-size: 0.65rem; color: #6b7280;">PPG</div>
+                            <div style="display: flex; gap: 1rem; margin-top: 0.5rem;">
+                                <div style="text-align: center;">
+                                    <div style="font-size: 0.65rem; color: #6b7280; font-weight: 600;">PPG</div>
                                     <div style="font-size: 0.95rem; font-weight: 700; color: #111827;">{home_ppg}</div>
                                 </div>
-                                <div style="text-align: right;">
-                                    <div style="font-size: 0.65rem; color: #6b7280;">PACE</div>
+                                <div style="text-align: center;">
+                                    <div style="font-size: 0.65rem; color: #6b7280; font-weight: 600;">PACE</div>
                                     <div style="font-size: 0.95rem; font-weight: 700; color: #111827;">{home_pace}</div>
                                 </div>
                             </div>
@@ -1026,41 +1427,46 @@ elif st.session_state.view == 'matchup':
     away_def_rank = away_stats.get('def_rank', 15)
 
     with col1:
+        away_logo = TEAM_LOGOS.get(game['away_team'], '')
         st.markdown(f"""
-        <div class="prop-card">
-            <div class="prop-card-header">
-                <div style="display: flex; align-items: center; gap: 0.75rem;">
-                    <div style="width: 16px; height: 16px; background: {TEAM_COLORS.get(game['away_team'], '#666')}; border-radius: 4px;"></div>
-                    <h3 style="font-size: 1.25rem; font-weight: 700; color: #111827; margin: 0;">
-                        {game['away_team']} {TEAM_NAMES.get(game['away_team'], game['away_team'])}
-                    </h3>
+        <div class="prop-card slide-in">
+            <div class="prop-card-header" style="position: relative; overflow: hidden;">
+                <img src="{away_logo}" class="team-logo-watermark" alt="{game['away_team']}" onerror="this.style.display='none'">
+                <div style="display: flex; align-items: center; gap: 1rem; position: relative; z-index: 1;">
+                    <img src="{away_logo}" style="width: 48px; height: 48px; object-fit: contain;" alt="{game['away_team']}" onerror="this.style.display='none'">
+                    <div>
+                        <h3 style="font-size: 1.25rem; font-weight: 800; color: #111827; margin: 0; letter-spacing: -0.5px;">
+                            {game['away_team']}
+                        </h3>
+                        <div style="font-size: 0.875rem; color: #6b7280; font-weight: 600;">{TEAM_NAMES.get(game['away_team'], game['away_team'])}</div>
+                    </div>
                 </div>
             </div>
             <div class="prop-card-body">
                 <div style="display: grid; gap: 0.75rem;">
                     <div class="data-row">
-                        <span style="color: #6b7280; font-weight: 500;">PPG</span>
+                        <span style="color: #6b7280; font-weight: 600;">PPG</span>
                         <div class="progress-bar">
                             <div class="progress-fill" style="width: {away_ppg/1.3}%"></div>
                         </div>
-                        <span style="font-weight: 700; color: #111827;">{away_ppg}</span>
+                        <span style="font-weight: 800; color: #111827;">{away_ppg}</span>
                     </div>
                     <div class="data-row">
-                        <span style="color: #6b7280; font-weight: 500;">Pace</span>
+                        <span style="color: #6b7280; font-weight: 600;">Pace</span>
                         <div class="progress-bar">
                             <div class="progress-fill" style="width: {away_pace}%"></div>
                         </div>
-                        <span style="font-weight: 700; color: #111827;">{away_pace}</span>
+                        <span style="font-weight: 800; color: #111827;">{away_pace}</span>
                     </div>
                     <div class="data-row">
-                        <span style="color: #6b7280; font-weight: 500;">Off Rank</span>
+                        <span style="color: #6b7280; font-weight: 600;">Off Rank</span>
                         <span></span>
-                        <span style="font-weight: 700; color: #10b981;">#{away_off_rank}</span>
+                        <span style="font-weight: 800; color: #10b981;">#{away_off_rank}</span>
                     </div>
                     <div class="data-row">
-                        <span style="color: #6b7280; font-weight: 500;">Def Rank</span>
+                        <span style="color: #6b7280; font-weight: 600;">Def Rank</span>
                         <span></span>
-                        <span style="font-weight: 700; color: #ef4444;">#{away_def_rank}</span>
+                        <span style="font-weight: 800; color: #ef4444;">#{away_def_rank}</span>
                     </div>
                 </div>
             </div>
@@ -1073,41 +1479,46 @@ elif st.session_state.view == 'matchup':
     home_def_rank = home_stats.get('def_rank', 15)
 
     with col2:
+        home_logo = TEAM_LOGOS.get(game['home_team'], '')
         st.markdown(f"""
-        <div class="prop-card">
-            <div class="prop-card-header">
-                <div style="display: flex; align-items: center; gap: 0.75rem;">
-                    <div style="width: 16px; height: 16px; background: {TEAM_COLORS.get(game['home_team'], '#666')}; border-radius: 4px;"></div>
-                    <h3 style="font-size: 1.25rem; font-weight: 700; color: #111827; margin: 0;">
-                        {game['home_team']} {TEAM_NAMES.get(game['home_team'], game['home_team'])}
-                    </h3>
+        <div class="prop-card slide-in" style="animation-delay: 0.1s;">
+            <div class="prop-card-header" style="position: relative; overflow: hidden;">
+                <img src="{home_logo}" class="team-logo-watermark" alt="{game['home_team']}" onerror="this.style.display='none'">
+                <div style="display: flex; align-items: center; gap: 1rem; position: relative; z-index: 1;">
+                    <img src="{home_logo}" style="width: 48px; height: 48px; object-fit: contain;" alt="{game['home_team']}" onerror="this.style.display='none'">
+                    <div>
+                        <h3 style="font-size: 1.25rem; font-weight: 800; color: #111827; margin: 0; letter-spacing: -0.5px;">
+                            {game['home_team']}
+                        </h3>
+                        <div style="font-size: 0.875rem; color: #6b7280; font-weight: 600;">{TEAM_NAMES.get(game['home_team'], game['home_team'])}</div>
+                    </div>
                 </div>
             </div>
             <div class="prop-card-body">
                 <div style="display: grid; gap: 0.75rem;">
                     <div class="data-row">
-                        <span style="color: #6b7280; font-weight: 500;">PPG</span>
+                        <span style="color: #6b7280; font-weight: 600;">PPG</span>
                         <div class="progress-bar">
                             <div class="progress-fill" style="width: {home_ppg/1.3}%"></div>
                         </div>
-                        <span style="font-weight: 700; color: #111827;">{home_ppg}</span>
+                        <span style="font-weight: 800; color: #111827;">{home_ppg}</span>
                     </div>
                     <div class="data-row">
-                        <span style="color: #6b7280; font-weight: 500;">Pace</span>
+                        <span style="color: #6b7280; font-weight: 600;">Pace</span>
                         <div class="progress-bar">
                             <div class="progress-fill" style="width: {home_pace}%"></div>
                         </div>
-                        <span style="font-weight: 700; color: #111827;">{home_pace}</span>
+                        <span style="font-weight: 800; color: #111827;">{home_pace}</span>
                     </div>
                     <div class="data-row">
-                        <span style="color: #6b7280; font-weight: 500;">Off Rank</span>
+                        <span style="color: #6b7280; font-weight: 600;">Off Rank</span>
                         <span></span>
-                        <span style="font-weight: 700; color: #10b981;">#{home_off_rank}</span>
+                        <span style="font-weight: 800; color: #10b981;">#{home_off_rank}</span>
                     </div>
                     <div class="data-row">
-                        <span style="color: #6b7280; font-weight: 500;">Def Rank</span>
+                        <span style="color: #6b7280; font-weight: 600;">Def Rank</span>
                         <span></span>
-                        <span style="font-weight: 700; color: #ef4444;">#{home_def_rank}</span>
+                        <span style="font-weight: 800; color: #ef4444;">#{home_def_rank}</span>
                     </div>
                 </div>
             </div>
@@ -1164,28 +1575,42 @@ elif st.session_state.view == 'player':
 
     difficulty, difficulty_text, difficulty_class = get_matchup_difficulty(opponent_team, player['pos'])
     team_color = TEAM_COLORS.get(player_team, '#666')
+    team_logo = TEAM_LOGOS.get(player_team, '')
+    opponent_logo = TEAM_LOGOS.get(opponent_team, '')
     headshot_url = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{player['id']}.png"
 
-    # Player Card Header
+    # Player Card Header with Enhanced Design
     st.markdown(f"""
     <div class="player-card fade-in">
         <div class="player-card-header">
-            <div style="display: flex; justify-content: space-between; align-items: start;">
-                <div style="display: flex; gap: 1.5rem; align-items: center;">
-                    <img src="{headshot_url}"
-                         style="width: 80px; height: 80px; border-radius: 50%; border: 3px solid white; background: rgba(255,255,255,0.1);"
-                         onerror="this.style.display='none'">
+            <!-- Team Logo Watermark -->
+            <img src="{team_logo}" style="position: absolute; width: 300px; height: 300px; opacity: 0.1; right: -50px; top: 50%; transform: translateY(-50%) rotate(-15deg); pointer-events: none; z-index: 0;" alt="{player_team}" onerror="this.style.display='none'">
+
+            <div style="display: flex; justify-content: space-between; align-items: start; position: relative; z-index: 1;">
+                <div style="display: flex; gap: 2rem; align-items: center;">
+                    <!-- Enhanced Player Headshot -->
+                    <img src="{headshot_url}" class="player-headshot" alt="{player['name']}" onerror="this.style.display='none'">
+
                     <div>
-                        <h1 style="font-size: 2rem; font-weight: 800; margin: 0 0 0.5rem 0; color: white;">{player['name']}</h1>
-                        <div style="display: flex; gap: 0.75rem; align-items: center;">
-                            <span class="team-badge" style="background: rgba(255,255,255,0.2); color: white;">
+                        <h1 style="font-size: 2.25rem; font-weight: 900; margin: 0 0 0.75rem 0; color: white; letter-spacing: -1px; text-shadow: 0 2px 8px rgba(0,0,0,0.2);">
+                            {player['name']}
+                        </h1>
+                        <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+                            <span class="team-badge" style="background: rgba(255,255,255,0.25); color: white; padding: 0.5rem 1rem; backdrop-filter: blur(10px);">
                                 {player_team} • {player['pos']} • #{player.get('number', '0')}
                             </span>
-                            <span class="team-badge" style="background: rgba(255,255,255,0.15); color: white;">
+                            <span class="team-badge" style="background: rgba(255,255,255,0.15); color: white; padding: 0.5rem 1rem; backdrop-filter: blur(10px);">
                                 vs {opponent_team}
                             </span>
                         </div>
                     </div>
+                </div>
+
+                <!-- Matchup Logos -->
+                <div style="display: flex; align-items: center; gap: 0.75rem; opacity: 0.9;">
+                    <img src="{team_logo}" style="width: 40px; height: 40px; object-fit: contain; filter: brightness(0) invert(1) drop-shadow(0 2px 4px rgba(0,0,0,0.2));" alt="{player_team}" onerror="this.style.display='none'">
+                    <span style="color: rgba(255,255,255,0.6); font-weight: 700; font-size: 0.875rem;">@</span>
+                    <img src="{opponent_logo}" style="width: 40px; height: 40px; object-fit: contain; filter: brightness(0) invert(1) drop-shadow(0 2px 4px rgba(0,0,0,0.2));" alt="{opponent_team}" onerror="this.style.display='none'">
                 </div>
             </div>
         </div>
@@ -1249,12 +1674,48 @@ elif st.session_state.view == 'player':
     col_left, col_right = st.columns([1, 2], gap="large")
 
     with col_left:
-        # PropScore Badge
+        # Circular PropScore Indicator
+        circumference = 2 * 3.14159 * 70  # radius = 70
+        progress_offset = circumference - (propscore / 100) * circumference
+        progress_class = 'progress-fill-high' if propscore >= 65 else 'progress-fill-medium' if propscore >= 40 else 'progress-fill-low'
+
         st.markdown(f"""
-        <div class="propscore-badge {propscore_class}" style="width: 100%; margin-bottom: 1.5rem;">
-            <div style="font-size: 0.75rem; font-weight: 600; opacity: 0.9; margin-bottom: 0.5rem;">PROPSCORE</div>
-            <div style="font-size: 3.5rem; font-weight: 900; line-height: 1;">{propscore}</div>
-            <div style="font-size: 0.75rem; font-weight: 600; opacity: 0.9; margin-top: 0.5rem;">{propscore_label}</div>
+        <!-- SVG Gradients Definition -->
+        <svg width="0" height="0" style="position: absolute;">
+            <defs>
+                <linearGradient id="gradient-green" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" style="stop-color:#10b981;stop-opacity:1" />
+                    <stop offset="100%" style="stop-color:#059669;stop-opacity:1" />
+                </linearGradient>
+                <linearGradient id="gradient-orange" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" style="stop-color:#f59e0b;stop-opacity:1" />
+                    <stop offset="100%" style="stop-color:#d97706;stop-opacity:1" />
+                </linearGradient>
+                <linearGradient id="gradient-red" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" style="stop-color:#ef4444;stop-opacity:1" />
+                    <stop offset="100%" style="stop-color:#dc2626;stop-opacity:1" />
+                </linearGradient>
+            </defs>
+        </svg>
+
+        <div class="propscore-badge {propscore_class}" style="width: 100%; margin-bottom: 1.5rem; padding: 2rem 1rem;">
+            <div style="font-size: 0.75rem; font-weight: 700; opacity: 0.9; margin-bottom: 1rem; letter-spacing: 1px;">PROPSCORE</div>
+
+            <!-- Circular Progress -->
+            <div class="circular-progress">
+                <svg class="circular-progress-ring">
+                    <circle class="progress-bg" cx="80" cy="80" r="70" />
+                    <circle class="{progress_class}" cx="80" cy="80" r="70"
+                            stroke-dasharray="{circumference}"
+                            stroke-dashoffset="{progress_offset}" />
+                </svg>
+                <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center;">
+                    <div style="font-size: 3.5rem; font-weight: 900; line-height: 1; color: white; text-shadow: 0 2px 8px rgba(0,0,0,0.2);">{propscore}</div>
+                    <div style="font-size: 0.75rem; font-weight: 600; opacity: 0.8; margin-top: 0.25rem;">/ 100</div>
+                </div>
+            </div>
+
+            <div style="font-size: 0.8rem; font-weight: 700; opacity: 0.9; margin-top: 1rem; letter-spacing: 0.5px;">{propscore_label}</div>
         </div>
         """, unsafe_allow_html=True)
 
@@ -1298,8 +1759,10 @@ elif st.session_state.view == 'player':
     with col_right:
         st.markdown("<div class='section-header'>Performance Timeline</div>", unsafe_allow_html=True)
 
+        st.markdown("<div class='chart-container'>", unsafe_allow_html=True)
         chart = create_clean_chart(game_log, line, selected_stat.upper())
-        st.plotly_chart(chart, use_container_width=True)
+        st.plotly_chart(chart, use_container_width=True, config={'displayModeBar': False})
+        st.markdown("</div>", unsafe_allow_html=True)
 
         # Stats Grid
         col1, col2, col3 = st.columns(3)
