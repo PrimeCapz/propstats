@@ -100,12 +100,22 @@ def get_team_abbreviation(team_id):
 def get_team_stats():
     """Fetch current season team statistics"""
     try:
-        # Get team stats
-        team_stats = leaguedashteamstats.LeagueDashTeamStats(
+        # Get basic team stats (PPG)
+        team_stats_basic = leaguedashteamstats.LeagueDashTeamStats(
             season='2024-25',
             per_mode_detailed='PerGame'
         )
-        df = team_stats.get_data_frames()[0]
+        df_basic = team_stats_basic.get_data_frames()[0]
+
+        # Get advanced stats (PACE, OFF_RATING, DEF_RATING)
+        team_stats_advanced = leaguedashteamstats.LeagueDashTeamStats(
+            season='2024-25',
+            measure_type_detailed_defense='Advanced'
+        )
+        df_advanced = team_stats_advanced.get_data_frames()[0]
+
+        # Merge dataframes on TEAM_ID
+        df = pd.merge(df_basic, df_advanced, on='TEAM_ID', suffixes=('', '_adv'))
 
         # Calculate ranks
         df['OFF_RANK'] = df['OFF_RATING'].rank(ascending=False).astype(int)
