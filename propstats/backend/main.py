@@ -152,7 +152,7 @@ def fetch_player_games(player_id: str) -> int:
                 else:
                     try:
                         mins = float(min_str)
-                    except:
+                    except (ValueError, TypeError):
                         mins = 0
             
             c.execute("""
@@ -209,7 +209,7 @@ def needs_refresh(player_id: str) -> bool:
         fetched = datetime.strptime(row[0], "%Y-%m-%d %H:%M:%S")
         age_hours = (datetime.now() - fetched).total_seconds() / 3600
         return age_hours > REFRESH_HOURS
-    except:
+    except (ValueError, TypeError, AttributeError):
         return True
 
 @app.get("/")
