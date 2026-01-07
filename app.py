@@ -1,6 +1,6 @@
 """
-🏀 NBA Props Research Tool - PropFinder Edition
-Three-tier navigation with premium PropFinder-style modular cards
+🏀 NBA Props Research Tool - Mission Control Edition
+Futuristic interactive interface with advanced glassmorphism and HUD elements
 """
 
 import streamlit as st
@@ -12,187 +12,504 @@ import statistics
 
 # Page Configuration
 st.set_page_config(
-    page_title="PropStats Pro",
+    page_title="PropStats Mission Control",
     page_icon="🏀",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
 
-# Premium CSS - PropFinder Style
+# FUTURISTIC CSS - Mission Control Style
 st.markdown("""
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Inter:wght@300;400;600;700;900&display=swap');
 
-    * { font-family: 'Inter', sans-serif; }
+    * {
+        font-family: 'Inter', sans-serif;
+        margin: 0;
+        padding: 0;
+    }
 
-    /* Background */
-    .stApp { background-color: #0E1117; }
+    /* Dark Mode 2.0 - Near Black Background */
+    .stApp {
+        background: #050505;
+        background-image:
+            radial-gradient(at 20% 30%, rgba(0, 255, 163, 0.03) 0px, transparent 50%),
+            radial-gradient(at 80% 70%, rgba(138, 43, 226, 0.03) 0px, transparent 50%),
+            radial-gradient(at 50% 50%, rgba(0, 119, 255, 0.02) 0px, transparent 50%);
+        background-attachment: fixed;
+    }
 
     #MainMenu, footer, header { visibility: hidden; }
 
-    /* Main Header */
+    /* Animated Holographic Header */
     .main-header {
-        background: linear-gradient(135deg, #1A1C24 0%, #0E1117 100%);
-        backdrop-filter: blur(20px);
-        -webkit-backdrop-filter: blur(20px);
-        border-bottom: 2px solid #00FFA3;
-        padding: 1.2rem 0;
-        margin-bottom: 2rem;
+        background: linear-gradient(135deg, rgba(10, 10, 15, 0.95) 0%, rgba(5, 5, 5, 0.98) 100%);
+        backdrop-filter: blur(40px) saturate(180%);
+        -webkit-backdrop-filter: blur(40px) saturate(180%);
+        border-bottom: 1px solid transparent;
+        border-image: linear-gradient(90deg,
+            transparent 0%,
+            rgba(0, 255, 163, 0.5) 20%,
+            rgba(138, 43, 226, 0.5) 50%,
+            rgba(0, 119, 255, 0.5) 80%,
+            transparent 100%) 1;
+        padding: 1.5rem 0;
+        margin-bottom: 3rem;
         position: sticky;
         top: 0;
         z-index: 999;
-        box-shadow: 0 4px 20px rgba(0, 255, 163, 0.1);
+        box-shadow:
+            0 4px 30px rgba(0, 255, 163, 0.15),
+            0 8px 60px rgba(138, 43, 226, 0.1),
+            inset 0 1px 0 rgba(255, 255, 255, 0.1);
+        animation: headerGlow 4s ease-in-out infinite;
     }
 
-    /* Glassmorphism Cards */
-    .glass-card {
-        background: rgba(26, 28, 36, 0.7);
-        backdrop-filter: blur(20px);
-        -webkit-backdrop-filter: blur(20px);
+    @keyframes headerGlow {
+        0%, 100% { box-shadow: 0 4px 30px rgba(0, 255, 163, 0.15), 0 8px 60px rgba(138, 43, 226, 0.1); }
+        50% { box-shadow: 0 4px 40px rgba(0, 255, 163, 0.25), 0 8px 80px rgba(138, 43, 226, 0.2); }
+    }
+
+    /* Kinetic Typography */
+    .kinetic-title {
+        font-family: 'Orbitron', sans-serif;
+        font-weight: 900;
+        background: linear-gradient(135deg, #00FFA3 0%, #00D4FF 50%, #8A2BE2 100%);
+        background-size: 200% 200%;
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        animation: gradientShift 6s ease infinite, textPulse 2s ease-in-out infinite;
+        filter: drop-shadow(0 0 20px rgba(0, 255, 163, 0.4));
+    }
+
+    @keyframes gradientShift {
+        0%, 100% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+    }
+
+    @keyframes textPulse {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.02); }
+    }
+
+    /* Liquid Glass Cards with Shimmer */
+    .liquid-glass {
+        background: linear-gradient(135deg,
+            rgba(26, 28, 36, 0.4) 0%,
+            rgba(15, 15, 20, 0.6) 100%);
+        backdrop-filter: blur(40px) saturate(150%);
+        -webkit-backdrop-filter: blur(40px) saturate(150%);
         border: 1px solid rgba(255, 255, 255, 0.1);
-        border-radius: 16px;
+        border-radius: 20px;
         padding: 2rem;
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-        transition: all 0.3s ease;
-    }
-
-    .glass-card:hover {
-        border-color: rgba(0, 255, 163, 0.3);
-        box-shadow: 0 8px 32px rgba(0, 255, 163, 0.1);
-    }
-
-    /* Premium Card Container */
-    .premium-card {
-        background: #1A1C24;
-        border: 1px solid #333;
-        border-radius: 16px;
+        box-shadow:
+            0 8px 32px rgba(0, 0, 0, 0.6),
+            inset 0 1px 0 rgba(255, 255, 255, 0.1),
+            0 0 40px rgba(0, 255, 163, 0.05);
+        position: relative;
         overflow: hidden;
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+        transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
-    /* PropScore Badge with Neon Glow */
-    .propscore-high {
-        background: linear-gradient(135deg, #00FFA3, #00CC82);
-        color: #000;
-        box-shadow: 0 0 25px rgba(0, 255, 163, 0.6), 0 0 50px rgba(0, 255, 163, 0.3);
+    .liquid-glass::before {
+        content: '';
+        position: absolute;
+        top: -50%;
+        left: -50%;
+        width: 200%;
+        height: 200%;
+        background: linear-gradient(
+            45deg,
+            transparent 0%,
+            rgba(0, 255, 163, 0.1) 25%,
+            transparent 50%
+        );
+        animation: shimmer 6s linear infinite;
+        pointer-events: none;
     }
 
-    .propscore-medium {
-        background: linear-gradient(135deg, #FFC107, #FF9800);
-        color: #000;
-        box-shadow: 0 0 25px rgba(255, 193, 7, 0.6), 0 0 50px rgba(255, 193, 7, 0.3);
+    @keyframes shimmer {
+        0% { transform: translate(-100%, -100%) rotate(45deg); }
+        100% { transform: translate(100%, 100%) rotate(45deg); }
     }
 
-    .propscore-low {
-        background: linear-gradient(135deg, #EF4444, #DC2626);
-        color: white;
-        box-shadow: 0 0 25px rgba(239, 68, 68, 0.6), 0 0 50px rgba(239, 68, 68, 0.3);
+    .liquid-glass:hover {
+        transform: translateY(-8px) scale(1.02);
+        border-color: rgba(0, 255, 163, 0.4);
+        box-shadow:
+            0 16px 64px rgba(0, 255, 163, 0.2),
+            inset 0 1px 0 rgba(255, 255, 255, 0.2),
+            0 0 80px rgba(0, 255, 163, 0.15);
     }
 
-    /* Heat Map Colors */
-    .heat-high {
-        background: linear-gradient(135deg, #00FFA3, #00CC82);
-        color: #000;
-        box-shadow: 0 0 15px rgba(0, 255, 163, 0.3);
+    /* HUD-Style Elements */
+    .hud-frame {
+        background: rgba(5, 5, 5, 0.8);
+        border: 2px solid;
+        border-image: linear-gradient(135deg,
+            rgba(0, 255, 163, 0.6) 0%,
+            rgba(0, 119, 255, 0.6) 50%,
+            rgba(138, 43, 226, 0.6) 100%) 1;
+        border-radius: 16px;
+        padding: 1.5rem;
+        position: relative;
+        overflow: hidden;
+        box-shadow:
+            0 0 30px rgba(0, 255, 163, 0.2),
+            inset 0 0 30px rgba(0, 255, 163, 0.05);
     }
 
-    .heat-medium {
-        background: linear-gradient(135deg, #FFC107, #FF9800);
-        color: #000;
-        box-shadow: 0 0 15px rgba(255, 193, 7, 0.3);
+    .hud-frame::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(90deg, transparent, rgba(0, 255, 163, 0.3), transparent);
+        animation: scan 3s linear infinite;
     }
 
-    .heat-low {
-        background: linear-gradient(135deg, #EF4444, #DC2626);
-        color: white;
-        box-shadow: 0 0 15px rgba(239, 68, 68, 0.3);
+    @keyframes scan {
+        0% { left: -100%; }
+        100% { left: 100%; }
     }
 
-    /* Stat Tabs */
-    .stat-tab {
-        display: inline-block;
-        padding: 0.6rem 1.5rem;
-        margin: 0.25rem;
-        border-radius: 8px;
-        font-weight: 700;
-        font-size: 0.85rem;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        cursor: pointer;
-        transition: all 0.2s;
-        background: rgba(55, 65, 81, 0.5);
-        color: #9CA3AF;
-        border: 1px solid transparent;
-    }
-
-    .stat-tab-active {
-        background: linear-gradient(135deg, #00FFA3, #00CC82);
-        color: #000;
-        border: 1px solid #00FFA3;
-        box-shadow: 0 0 15px rgba(0, 255, 163, 0.4);
-    }
-
-    /* Buttons */
-    .stButton button {
-        background: linear-gradient(135deg, rgba(0, 255, 163, 0.1), rgba(0, 255, 163, 0.05));
-        color: #00FFA3;
-        border: 2px solid #00FFA3;
+    /* Holographic Stats Badge */
+    .holo-badge {
+        position: relative;
+        background: linear-gradient(135deg, rgba(0, 255, 163, 0.2), rgba(0, 119, 255, 0.2));
+        border: 1px solid rgba(0, 255, 163, 0.4);
         border-radius: 12px;
+        padding: 1rem 1.5rem;
+        backdrop-filter: blur(20px);
+        box-shadow:
+            0 0 20px rgba(0, 255, 163, 0.3),
+            inset 0 1px 0 rgba(255, 255, 255, 0.2);
+        animation: holoPulse 3s ease-in-out infinite;
+    }
+
+    @keyframes holoPulse {
+        0%, 100% {
+            box-shadow: 0 0 20px rgba(0, 255, 163, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+        }
+        50% {
+            box-shadow: 0 0 40px rgba(0, 255, 163, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+        }
+    }
+
+    /* PropScore HUD with Advanced Glow */
+    .propscore-hud-high {
+        background: radial-gradient(circle at center,
+            rgba(0, 255, 163, 0.3) 0%,
+            rgba(0, 200, 130, 0.1) 100%);
+        border: 2px solid #00FFA3;
+        color: #00FFA3;
+        box-shadow:
+            0 0 40px rgba(0, 255, 163, 0.8),
+            0 0 80px rgba(0, 255, 163, 0.4),
+            inset 0 0 40px rgba(0, 255, 163, 0.2);
+        animation: propscoreGlow 2s ease-in-out infinite;
+    }
+
+    .propscore-hud-medium {
+        background: radial-gradient(circle at center,
+            rgba(255, 193, 7, 0.3) 0%,
+            rgba(255, 152, 0, 0.1) 100%);
+        border: 2px solid #FFC107;
+        color: #FFC107;
+        box-shadow:
+            0 0 40px rgba(255, 193, 7, 0.8),
+            0 0 80px rgba(255, 193, 7, 0.4),
+            inset 0 0 40px rgba(255, 193, 7, 0.2);
+        animation: propscoreGlow 2s ease-in-out infinite;
+    }
+
+    .propscore-hud-low {
+        background: radial-gradient(circle at center,
+            rgba(239, 68, 68, 0.3) 0%,
+            rgba(220, 38, 38, 0.1) 100%);
+        border: 2px solid #EF4444;
+        color: #EF4444;
+        box-shadow:
+            0 0 40px rgba(239, 68, 68, 0.8),
+            0 0 80px rgba(239, 68, 68, 0.4),
+            inset 0 0 40px rgba(239, 68, 68, 0.2);
+        animation: propscoreGlow 2s ease-in-out infinite;
+    }
+
+    @keyframes propscoreGlow {
+        0%, 100% { filter: brightness(1); }
+        50% { filter: brightness(1.3); }
+    }
+
+    /* Heat Map with Neon Effects */
+    .heat-hud-high {
+        background: linear-gradient(135deg, rgba(0, 255, 163, 0.25), rgba(0, 200, 130, 0.35));
+        border: 1px solid #00FFA3;
+        color: #00FFA3;
+        box-shadow:
+            0 0 25px rgba(0, 255, 163, 0.5),
+            inset 0 0 25px rgba(0, 255, 163, 0.1);
+        font-weight: 900;
+        text-shadow: 0 0 10px rgba(0, 255, 163, 0.8);
+    }
+
+    .heat-hud-medium {
+        background: linear-gradient(135deg, rgba(255, 193, 7, 0.25), rgba(255, 152, 0, 0.35));
+        border: 1px solid #FFC107;
+        color: #FFC107;
+        box-shadow:
+            0 0 25px rgba(255, 193, 7, 0.5),
+            inset 0 0 25px rgba(255, 193, 7, 0.1);
+        font-weight: 900;
+        text-shadow: 0 0 10px rgba(255, 193, 7, 0.8);
+    }
+
+    .heat-hud-low {
+        background: linear-gradient(135deg, rgba(239, 68, 68, 0.25), rgba(220, 38, 38, 0.35));
+        border: 1px solid #EF4444;
+        color: #EF4444;
+        box-shadow:
+            0 0 25px rgba(239, 68, 68, 0.5),
+            inset 0 0 25px rgba(239, 68, 68, 0.1);
+        font-weight: 900;
+        text-shadow: 0 0 10px rgba(239, 68, 68, 0.8);
+    }
+
+    /* Ripple Effect Buttons */
+    .stButton button {
+        background: linear-gradient(135deg,
+            rgba(0, 255, 163, 0.15) 0%,
+            rgba(0, 119, 255, 0.15) 100%);
+        color: #00FFA3;
+        border: 2px solid rgba(0, 255, 163, 0.5);
+        border-radius: 16px;
         font-weight: 700;
-        padding: 0.8rem 1.5rem;
-        transition: all 0.3s ease;
+        padding: 1rem 2rem;
+        transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
         text-transform: uppercase;
-        letter-spacing: 0.5px;
+        letter-spacing: 1.5px;
         font-size: 0.95rem;
+        position: relative;
+        overflow: hidden;
+        box-shadow:
+            0 4px 20px rgba(0, 255, 163, 0.2),
+            inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    }
+
+    .stButton button::before {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 0;
+        height: 0;
+        border-radius: 50%;
+        background: rgba(0, 255, 163, 0.4);
+        transform: translate(-50%, -50%);
+        transition: width 0.6s, height 0.6s;
+    }
+
+    .stButton button:hover::before {
+        width: 300px;
+        height: 300px;
     }
 
     .stButton button:hover {
-        background: #00FFA3;
-        color: #000;
-        box-shadow: 0 0 20px rgba(0, 255, 163, 0.6);
+        background: linear-gradient(135deg,
+            rgba(0, 255, 163, 0.3) 0%,
+            rgba(0, 119, 255, 0.3) 100%);
+        border-color: #00FFA3;
+        transform: translateY(-4px);
+        box-shadow:
+            0 8px 40px rgba(0, 255, 163, 0.4),
+            0 0 60px rgba(0, 255, 163, 0.3),
+            inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    }
+
+    .stButton button:active {
         transform: translateY(-2px);
     }
 
-    /* Metrics */
-    div[data-testid="stMetricValue"] {
-        font-size: 2rem;
-        color: #00FFA3;
-        text-shadow: 0 0 10px rgba(0, 255, 163, 0.5);
-        font-weight: 900;
+    /* Animated Tab Selection */
+    .stat-tab {
+        display: inline-block;
+        padding: 0.8rem 2rem;
+        margin: 0.5rem;
+        border-radius: 12px;
+        font-weight: 700;
+        font-size: 0.9rem;
+        text-transform: uppercase;
+        letter-spacing: 1.5px;
+        cursor: pointer;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        background: rgba(30, 30, 40, 0.5);
+        color: #666;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        position: relative;
+        overflow: hidden;
     }
 
-    /* Inputs */
+    .stat-tab::before {
+        content: '';
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        width: 0;
+        height: 2px;
+        background: #00FFA3;
+        transition: width 0.3s;
+    }
+
+    .stat-tab:hover::before {
+        width: 100%;
+    }
+
+    /* Parallax Depth Layers */
+    .depth-layer-1 {
+        transform: translateZ(0);
+        transition: transform 0.3s ease-out;
+    }
+
+    .depth-layer-2 {
+        transform: translateZ(20px);
+        transition: transform 0.3s ease-out;
+    }
+
+    /* Metrics with Glow */
+    div[data-testid="stMetricValue"] {
+        font-size: 2.5rem;
+        color: #00FFA3;
+        text-shadow:
+            0 0 20px rgba(0, 255, 163, 0.8),
+            0 0 40px rgba(0, 255, 163, 0.4);
+        font-weight: 900;
+        font-family: 'Orbitron', sans-serif;
+        animation: metricGlow 2s ease-in-out infinite;
+    }
+
+    @keyframes metricGlow {
+        0%, 100% { text-shadow: 0 0 20px rgba(0, 255, 163, 0.8), 0 0 40px rgba(0, 255, 163, 0.4); }
+        50% { text-shadow: 0 0 30px rgba(0, 255, 163, 1), 0 0 60px rgba(0, 255, 163, 0.6); }
+    }
+
+    /* Inputs with Neon Focus */
     input, select {
-        background-color: #1A1C24 !important;
-        color: white !important;
-        border: 1px solid #333 !important;
+        background-color: rgba(10, 10, 15, 0.8) !important;
+        color: #00FFA3 !important;
+        border: 1px solid rgba(0, 255, 163, 0.3) !important;
         border-radius: 12px !important;
+        font-family: 'Orbitron', sans-serif !important;
+        transition: all 0.3s ease !important;
     }
 
     input:focus, select:focus {
         border-color: #00FFA3 !important;
-        box-shadow: 0 0 10px rgba(0, 255, 163, 0.3) !important;
+        box-shadow:
+            0 0 20px rgba(0, 255, 163, 0.5) !important,
+            inset 0 0 20px rgba(0, 255, 163, 0.1) !important;
+        background-color: rgba(0, 255, 163, 0.05) !important;
+    }
+
+    /* Loading Animation */
+    @keyframes dataStream {
+        0% { transform: translateX(-100%); }
+        100% { transform: translateX(100%); }
+    }
+
+    .data-stream {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 2px;
+        background: linear-gradient(90deg,
+            transparent 0%,
+            #00FFA3 50%,
+            transparent 100%);
+        animation: dataStream 2s linear infinite;
     }
 
     .block-container {
-        padding-top: 1rem;
-        max-width: 1400px;
+        padding-top: 2rem;
+        max-width: 1600px;
     }
 
-    /* Matchup Difficulty Badge */
-    .difficulty-badge {
-        padding: 0.5rem 1rem;
-        border-radius: 8px;
-        font-weight: 700;
-        font-size: 0.75rem;
-        text-transform: uppercase;
-        letter-spacing: 1px;
-        display: inline-block;
+    /* Holographic Player Card */
+    .holo-player-card {
+        background: linear-gradient(135deg,
+            rgba(10, 10, 20, 0.9) 0%,
+            rgba(5, 5, 10, 0.95) 100%);
+        border: 1px solid;
+        border-image: linear-gradient(135deg,
+            rgba(0, 255, 163, 0.5) 0%,
+            rgba(138, 43, 226, 0.5) 100%) 1;
+        border-radius: 24px;
+        overflow: hidden;
+        box-shadow:
+            0 16px 64px rgba(0, 255, 163, 0.2),
+            0 8px 32px rgba(138, 43, 226, 0.15),
+            inset 0 1px 0 rgba(255, 255, 255, 0.1);
+        position: relative;
+    }
+
+    .holo-player-card::before {
+        content: '';
+        position: absolute;
+        top: -50%;
+        left: -50%;
+        width: 200%;
+        height: 200%;
+        background: conic-gradient(
+            from 0deg,
+            transparent 0deg,
+            rgba(0, 255, 163, 0.1) 90deg,
+            transparent 180deg,
+            rgba(138, 43, 226, 0.1) 270deg,
+            transparent 360deg
+        );
+        animation: holoRotate 8s linear infinite;
+        pointer-events: none;
+    }
+
+    @keyframes holoRotate {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+
+    /* Scanline Effect */
+    .scanlines {
+        position: relative;
+    }
+
+    .scanlines::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: repeating-linear-gradient(
+            0deg,
+            rgba(0, 255, 163, 0.03) 0px,
+            transparent 1px,
+            transparent 2px,
+            rgba(0, 255, 163, 0.03) 3px
+        );
+        pointer-events: none;
+        animation: scanlineMove 8s linear infinite;
+    }
+
+    @keyframes scanlineMove {
+        0% { transform: translateY(0); }
+        100% { transform: translateY(100%); }
     }
 </style>
 """, unsafe_allow_html=True)
 
-# Team Data
+# Team Data (same as before)
 TEAM_COLORS = {
     'ATL': '#E03A3E', 'BOS': '#007A33', 'BKN': '#000000', 'CHA': '#1D1160',
     'CHI': '#CE1141', 'CLE': '#860038', 'DAL': '#00538C', 'DEN': '#0E2240',
@@ -372,89 +689,88 @@ def generate_player_game_log(base_stat, num_games=20):
     return games
 
 def calculate_propscore(hit_rate, season_avg, line, consistency, difficulty):
-    """
-    Calculate PropScore (0-100) - Confidence rating for the prop
-    Higher score = stronger OVER | Lower score = stronger UNDER
-    """
-    # Base score from hit rate (0-40 points)
+    """Calculate PropScore (0-100)"""
     hit_score = (hit_rate / 100) * 40
-
-    # Margin score: distance from line (0-30 points)
     margin = season_avg - line
     margin_pct = (margin / line * 100) if line > 0 else 0
     margin_score = min(30, max(-30, margin_pct * 3))
-    margin_score = (margin_score + 30)  # Normalize to 0-60
-
-    # Consistency bonus (0-20 points)
+    margin_score = (margin_score + 30)
     consistency_score = consistency / 5
-
-    # Difficulty adjustment (-10 to +10)
     difficulty_scores = {'easy': 10, 'medium': 0, 'hard': -10}
     difficulty_score = difficulty_scores.get(difficulty, 0)
-
-    # Calculate final score
     propscore = hit_score + margin_score + consistency_score + difficulty_score
     propscore = max(0, min(100, propscore))
-
     return int(propscore)
 
 def get_matchup_difficulty(opponent_team, player_pos):
-    """Calculate matchup difficulty based on opponent defensive ranking"""
+    """Calculate matchup difficulty"""
     opp_stats = TEAM_STATS.get(opponent_team, {})
-
-    # Use position-specific defensive ranking if available
     if 'G' in player_pos:
         def_rank = opp_stats.get('pg_def_rank', 15)
     else:
         def_rank = opp_stats.get('def_rank', 15)
 
     if def_rank >= 25:
-        return 'easy', f"vs {player_pos}: {def_rank}th", 'heat-high'
+        return 'easy', f"vs {player_pos}: {def_rank}th", 'heat-hud-high'
     elif def_rank >= 15:
-        return 'medium', f"vs {player_pos}: {def_rank}th", 'heat-medium'
+        return 'medium', f"vs {player_pos}: {def_rank}th", 'heat-hud-medium'
     else:
-        return 'hard', f"vs {player_pos}: {def_rank}th", 'heat-low'
+        return 'hard', f"vs {player_pos}: {def_rank}th", 'heat-hud-low'
 
 def create_enhanced_bar_chart(games, line, stat_name):
-    """Create premium bar chart with neon green/red and yellow line"""
+    """Create futuristic bar chart with neon effects"""
     fig = go.Figure()
 
-    # Neon Green for OVER, Muted Red for UNDER
-    colors = ['#00FFA3' if g['value'] > line else '#DC2626' for g in games[:10]]
+    colors = ['#00FFA3' if g['value'] > line else '#EF4444' for g in games[:10]]
 
     fig.add_trace(go.Bar(
         x=[g['date'] for g in games[:10]],
         y=[g['value'] for g in games[:10]],
         marker=dict(
             color=colors,
-            line=dict(color='#0E1117', width=3)
+            line=dict(color='#050505', width=4),
+            opacity=0.9
         ),
         text=[g['value'] for g in games[:10]],
         textposition='outside',
-        textfont=dict(color='white', size=12, family='Inter', weight='bold'),
+        textfont=dict(color='#00FFA3', size=13, family='Orbitron', weight='bold'),
         hovertemplate='<b>%{x}</b><br>%{y}<br><extra></extra>'
     ))
 
-    # Bright Neon Yellow dashed line for target
     fig.add_hline(
         y=line,
         line_dash="dash",
-        line_color="#FFD700",  # Bright Neon Yellow
-        line_width=3,
-        annotation_text=f"LINE: {line}",
+        line_color="#00D4FF",
+        line_width=4,
+        annotation_text=f"◆ TARGET: {line} ◆",
         annotation_position="right",
-        annotation_font=dict(color="#FFD700", size=13, family='Inter', weight='bold')
+        annotation_font=dict(color="#00D4FF", size=14, family='Orbitron', weight='bold')
     )
 
     fig.update_layout(
-        plot_bgcolor='#1A1C24',
-        paper_bgcolor='#1A1C24',
-        font=dict(color='white', family='Inter'),
-        height=280,
-        margin=dict(l=10, r=10, t=10, b=30),
-        xaxis=dict(showgrid=False, showline=False, zeroline=False, color='#666'),
-        yaxis=dict(showgrid=True, gridcolor='rgba(42, 45, 58, 0.3)', showline=False,
-                   zeroline=False, title="", color='#666'),
+        plot_bgcolor='rgba(5, 5, 5, 0.8)',
+        paper_bgcolor='rgba(5, 5, 5, 0.5)',
+        font=dict(color='#00FFA3', family='Orbitron'),
+        height=300,
+        margin=dict(l=10, r=10, t=10, b=40),
+        xaxis=dict(
+            showgrid=False,
+            showline=True,
+            linecolor='rgba(0, 255, 163, 0.3)',
+            zeroline=False,
+            color='#00FFA3',
+            tickfont=dict(size=11, family='Orbitron')
+        ),
+        yaxis=dict(
+            showgrid=True,
+            gridcolor='rgba(0, 255, 163, 0.1)',
+            showline=True,
+            linecolor='rgba(0, 255, 163, 0.3)',
+            zeroline=False,
+            title="",
+            color='#00FFA3',
+            tickfont=dict(size=11, family='Orbitron')
+        ),
         hovermode='x unified'
     )
 
@@ -470,169 +786,218 @@ if 'selected_player' not in st.session_state:
 if 'selected_stat' not in st.session_state:
     st.session_state.selected_stat = 'points'
 
-# ========== HEADER ==========
+# ========== HOLOGRAPHIC HEADER ==========
 st.markdown("""
-<div class="main-header">
-    <div style="max-width: 1400px; margin: 0 auto; padding: 0 1rem; display: flex; justify-content: space-between; align-items: center;">
-        <div style="display: flex; align-items: center; gap: 1rem;">
-            <div style="width: 45px; height: 45px; background: linear-gradient(135deg, #00FFA3, #00CC82); border-radius: 12px;
-                        display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 1.5rem;
-                        box-shadow: 0 0 20px rgba(0, 255, 163, 0.5);">P</div>
-            <span style="font-size: 1.6rem; font-weight: 900; color: white; text-shadow: 0 0 10px rgba(0, 255, 163, 0.3);">PropStats Pro</span>
+<div class="main-header scanlines">
+    <div class="data-stream"></div>
+    <div style="max-width: 1600px; margin: 0 auto; padding: 0 2rem; display: flex; justify-content: space-between; align-items: center;">
+        <div style="display: flex; align-items: center; gap: 1.5rem;">
+            <div style="width: 55px; height: 55px; background: linear-gradient(135deg, #00FFA3 0%, #00D4FF 50%, #8A2BE2 100%);
+                        border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 1.8rem;
+                        font-family: 'Orbitron', sans-serif; box-shadow: 0 0 40px rgba(0, 255, 163, 0.8), 0 0 80px rgba(138, 43, 226, 0.4);
+                        animation: iconPulse 2s ease-in-out infinite;">P</div>
+            <div>
+                <span class="kinetic-title" style="font-size: 2rem;">PROPSTATS MISSION CONTROL</span>
+                <div style="color: rgba(0, 255, 163, 0.7); font-size: 0.75rem; font-weight: 600; letter-spacing: 3px; margin-top: 0.25rem;">
+                    TACTICAL BETTING INTELLIGENCE
+                </div>
+            </div>
         </div>
-        <div style="color: #00FFA3; font-size: 1rem; font-weight: 600;">
-            🏀 PREMIUM PLAYER PROPS
+        <div class="holo-badge">
+            <div style="color: #00FFA3; font-size: 0.7rem; font-weight: 700; letter-spacing: 2px;">LIVE</div>
+            <div style="color: white; font-size: 1.1rem; font-weight: 900; font-family: 'Orbitron';">SYSTEM ACTIVE</div>
         </div>
     </div>
 </div>
+
+<style>
+@keyframes iconPulse {
+    0%, 100% { transform: scale(1) rotate(0deg); }
+    50% { transform: scale(1.1) rotate(180deg); }
+}
+</style>
 """, unsafe_allow_html=True)
 
-# ========== LAYER 1: THE SLATE ==========
+# ========== LAYER 1: MISSION CONTROL SLATE ==========
 if st.session_state.view == 'slate':
     st.markdown(f"""
-    <div style="margin-bottom: 2.5rem; text-align: center;">
-        <h1 style="color: white; font-size: 2.5rem; font-weight: 900; margin-bottom: 0.5rem;">
-            Today's NBA Slate
+    <div style="margin-bottom: 3rem; text-align: center;" class="scanlines">
+        <h1 class="kinetic-title" style="font-size: 3rem; margin-bottom: 1rem;">
+            TODAY'S TACTICAL SLATE
         </h1>
-        <p style="color: #00FFA3; font-size: 1.1rem; font-weight: 600;">
-            {datetime.now().strftime('%A, %B %d, %Y')}
-        </p>
+        <div class="holo-badge" style="display: inline-block;">
+            <div style="color: #00D4FF; font-size: 1.2rem; font-weight: 900; font-family: 'Orbitron'; letter-spacing: 2px;">
+                ◆ {datetime.now().strftime('%A, %B %d, %Y').upper()} ◆
+            </div>
+        </div>
     </div>
     """, unsafe_allow_html=True)
 
     games = generate_todays_games()
 
-    # 2-column grid of matchups
-    cols = st.columns(2)
+    # 2-column grid with liquid glass cards
+    cols = st.columns(2, gap="large")
     for idx, game in enumerate(games):
         away_color = TEAM_COLORS.get(game['away_team'], '#666')
         home_color = TEAM_COLORS.get(game['home_team'], '#666')
 
         with cols[idx % 2]:
             st.markdown(f"""
-            <div class="glass-card" style="margin: 1rem 0; text-align: center;">
-                <div style="display: flex; justify-content: space-around; align-items: center; padding: 1rem 0;">
-                    <div>
-                        <div style="color: {away_color}; font-size: 2rem; font-weight: 900;">{game['away_team']}</div>
-                        <div style="color: #888; font-size: 0.8rem; margin-top: 0.5rem;">{TEAM_NAMES[game['away_team']]}</div>
+            <div class="liquid-glass depth-layer-1" style="margin: 1.5rem 0; text-align: center;">
+                <div style="display: flex; justify-content: space-around; align-items: center; padding: 1.5rem 0;">
+                    <div style="flex: 1;">
+                        <div style="color: {away_color}; font-size: 2.5rem; font-weight: 900; font-family: 'Orbitron';
+                                    text-shadow: 0 0 20px {away_color}80;">{game['away_team']}</div>
+                        <div style="color: rgba(255, 255, 255, 0.5); font-size: 0.85rem; margin-top: 0.75rem; letter-spacing: 1px;">
+                            {TEAM_NAMES[game['away_team']]}
+                        </div>
                     </div>
-                    <div style="color: #00FFA3; font-size: 1.5rem; font-weight: 900;">@</div>
-                    <div>
-                        <div style="color: {home_color}; font-size: 2rem; font-weight: 900;">{game['home_team']}</div>
-                        <div style="color: #888; font-size: 0.8rem; margin-top: 0.5rem;">{TEAM_NAMES[game['home_team']]}</div>
+                    <div style="color: #00FFA3; font-size: 2rem; font-weight: 900; font-family: 'Orbitron';
+                                text-shadow: 0 0 20px rgba(0, 255, 163, 0.8);">VS</div>
+                    <div style="flex: 1;">
+                        <div style="color: {home_color}; font-size: 2.5rem; font-weight: 900; font-family: 'Orbitron';
+                                    text-shadow: 0 0 20px {home_color}80;">{game['home_team']}</div>
+                        <div style="color: rgba(255, 255, 255, 0.5); font-size: 0.85rem; margin-top: 0.75rem; letter-spacing: 1px;">
+                            {TEAM_NAMES[game['home_team']]}
+                        </div>
                     </div>
                 </div>
-                <div style="color: #00FFA3; font-size: 0.9rem; font-weight: 600; margin-top: 0.5rem;">
-                    {game['time']}
+                <div class="hud-frame" style="margin: 1rem 0; padding: 0.75rem;">
+                    <div style="color: #00D4FF; font-size: 0.95rem; font-weight: 700; font-family: 'Orbitron'; letter-spacing: 1.5px;">
+                        ◆ {game['time']} ◆
+                    </div>
                 </div>
             </div>
             """, unsafe_allow_html=True)
 
-            if st.button(f"View Matchup →", key=f"game_{idx}", use_container_width=True):
+            if st.button(f"◆ ENTER MATCHUP ◆", key=f"game_{idx}", use_container_width=True):
                 st.session_state.selected_game = game
                 st.session_state.view = 'matchup'
                 st.rerun()
 
-# ========== LAYER 2: THE MATCHUP BOARD (Tale of the Tape) ==========
+# ========== LAYER 2: TACTICAL MATCHUP BOARD ==========
 elif st.session_state.view == 'matchup':
     game = st.session_state.selected_game
 
-    if st.button("← BACK TO SLATE"):
+    if st.button("◄ RETURN TO SLATE"):
         st.session_state.view = 'slate'
         st.rerun()
 
     st.markdown(f"""
-    <div style="text-align: center; margin-bottom: 2rem;">
-        <h1 style="color: white; font-size: 2.5rem; font-weight: 900;">Tale of the Tape</h1>
-        <p style="color: #00FFA3; font-size: 1.2rem; font-weight: 600;">
-            {TEAM_NAMES[game['away_team']]} @ {TEAM_NAMES[game['home_team']]} • {game['time']}
-        </p>
+    <div style="text-align: center; margin-bottom: 3rem;" class="scanlines">
+        <h1 class="kinetic-title" style="font-size: 2.5rem;">TACTICAL MATCHUP ANALYSIS</h1>
+        <div class="holo-badge" style="display: inline-block; margin-top: 1rem;">
+            <div style="font-size: 1.1rem; font-weight: 900; font-family: 'Orbitron';">
+                {TEAM_NAMES[game['away_team']]} @ {TEAM_NAMES[game['home_team']]} • {game['time']}
+            </div>
+        </div>
     </div>
     """, unsafe_allow_html=True)
 
-    # Glassmorphism Team Comparison
-    col1, col2, col3 = st.columns([5, 2, 5])
+    # HUD-style team comparison
+    col1, col2, col3 = st.columns([5, 1, 5], gap="large")
 
     with col1:
         st.markdown(f"""
-        <div class="glass-card" style="text-align: center;">
-            <h2 style="color: {TEAM_COLORS[game['away_team']]}; font-size: 2rem; margin-bottom: 1rem;">
+        <div class="hud-frame" style="text-align: center; min-height: 350px;">
+            <h2 style="color: {TEAM_COLORS[game['away_team']]}; font-size: 2.2rem; margin-bottom: 1.5rem; font-family: 'Orbitron';
+                       text-shadow: 0 0 20px {TEAM_COLORS[game['away_team']]}80;">
                 {game['away_team']} {TEAM_NAMES[game['away_team']]}
             </h2>
-            <div style="color: white; font-size: 1.2rem; margin: 0.5rem 0;">
-                <strong>{game['away_stats']['ppg']}</strong> PPG
-            </div>
-            <div style="color: #888; font-size: 1rem; margin: 0.5rem 0;">
-                Pace: {game['away_stats']['pace']}
-            </div>
-            <div style="color: #00FFA3; font-size: 1rem; margin: 0.5rem 0; font-weight: 700;">
-                Off Rank: #{game['away_stats']['off_rank']}
-            </div>
-            <div style="color: #EF4444; font-size: 1rem; margin: 0.5rem 0; font-weight: 700;">
-                Def Rank: #{game['away_stats']['def_rank']}
+            <div style="display: grid; gap: 1rem; margin-top: 2rem;">
+                <div class="holo-badge">
+                    <div style="color: rgba(255, 255, 255, 0.6); font-size: 0.75rem; letter-spacing: 2px;">PPG</div>
+                    <div style="color: white; font-size: 2rem; font-weight: 900; font-family: 'Orbitron';">{game['away_stats']['ppg']}</div>
+                </div>
+                <div class="holo-badge">
+                    <div style="color: rgba(255, 255, 255, 0.6); font-size: 0.75rem; letter-spacing: 2px;">PACE</div>
+                    <div style="color: white; font-size: 1.5rem; font-weight: 900; font-family: 'Orbitron';">{game['away_stats']['pace']}</div>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+                    <div class="holo-badge" style="background: linear-gradient(135deg, rgba(0, 255, 163, 0.15), rgba(0, 200, 130, 0.15));">
+                        <div style="color: #00FFA3; font-size: 0.7rem; letter-spacing: 1px;">OFF RANK</div>
+                        <div style="color: #00FFA3; font-size: 1.5rem; font-weight: 900; font-family: 'Orbitron';">#{game['away_stats']['off_rank']}</div>
+                    </div>
+                    <div class="holo-badge" style="background: linear-gradient(135deg, rgba(239, 68, 68, 0.15), rgba(220, 38, 38, 0.15));">
+                        <div style="color: #EF4444; font-size: 0.7rem; letter-spacing: 1px;">DEF RANK</div>
+                        <div style="color: #EF4444; font-size: 1.5rem; font-weight: 900; font-family: 'Orbitron';">#{game['away_stats']['def_rank']}</div>
+                    </div>
+                </div>
             </div>
         </div>
         """, unsafe_allow_html=True)
 
     with col2:
         st.markdown("""
-        <div style="text-align: center; padding: 2rem 0;">
-            <div style="color: #00FFA3; font-size: 3rem; font-weight: 900;">VS</div>
+        <div style="text-align: center; padding: 4rem 0; height: 100%; display: flex; align-items: center; justify-content: center;">
+            <div style="color: #00FFA3; font-size: 4rem; font-weight: 900; font-family: 'Orbitron';
+                        text-shadow: 0 0 40px rgba(0, 255, 163, 1);">
+                VS
+            </div>
         </div>
         """, unsafe_allow_html=True)
 
     with col3:
         st.markdown(f"""
-        <div class="glass-card" style="text-align: center;">
-            <h2 style="color: {TEAM_COLORS[game['home_team']]}; font-size: 2rem; margin-bottom: 1rem;">
+        <div class="hud-frame" style="text-align: center; min-height: 350px;">
+            <h2 style="color: {TEAM_COLORS[game['home_team']]}; font-size: 2.2rem; margin-bottom: 1.5rem; font-family: 'Orbitron';
+                       text-shadow: 0 0 20px {TEAM_COLORS[game['home_team']]}80;">
                 {game['home_team']} {TEAM_NAMES[game['home_team']]}
             </h2>
-            <div style="color: white; font-size: 1.2rem; margin: 0.5rem 0;">
-                <strong>{game['home_stats']['ppg']}</strong> PPG
-            </div>
-            <div style="color: #888; font-size: 1rem; margin: 0.5rem 0;">
-                Pace: {game['home_stats']['pace']}
-            </div>
-            <div style="color: #00FFA3; font-size: 1rem; margin: 0.5rem 0; font-weight: 700;">
-                Off Rank: #{game['home_stats']['off_rank']}
-            </div>
-            <div style="color: #EF4444; font-size: 1rem; margin: 0.5rem 0; font-weight: 700;">
-                Def Rank: #{game['home_stats']['def_rank']}
+            <div style="display: grid; gap: 1rem; margin-top: 2rem;">
+                <div class="holo-badge">
+                    <div style="color: rgba(255, 255, 255, 0.6); font-size: 0.75rem; letter-spacing: 2px;">PPG</div>
+                    <div style="color: white; font-size: 2rem; font-weight: 900; font-family: 'Orbitron';">{game['home_stats']['ppg']}</div>
+                </div>
+                <div class="holo-badge">
+                    <div style="color: rgba(255, 255, 255, 0.6); font-size: 0.75rem; letter-spacing: 2px;">PACE</div>
+                    <div style="color: white; font-size: 1.5rem; font-weight: 900; font-family: 'Orbitron';">{game['home_stats']['pace']}</div>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+                    <div class="holo-badge" style="background: linear-gradient(135deg, rgba(0, 255, 163, 0.15), rgba(0, 200, 130, 0.15));">
+                        <div style="color: #00FFA3; font-size: 0.7rem; letter-spacing: 1px;">OFF RANK</div>
+                        <div style="color: #00FFA3; font-size: 1.5rem; font-weight: 900; font-family: 'Orbitron';">#{game['home_stats']['off_rank']}</div>
+                    </div>
+                    <div class="holo-badge" style="background: linear-gradient(135deg, rgba(239, 68, 68, 0.15), rgba(220, 38, 38, 0.15));">
+                        <div style="color: #EF4444; font-size: 0.7rem; letter-spacing: 1px;">DEF RANK</div>
+                        <div style="color: #EF4444; font-size: 1.5rem; font-weight: 900; font-family: 'Orbitron';">#{game['home_stats']['def_rank']}</div>
+                    </div>
+                </div>
             </div>
         </div>
         """, unsafe_allow_html=True)
 
     st.markdown("<br><br>", unsafe_allow_html=True)
 
-    # Player Selection
-    st.markdown(f"### {TEAM_NAMES[game['away_team']]} Players")
-    cols = st.columns(2)
+    # Player Selection with HUD style
+    st.markdown(f"<h3 class='kinetic-title' style='font-size: 1.5rem; margin: 2rem 0 1rem 0;'>{TEAM_NAMES[game['away_team']]} ROSTER</h3>", unsafe_allow_html=True)
+    cols = st.columns(2, gap="large")
     for i, player in enumerate(game['away_players']):
         with cols[i % 2]:
-            if st.button(f"🎯 {player['name']} • {player['pos']}", key=f"away_{i}", use_container_width=True):
+            if st.button(f"◆ {player['name']} • {player['pos']} ◆", key=f"away_{i}", use_container_width=True):
                 st.session_state.selected_player = player
                 st.session_state.view = 'player'
                 st.rerun()
 
-    st.markdown(f"### {TEAM_NAMES[game['home_team']]} Players")
-    cols = st.columns(2)
+    st.markdown(f"<h3 class='kinetic-title' style='font-size: 1.5rem; margin: 2rem 0 1rem 0;'>{TEAM_NAMES[game['home_team']]} ROSTER</h3>", unsafe_allow_html=True)
+    cols = st.columns(2, gap="large")
     for i, player in enumerate(game['home_players']):
         with cols[i % 2]:
-            if st.button(f"🎯 {player['name']} • {player['pos']}", key=f"home_{i}", use_container_width=True):
+            if st.button(f"◆ {player['name']} • {player['pos']} ◆", key=f"home_{i}", use_container_width=True):
                 st.session_state.selected_player = player
                 st.session_state.view = 'player'
                 st.rerun()
 
-# ========== LAYER 3: THE PLAYER DEEP DIVE (PropFinder Modular Card) ==========
+# ========== LAYER 3: HOLOGRAPHIC PLAYER HUD ==========
 elif st.session_state.view == 'player':
-    if st.button("← BACK TO MATCHUP"):
+    if st.button("◄ RETURN TO MATCHUP"):
         st.session_state.view = 'matchup'
         st.rerun()
 
     player = st.session_state.selected_player
     game = st.session_state.selected_game
 
-    # Determine opponent and teams
+    # Determine teams
     if player in game['away_players']:
         opponent_team = game['home_team']
         player_team = game['away_team']
@@ -640,24 +1005,20 @@ elif st.session_state.view == 'player':
         opponent_team = game['away_team']
         player_team = game['home_team']
 
-    # Get matchup difficulty
     difficulty, difficulty_text, difficulty_class = get_matchup_difficulty(opponent_team, player['pos'])
-
-    # Visual anchors
     team_color = TEAM_COLORS.get(player_team, '#666')
     headshot_url = f"https://cdn.nba.com/headshots/nba/latest/1040x760/{player['id']}.png"
 
-    # Get available stats and selection
+    # Stat tabs
     available_stats = list(player['stats'].keys())
 
-    # TABBED STAT CATEGORIES
-    st.markdown("<h3 style='color: #888; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 1rem;'>Select Stat Category</h3>", unsafe_allow_html=True)
+    st.markdown("<h3 class='kinetic-title' style='font-size: 1.2rem; margin-bottom: 1rem; text-align: center;'>SELECT STAT CATEGORY</h3>", unsafe_allow_html=True)
 
     cols_tabs = st.columns(len(available_stats))
     for idx, stat in enumerate(available_stats):
         with cols_tabs[idx]:
             if st.button(
-                stat.upper(),
+                f"◆ {stat.upper()} ◆",
                 key=f"tab_{stat}",
                 use_container_width=True,
                 type="primary" if st.session_state.selected_stat == stat else "secondary"
@@ -672,10 +1033,10 @@ elif st.session_state.view == 'player':
     st.markdown("<br>", unsafe_allow_html=True)
     col_line1, col_line2 = st.columns([1, 3])
     with col_line1:
-        line = st.number_input("🎯 BETTING LINE", min_value=0.5, max_value=100.0,
+        line = st.number_input("◆ TARGET LINE", min_value=0.5, max_value=100.0,
                                value=float(base_value), step=0.5, key="line_input")
 
-    # Generate game log and calculate all metrics
+    # Generate data
     game_log = generate_player_game_log(base_value)
 
     l5_games = game_log[-5:]
@@ -695,58 +1056,57 @@ elif st.session_state.view == 'player':
     l10_rate = (l10_hits / 10 * 100)
     l20_rate = (l20_hits / 20 * 100)
 
-    # Consistency score
     consistency = max(0, 100 - (statistics.stdev([g['value'] for g in l10_games]) / max(1, l10_avg) * 100))
 
-    # Calculate PropScore
     propscore = calculate_propscore(l10_rate, season_avg, line, consistency, difficulty)
-    propscore_class = 'propscore-high' if propscore >= 65 else 'propscore-medium' if propscore >= 40 else 'propscore-low'
-    propscore_label = 'HIGH CONFIDENCE' if propscore >= 65 else 'MEDIUM' if propscore >= 40 else 'LOW CONFIDENCE'
+    propscore_class = 'propscore-hud-high' if propscore >= 65 else 'propscore-hud-medium' if propscore >= 40 else 'propscore-hud-low'
+    propscore_label = 'HIGH CONFIDENCE' if propscore >= 65 else 'MEDIUM CONFIDENCE' if propscore >= 40 else 'LOW CONFIDENCE'
 
-    # ========== PROPFINDER MODULAR CARD HEADER ==========
+    # HOLOGRAPHIC PLAYER CARD
     st.markdown(f"""
-    <div class="premium-card" style="margin: 2rem 0;">
-        <div style="display: flex; justify-content: space-between; align-items: start; padding: 2rem; background: linear-gradient(135deg, #1A1C24, #151820); border-bottom: 1px solid #333;">
-            <!-- Player Info with Headshot + Team Logo Overlay -->
-            <div style="display: flex; gap: 1.5rem; align-items: center;">
+    <div class="holo-player-card scanlines" style="margin: 2rem 0;">
+        <div class="data-stream"></div>
+        <div style="display: flex; justify-content: space-between; align-items: start; padding: 2.5rem;
+                    background: linear-gradient(135deg, rgba(10, 10, 20, 0.95), rgba(5, 5, 10, 0.98));">
+            <div style="display: flex; gap: 2rem; align-items: center;">
                 <div style="position: relative;">
                     <img src="{headshot_url}"
-                         style="width: 96px; height: 96px; border-radius: 50%; border: 4px solid {team_color}; background: #333; object-fit: cover;"
+                         style="width: 110px; height: 110px; border-radius: 50%; border: 4px solid {team_color};
+                                background: #050505; object-fit: cover; box-shadow: 0 0 40px {team_color}80;"
                          onerror="this.style.display='none'">
-                    <div style="position: absolute; bottom: -8px; right: -8px; width: 40px; height: 40px; background: {team_color};
-                                border-radius: 50%; display: flex; align-items: center; justify-content: center;
-                                border: 2px solid #0E1117; font-weight: 900; font-size: 0.9rem; color: white;">
+                    <div style="position: absolute; bottom: -10px; right: -10px; width: 45px; height: 45px;
+                                background: {team_color}; border-radius: 50%; display: flex; align-items: center;
+                                justify-content: center; border: 3px solid #050505; font-weight: 900; font-size: 1rem;
+                                font-family: 'Orbitron'; box-shadow: 0 0 20px {team_color}80;">
                         {player_team}
                     </div>
                 </div>
                 <div>
-                    <h1 style="color: white; font-size: 2.5rem; font-weight: 900; margin: 0; text-transform: uppercase; letter-spacing: -1px;">
+                    <h1 style="color: white; font-size: 3rem; font-weight: 900; margin: 0; text-transform: uppercase;
+                               font-family: 'Orbitron'; letter-spacing: 2px; text-shadow: 0 0 20px rgba(255, 255, 255, 0.5);">
                         {player['name']}
                     </h1>
-                    <div style="display: flex; gap: 1rem; margin-top: 0.5rem; align-items: center;">
-                        <span style="color: #888; font-size: 0.85rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px;">
+                    <div style="display: flex; gap: 1rem; margin-top: 1rem; align-items: center;">
+                        <span class="holo-badge" style="padding: 0.5rem 1rem;">
                             {player['pos']} • #{player.get('number', '0')}
                         </span>
-                        <span style="background: rgba(138, 43, 226, 0.2); color: #BA55D3; padding: 0.25rem 0.75rem;
-                                     border-radius: 6px; font-size: 0.75rem; font-weight: 700; text-transform: uppercase;">
-                            vs {opponent_team} • {game['time']}
+                        <span class="holo-badge" style="padding: 0.5rem 1rem; background: linear-gradient(135deg, rgba(138, 43, 226, 0.3), rgba(75, 0, 130, 0.3));">
+                            VS {opponent_team} • {game['time']}
                         </span>
-                        <!-- Matchup Difficulty Badge -->
-                        <span class="difficulty-badge {difficulty_class}" style="padding: 0.35rem 0.8rem;">
+                        <span class="{difficulty_class}" style="padding: 0.5rem 1rem; border-radius: 8px;">
                             {difficulty_text}
                         </span>
                     </div>
                 </div>
             </div>
-            <!-- PropScore Badge with Neon Glow -->
-            <div class="{propscore_class}" style="padding: 1.5rem 2rem; border-radius: 12px; text-align: center; min-width: 140px;">
-                <div style="font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 2px; opacity: 0.8;">
+            <div class="{propscore_class}" style="padding: 2rem 2.5rem; border-radius: 16px; text-align: center; min-width: 160px;">
+                <div style="font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 3px; opacity: 0.9; font-family: 'Orbitron';">
                     PROPSCORE
                 </div>
-                <div style="font-size: 3.5rem; font-weight: 900; line-height: 1; margin: 0.25rem 0;">
+                <div style="font-size: 4.5rem; font-weight: 900; line-height: 1; margin: 0.5rem 0; font-family: 'Orbitron';">
                     {propscore}
                 </div>
-                <div style="font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; opacity: 0.8;">
+                <div style="font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 2px; opacity: 0.9; font-family: 'Orbitron';">
                     {propscore_label}
                 </div>
             </div>
@@ -754,33 +1114,33 @@ elif st.session_state.view == 'player':
     </div>
     """, unsafe_allow_html=True)
 
-    # ========== MAIN CONTENT GRID ==========
-    col_left, col_right = st.columns([1, 2])
+    # MAIN HUD GRID
+    col_left, col_right = st.columns([1, 2], gap="large")
 
     with col_left:
-        st.markdown("<h3 style='color: #888; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 1rem;'>Hit Rates</h3>", unsafe_allow_html=True)
+        st.markdown("<h3 class='kinetic-title' style='font-size: 1.2rem; margin-bottom: 1.5rem;'>HIT RATE ANALYSIS</h3>", unsafe_allow_html=True)
 
-        # Current line display
+        # Target line display
         st.markdown(f"""
-        <div style="background: #1A1C24; border: 1px solid rgba(255, 215, 0, 0.3); border-radius: 12px; padding: 1.25rem; margin-bottom: 1.5rem;">
-            <div style="color: #888; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 2px;">
-                BETTING LINE
+        <div class="hud-frame" style="margin-bottom: 2rem; text-align: center;">
+            <div style="color: rgba(0, 212, 255, 0.7); font-size: 0.75rem; font-weight: 700; letter-spacing: 3px; font-family: 'Orbitron';">
+                TARGET LINE
             </div>
-            <div style="display: flex; align-items: baseline; gap: 0.5rem; margin-top: 0.5rem;">
-                <span style="color: #FFD700; font-size: 2.5rem; font-weight: 900;">{line}</span>
-                <span style="color: #666; font-size: 0.9rem; font-weight: 700;">{selected_stat.upper()}</span>
+            <div style="display: flex; align-items: baseline; justify-content: center; gap: 1rem; margin-top: 1rem;">
+                <span style="color: #00D4FF; font-size: 3.5rem; font-weight: 900; font-family: 'Orbitron'; text-shadow: 0 0 30px rgba(0, 212, 255, 1);">{line}</span>
+                <span style="color: rgba(255, 255, 255, 0.5); font-size: 1rem; font-weight: 700; font-family: 'Orbitron';">{selected_stat.upper()}</span>
             </div>
         </div>
         """, unsafe_allow_html=True)
 
-        # HEAT-MAPPED STAT GRID (L5, L10, L20)
+        # Heat-mapped grid
         def get_heat_class(rate):
             if rate >= 65:
-                return 'heat-high'  # Neon Green (65%+)
+                return 'heat-hud-high'
             elif rate >= 50:
-                return 'heat-medium'  # Yellow (50-64%)
+                return 'heat-hud-medium'
             else:
-                return 'heat-low'  # Red (<50%)
+                return 'heat-hud-low'
 
         for label, rate, hits, total in [
             ('L5', l5_rate, l5_hits, 5),
@@ -789,35 +1149,35 @@ elif st.session_state.view == 'player':
         ]:
             heat_class = get_heat_class(rate)
             st.markdown(f"""
-            <div class="{heat_class}" style="border-radius: 12px; padding: 1rem; margin-bottom: 0.75rem; display: flex; justify-content: space-between; align-items: center;">
-                <span style="font-weight: 900; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 1px;">{label}</span>
+            <div class="{heat_class}" style="border-radius: 12px; padding: 1.5rem; margin-bottom: 1rem;
+                        display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-weight: 900; font-size: 1.1rem; letter-spacing: 2px; font-family: 'Orbitron';">{label}</span>
                 <div style="text-align: right;">
-                    <div style="font-size: 1.75rem; font-weight: 900; line-height: 1;">{rate:.0f}%</div>
-                    <div style="font-size: 0.75rem; font-weight: 700; opacity: 0.8;">{hits}/{total}</div>
+                    <div style="font-size: 2.2rem; font-weight: 900; line-height: 1; font-family: 'Orbitron';">{rate:.0f}%</div>
+                    <div style="font-size: 0.85rem; font-weight: 700; opacity: 0.9; margin-top: 0.25rem;">{hits}/{total}</div>
                 </div>
             </div>
             """, unsafe_allow_html=True)
 
     with col_right:
-        st.markdown("<h3 style='color: #888; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 1rem;'>Last 10 Games</h3>", unsafe_allow_html=True)
+        st.markdown("<h3 class='kinetic-title' style='font-size: 1.2rem; margin-bottom: 1.5rem;'>PERFORMANCE TIMELINE</h3>", unsafe_allow_html=True)
 
-        # ADVANCED MICRO-CHART
         chart = create_enhanced_bar_chart(game_log, line, selected_stat.upper())
         st.plotly_chart(chart, use_container_width=True)
 
-        # Averages grid
-        col1, col2, col3 = st.columns(3)
+        # Stats grid
+        col1, col2, col3 = st.columns(3, gap="medium")
 
         with col1:
             st.markdown(f"""
-            <div style="background: #1A1C24; border-radius: 12px; padding: 1.25rem; text-align: center;">
-                <div style="color: #888; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 2px;">
-                    Season Avg
+            <div class="hud-frame" style="text-align: center; padding: 1.5rem;">
+                <div style="color: rgba(255, 255, 255, 0.6); font-size: 0.75rem; letter-spacing: 2px; font-family: 'Orbitron';">
+                    SEASON AVG
                 </div>
-                <div style="color: white; font-size: 2rem; font-weight: 900; margin-top: 0.5rem;">
+                <div style="color: #00FFA3; font-size: 2.5rem; font-weight: 900; margin-top: 0.75rem; font-family: 'Orbitron'; text-shadow: 0 0 20px rgba(0, 255, 163, 0.8);">
                     {season_avg:.1f}
                 </div>
-                <div style="color: #00FFA3; font-size: 0.75rem; font-weight: 700; margin-top: 0.25rem;">
+                <div style="color: #00D4FF; font-size: 0.85rem; font-weight: 700; margin-top: 0.5rem;">
                     {season_avg - line:+.1f} vs Line
                 </div>
             </div>
@@ -825,14 +1185,14 @@ elif st.session_state.view == 'player':
 
         with col2:
             st.markdown(f"""
-            <div style="background: #1A1C24; border-radius: 12px; padding: 1.25rem; text-align: center;">
-                <div style="color: #888; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 2px;">
-                    L10 Avg
+            <div class="hud-frame" style="text-align: center; padding: 1.5rem;">
+                <div style="color: rgba(255, 255, 255, 0.6); font-size: 0.75rem; letter-spacing: 2px; font-family: 'Orbitron';">
+                    L10 AVG
                 </div>
-                <div style="color: white; font-size: 2rem; font-weight: 900; margin-top: 0.5rem;">
+                <div style="color: #00FFA3; font-size: 2.5rem; font-weight: 900; margin-top: 0.75rem; font-family: 'Orbitron'; text-shadow: 0 0 20px rgba(0, 255, 163, 0.8);">
                     {l10_avg:.1f}
                 </div>
-                <div style="color: #00FFA3; font-size: 0.75rem; font-weight: 700; margin-top: 0.25rem;">
+                <div style="color: #00D4FF; font-size: 0.85rem; font-weight: 700; margin-top: 0.5rem;">
                     {l10_avg - season_avg:+.1f}
                 </div>
             </div>
@@ -840,55 +1200,63 @@ elif st.session_state.view == 'player':
 
         with col3:
             st.markdown(f"""
-            <div style="background: #1A1C24; border-radius: 12px; padding: 1.25rem; text-align: center;">
-                <div style="color: #888; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 2px;">
-                    Consistency
+            <div class="hud-frame" style="text-align: center; padding: 1.5rem;">
+                <div style="color: rgba(255, 255, 255, 0.6); font-size: 0.75rem; letter-spacing: 2px; font-family: 'Orbitron';">
+                    CONSISTENCY
                 </div>
-                <div style="color: white; font-size: 2rem; font-weight: 900; margin-top: 0.5rem;">
+                <div style="color: #00FFA3; font-size: 2.5rem; font-weight: 900; margin-top: 0.75rem; font-family: 'Orbitron'; text-shadow: 0 0 20px rgba(0, 255, 163, 0.8);">
                     {consistency:.0f}
                 </div>
-                <div style="color: #FFC107; font-size: 0.75rem; font-weight: 700; margin-top: 0.25rem;">
+                <div style="color: #FFC107; font-size: 0.85rem; font-weight: 700; margin-top: 0.5rem;">
                     {'HIGH' if consistency >= 70 else 'MEDIUM' if consistency >= 50 else 'LOW'}
                 </div>
             </div>
             """, unsafe_allow_html=True)
 
-    # ========== AI RECOMMENDATION CARD ==========
+    # AI RECOMMENDATION
     if propscore >= 70:
-        verdict, verdict_color = "STRONG OVER ✅", "#00FFA3"
+        verdict, verdict_color = "STRONG OVER", "#00FFA3"
+        icon = "▲▲▲"
     elif propscore >= 55:
-        verdict, verdict_color = "LEAN OVER 📈", "#84cc16"
+        verdict, verdict_color = "LEAN OVER", "#84cc16"
+        icon = "▲▲"
     elif propscore <= 30:
-        verdict, verdict_color = "STRONG UNDER ❌", "#EF4444"
+        verdict, verdict_color = "STRONG UNDER", "#EF4444"
+        icon = "▼▼▼"
     elif propscore <= 45:
-        verdict, verdict_color = "LEAN UNDER 📉", "#f97316"
+        verdict, verdict_color = "LEAN UNDER", "#f97316"
+        icon = "▼▼"
     else:
-        verdict, verdict_color = "TOSS UP ⚖️", "#71717a"
+        verdict, verdict_color = "TOSS UP", "#8A2BE2"
+        icon = "◆"
 
     st.markdown(f"""
-    <div style="background: linear-gradient(135deg, {verdict_color}25, {verdict_color}10);
-                border: 3px solid {verdict_color}; border-radius: 16px;
-                padding: 2rem; margin: 2rem 0; box-shadow: 0 0 30px {verdict_color}40;">
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-            <div>
-                <div style="color: {verdict_color}; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 2px; opacity: 0.8;">
-                    AI RECOMMENDATION
-                </div>
-                <div style="color: {verdict_color}; font-size: 2.5rem; font-weight: 900; margin-top: 0.5rem; text-shadow: 0 0 20px {verdict_color}50;">
-                    {verdict}
-                </div>
-                <div style="color: #888; font-size: 0.9rem; font-weight: 700; margin-top: 0.5rem;">
-                    Confidence: {propscore}% • PropScore: {propscore}/100
-                </div>
-            </div>
+    <div class="hud-frame" style="margin: 3rem 0; padding: 3rem; text-align: center;
+                border: 3px solid {verdict_color}; box-shadow: 0 0 60px {verdict_color}80, inset 0 0 60px {verdict_color}20;">
+        <div style="color: {verdict_color}; font-size: 0.85rem; font-weight: 700; letter-spacing: 4px; opacity: 0.8; font-family: 'Orbitron';">
+            TACTICAL RECOMMENDATION
+        </div>
+        <div style="color: {verdict_color}; font-size: 4rem; font-weight: 900; margin: 1rem 0; font-family: 'Orbitron';
+                    text-shadow: 0 0 40px {verdict_color};">
+            {icon} {verdict} {icon}
+        </div>
+        <div style="color: rgba(255, 255, 255, 0.7); font-size: 1.1rem; font-weight: 700; font-family: 'Orbitron';">
+            Confidence: {propscore}% • PropScore: {propscore}/100
         </div>
     </div>
     """, unsafe_allow_html=True)
 
 # ========== FOOTER ==========
 st.markdown("""
-<div style="margin-top: 4rem; padding: 2rem 0; border-top: 2px solid #333; text-align: center; color: #888;">
-    <p style="font-weight: 600;">PropStats Pro © 2025 • Premium NBA Props Analytics</p>
-    <p style="font-size: 0.85rem; margin-top: 0.5rem; color: #666;">⚠️ For entertainment purposes only. Gamble responsibly. 21+</p>
+<div style="margin-top: 6rem; padding: 3rem 0; border-top: 1px solid rgba(0, 255, 163, 0.2); text-align: center;">
+    <div class="kinetic-title" style="font-size: 1.2rem; margin-bottom: 0.5rem;">
+        PROPSTATS MISSION CONTROL
+    </div>
+    <p style="color: rgba(255, 255, 255, 0.4); font-size: 0.85rem; font-family: 'Orbitron';">
+        © 2025 • TACTICAL BETTING INTELLIGENCE SYSTEM
+    </p>
+    <p style="font-size: 0.75rem; margin-top: 1rem; color: rgba(255, 255, 255, 0.3);">
+        ⚠️ For entertainment purposes only. Gamble responsibly. 21+
+    </p>
 </div>
 """, unsafe_allow_html=True)
