@@ -1,556 +1,565 @@
 """
-🏀 NBA Player Prop Research Tool - MVP
-Built with Streamlit | $0 Budget | Free + Premium Tiers
+🏀 NBA Props Research Tool
+Clean, game-first interface for analyzing player props
 """
 
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
-import plotly.express as px
 from datetime import datetime, timedelta
 import random
 
 # Page Configuration
 st.set_page_config(
-    page_title="NBA Props Research 🏀",
+    page_title="PropStats",
     page_icon="🏀",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"
 )
 
-# Custom CSS for professional styling
+# Dark Theme Styling (matching React app)
 st.markdown("""
 <style>
+    /* Main container */
+    .stApp {
+        background-color: #09090b;
+    }
+
+    /* Hide default Streamlit elements */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+
+    /* Custom header */
     .main-header {
-        font-size: 3rem;
-        font-weight: bold;
-        background: linear-gradient(90deg, #1d428a, #ffc72c);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        text-align: center;
+        background: rgba(24, 24, 27, 0.8);
+        backdrop-filter: blur(12px);
+        border-bottom: 1px solid #27272a;
         padding: 1rem 0;
+        margin-bottom: 2rem;
+        position: sticky;
+        top: 0;
+        z-index: 999;
     }
-    .stat-card {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+
+    /* Game cards */
+    .game-card {
+        background: linear-gradient(135deg, rgba(39, 39, 42, 0.4), rgba(24, 24, 27, 0.6));
+        border: 1px solid #3f3f46;
+        border-radius: 16px;
         padding: 1.5rem;
-        border-radius: 10px;
-        color: white;
-        text-align: center;
-        margin: 0.5rem 0;
-    }
-    .premium-lock {
-        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-        padding: 2rem;
-        border-radius: 15px;
-        text-align: center;
-        color: white;
-        margin: 2rem 0;
-    }
-    .unlock-btn {
-        background: #00ff88;
-        color: #000;
-        font-weight: bold;
-        padding: 1rem 2rem;
-        border-radius: 50px;
-        border: none;
-        font-size: 1.2rem;
+        margin: 1rem 0;
         cursor: pointer;
+        transition: all 0.3s ease;
+    }
+
+    .game-card:hover {
+        border-color: #52525b;
+        transform: translateY(-2px);
+        box-shadow: 0 8px 16px rgba(0,0,0,0.3);
+    }
+
+    /* Team colors */
+    .team-badge {
+        display: inline-block;
+        padding: 0.5rem 1rem;
+        border-radius: 12px;
+        font-weight: 700;
+        font-size: 1.2rem;
+    }
+
+    /* Player cards */
+    .player-card {
+        background: rgba(39, 39, 42, 0.5);
+        border: 1px solid #3f3f46;
+        border-radius: 12px;
+        padding: 1rem;
+        margin: 0.5rem 0;
+        transition: all 0.2s ease;
+    }
+
+    .player-card:hover {
+        background: rgba(52, 52, 56, 0.6);
+        border-color: #10b981;
+    }
+
+    /* Stat badges */
+    .stat-badge {
+        display: inline-block;
+        background: rgba(16, 185, 129, 0.1);
+        color: #10b981;
+        padding: 0.25rem 0.75rem;
+        border-radius: 6px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        margin: 0.25rem;
+    }
+
+    /* Hit rate colors */
+    .hit-high {
+        background: linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(5, 150, 105, 0.1));
+        color: #10b981;
+    }
+    .hit-medium {
+        background: linear-gradient(135deg, rgba(234, 179, 8, 0.2), rgba(202, 138, 4, 0.1));
+        color: #eab308;
+    }
+    .hit-low {
+        background: linear-gradient(135deg, rgba(239, 68, 68, 0.2), rgba(220, 38, 38, 0.1));
+        color: #ef4444;
+    }
+
+    /* Buttons */
+    .stButton button {
+        background: rgba(39, 39, 42, 0.8);
+        color: white;
+        border: 1px solid #52525b;
+        border-radius: 12px;
+        padding: 0.75rem 1.5rem;
+        font-weight: 600;
+        transition: all 0.2s ease;
+    }
+
+    .stButton button:hover {
+        background: rgba(52, 52, 56, 0.9);
+        border-color: #10b981;
+        transform: translateY(-1px);
+    }
+
+    /* Metrics */
+    div[data-testid="stMetricValue"] {
+        font-size: 2rem;
+        color: #10b981;
+    }
+
+    /* Expanders */
+    .streamlit-expanderHeader {
+        background: rgba(39, 39, 42, 0.6);
+        border-radius: 12px;
+        border: 1px solid #3f3f46;
+    }
+
+    /* Remove extra padding */
+    .block-container {
+        padding-top: 1rem;
+        max-width: 1400px;
     }
 </style>
 """, unsafe_allow_html=True)
 
-
-# Mock NBA Player Database
-MOCK_PLAYERS = {
-    "LeBron James": {"team": "LAL", "position": "F"},
-    "Stephen Curry": {"team": "GSW", "position": "G"},
-    "Kevin Durant": {"team": "PHX", "position": "F"},
-    "Giannis Antetokounmpo": {"team": "MIL", "position": "F"},
-    "Luka Doncic": {"team": "DAL", "position": "G"},
-    "Joel Embiid": {"team": "PHI", "position": "C"},
-    "Nikola Jokic": {"team": "DEN", "position": "C"},
-    "Jayson Tatum": {"team": "BOS", "position": "F"},
-    "Damian Lillard": {"team": "MIL", "position": "G"},
-    "Anthony Davis": {"team": "LAL", "position": "F-C"},
-    "Devin Booker": {"team": "PHX", "position": "G"},
-    "Trae Young": {"team": "ATL", "position": "G"},
-    "Ja Morant": {"team": "MEM", "position": "G"},
-    "Donovan Mitchell": {"team": "CLE", "position": "G"},
-    "Kawhi Leonard": {"team": "LAC", "position": "F"},
+# Team data with colors (matching React app)
+TEAM_COLORS = {
+    'ATL': '#E03A3E', 'BOS': '#007A33', 'BKN': '#000000', 'CHA': '#1D1160',
+    'CHI': '#CE1141', 'CLE': '#860038', 'DAL': '#00538C', 'DEN': '#0E2240',
+    'DET': '#C8102E', 'GSW': '#1D428A', 'HOU': '#CE1141', 'IND': '#002D62',
+    'LAC': '#C8102E', 'LAL': '#552583', 'MEM': '#5D76A9', 'MIA': '#98002E',
+    'MIL': '#00471B', 'MIN': '#0C2340', 'NOP': '#0C2340', 'NYK': '#006BB6',
+    'OKC': '#007AC1', 'ORL': '#0077C0', 'PHI': '#006BB6', 'PHX': '#1D1160',
+    'POR': '#E03A3E', 'SAC': '#5A2D81', 'SAS': '#C4CED4', 'TOR': '#CE1141',
+    'UTA': '#002B5C', 'WAS': '#002B5C'
 }
 
+TEAM_NAMES = {
+    'ATL': 'Hawks', 'BOS': 'Celtics', 'BKN': 'Nets', 'CHA': 'Hornets',
+    'CHI': 'Bulls', 'CLE': 'Cavaliers', 'DAL': 'Mavericks', 'DEN': 'Nuggets',
+    'DET': 'Pistons', 'GSW': 'Warriors', 'HOU': 'Rockets', 'IND': 'Pacers',
+    'LAC': 'Clippers', 'LAL': 'Lakers', 'MEM': 'Grizzlies', 'MIA': 'Heat',
+    'MIL': 'Bucks', 'MIN': 'Timberwolves', 'NOP': 'Pelicans', 'NYK': 'Knicks',
+    'OKC': 'Thunder', 'ORL': 'Magic', 'PHI': '76ers', 'PHX': 'Suns',
+    'POR': 'Trail Blazers', 'SAC': 'Kings', 'SAS': 'Spurs', 'TOR': 'Raptors',
+    'UTA': 'Jazz', 'WAS': 'Wizards'
+}
 
-def generate_mock_game_data(player_name, stat_type, num_games=15):
-    """
-    Generate realistic mock game data for a player
-    Returns a DataFrame with game-by-game stats
-    """
+# Star players for each team
+TEAM_ROSTERS = {
+    'LAL': [
+        {'id': '2544', 'name': 'LeBron James', 'pos': 'F', 'stats': {'points': 25.5, 'rebounds': 7.2, 'assists': 8.1}},
+        {'id': '203076', 'name': 'Anthony Davis', 'pos': 'F-C', 'stats': {'points': 27.8, 'rebounds': 11.3, 'assists': 3.5}}
+    ],
+    'GSW': [
+        {'id': '201939', 'name': 'Stephen Curry', 'pos': 'G', 'stats': {'points': 26.4, 'rebounds': 4.5, 'assists': 5.2, 'threes': 4.8}},
+        {'id': '1629029', 'name': 'Jonathan Kuminga', 'pos': 'F', 'stats': {'points': 16.8, 'rebounds': 5.2, 'assists': 2.1}}
+    ],
+    'BOS': [
+        {'id': '1628369', 'name': 'Jayson Tatum', 'pos': 'F', 'stats': {'points': 28.2, 'rebounds': 8.6, 'assists': 4.9}},
+        {'id': '1628464', 'name': 'Jaylen Brown', 'pos': 'G-F', 'stats': {'points': 24.7, 'rebounds': 6.1, 'assists': 3.5}}
+    ],
+    'DAL': [
+        {'id': '1629029', 'name': 'Luka Doncic', 'pos': 'G', 'stats': {'points': 32.4, 'rebounds': 8.0, 'assists': 9.8}},
+        {'id': '1626157', 'name': 'Kyrie Irving', 'pos': 'G', 'stats': {'points': 25.2, 'rebounds': 4.9, 'assists': 5.3}}
+    ],
+    'MIL': [
+        {'id': '203507', 'name': 'Giannis Antetokounmpo', 'pos': 'F', 'stats': {'points': 31.1, 'rebounds': 11.2, 'assists': 6.1}},
+        {'id': '203081', 'name': 'Damian Lillard', 'pos': 'G', 'stats': {'points': 25.7, 'rebounds': 4.3, 'assists': 7.6}}
+    ],
+    'PHI': [
+        {'id': '203954', 'name': 'Joel Embiid', 'pos': 'C', 'stats': {'points': 29.5, 'rebounds': 10.8, 'assists': 5.2}},
+        {'id': '1630178', 'name': 'Tyrese Maxey', 'pos': 'G', 'stats': {'points': 27.4, 'rebounds': 3.8, 'assists': 6.9}}
+    ],
+    'DEN': [
+        {'id': '203999', 'name': 'Nikola Jokic', 'pos': 'C', 'stats': {'points': 27.9, 'rebounds': 12.3, 'assists': 9.2}},
+        {'id': '1628378', 'name': 'Jamal Murray', 'pos': 'G', 'stats': {'points': 21.2, 'rebounds': 4.1, 'assists': 6.5}}
+    ],
+    'PHX': [
+        {'id': '201142', 'name': 'Kevin Durant', 'pos': 'F', 'stats': {'points': 28.3, 'rebounds': 6.8, 'assists': 5.0}},
+        {'id': '1626164', 'name': 'Devin Booker', 'pos': 'G', 'stats': {'points': 26.8, 'rebounds': 4.6, 'assists': 6.9}}
+    ],
+    'OKC': [
+        {'id': '1628983', 'name': 'Shai Gilgeous-Alexander', 'pos': 'G', 'stats': {'points': 30.8, 'rebounds': 5.5, 'assists': 6.2}},
+        {'id': '1630602', 'name': 'Chet Holmgren', 'pos': 'C', 'stats': {'points': 16.9, 'rebounds': 7.8, 'assists': 2.5}}
+    ],
+    'MIN': [
+        {'id': '1630162', 'name': 'Anthony Edwards', 'pos': 'G', 'stats': {'points': 27.6, 'rebounds': 5.4, 'assists': 5.1}},
+        {'id': '1626157', 'name': 'Rudy Gobert', 'pos': 'C', 'stats': {'points': 13.8, 'rebounds': 12.9, 'assists': 1.2}}
+    ],
+    'MIA': [
+        {'id': '1628389', 'name': 'Bam Adebayo', 'pos': 'C', 'stats': {'points': 19.4, 'rebounds': 10.2, 'assists': 4.1}},
+        {'id': '1630527', 'name': 'Tyler Herro', 'pos': 'G', 'stats': {'points': 23.8, 'rebounds': 5.3, 'assists': 5.0}}
+    ],
+    'NYK': [
+        {'id': '1629649', 'name': 'Jalen Brunson', 'pos': 'G', 'stats': {'points': 28.1, 'rebounds': 3.8, 'assists': 6.7}},
+        {'id': '1629628', 'name': 'Julius Randle', 'pos': 'F', 'stats': {'points': 24.3, 'rebounds': 9.2, 'assists': 5.0}}
+    ],
+    'CLE': [
+        {'id': '1628378', 'name': 'Donovan Mitchell', 'pos': 'G', 'stats': {'points': 27.8, 'rebounds': 5.3, 'assists': 6.2}},
+        {'id': '1629029', 'name': 'Evan Mobley', 'pos': 'F-C', 'stats': {'points': 16.2, 'rebounds': 9.4, 'assists': 3.1}}
+    ],
+    'ATL': [
+        {'id': '1629027', 'name': 'Trae Young', 'pos': 'G', 'stats': {'points': 26.4, 'rebounds': 2.8, 'assists': 10.8}},
+        {'id': '1629028', 'name': 'Dejounte Murray', 'pos': 'G', 'stats': {'points': 20.1, 'rebounds': 5.3, 'assists': 5.2}}
+    ],
+    'MEM': [
+        {'id': '1629630', 'name': 'Ja Morant', 'pos': 'G', 'stats': {'points': 25.9, 'rebounds': 5.8, 'assists': 8.1}},
+        {'id': '1630583', 'name': 'Jaren Jackson Jr', 'pos': 'F-C', 'stats': {'points': 18.6, 'rebounds': 6.4, 'assists': 1.6}}
+    ]
+}
 
-    # Base stats for different stat types
-    base_values = {
-        "Points": 25,
-        "Rebounds": 8,
-        "Assists": 7,
-        "Threes": 3,
-        "Blocks": 1.5,
-        "Steals": 1.2
-    }
+def generate_todays_games():
+    """Generate mock games for today"""
+    matchups = [
+        ('LAL', 'GSW', '10:00 PM ET'),
+        ('BOS', 'MIA', '7:30 PM ET'),
+        ('DAL', 'PHX', '9:00 PM ET'),
+        ('MIL', 'PHI', '7:00 PM ET'),
+        ('DEN', 'MIN', '8:00 PM ET'),
+        ('OKC', 'MEM', '8:00 PM ET'),
+        ('NYK', 'ATL', '7:30 PM ET'),
+        ('CLE', 'BKN', '7:30 PM ET'),
+    ]
 
-    # Variance for realism
-    variance = {
-        "Points": 8,
-        "Rebounds": 4,
-        "Assists": 3,
-        "Threes": 2,
-        "Blocks": 1,
-        "Steals": 0.8
-    }
+    games = []
+    for away, home, time in matchups:
+        games.append({
+            'away_team': away,
+            'home_team': home,
+            'time': time,
+            'away_players': TEAM_ROSTERS.get(away, []),
+            'home_players': TEAM_ROSTERS.get(home, [])
+        })
 
-    base = base_values.get(stat_type, 20)
-    var = variance.get(stat_type, 5)
+    return games
 
-    # Generate dates (last N games)
-    dates = [(datetime.now() - timedelta(days=i*3)).strftime("%Y-%m-%d")
-             for i in range(num_games)]
+def generate_player_game_log(base_stat, num_games=15):
+    """Generate realistic game log for a player"""
+    games = []
+    dates = [(datetime.now() - timedelta(days=i*3)).strftime("%b %d") for i in range(num_games)]
     dates.reverse()
 
-    # Generate stats with some variance
-    random.seed(hash(player_name))  # Consistent data per player
-    stats = [max(0, int(random.gauss(base, var))) for _ in range(num_games)]
-
-    # Random opponents
-    teams = ["BOS", "LAL", "GSW", "MIA", "BKN", "PHI", "MIL", "DEN", "PHX", "DAL"]
-    opponents = [random.choice(teams) for _ in range(num_games)]
-
-    return pd.DataFrame({
-        "Date": dates,
-        "Opponent": opponents,
-        "Value": stats
-    })
-
-
-def generate_premium_data(player_name, stat_type, base_df):
-    """
-    Generate premium insights including hit rates and matchup difficulty
-    """
-
-    # Calculate averages
-    l5_avg = base_df.head(5)["Value"].mean()
-    l10_avg = base_df.head(10)["Value"].mean()
-    season_avg = base_df["Value"].mean()
-
-    # Calculate hit rates for different lines
-    lines = [season_avg - 3, season_avg, season_avg + 3]
-    hit_rates = []
-
-    for line in lines:
-        hits_l10 = sum(base_df.head(10)["Value"] > line)
-        hit_rate = (hits_l10 / 10) * 100
-        hit_rates.append({
-            "Line": f"{stat_type} O/U {line:.1f}",
-            "Last 10 Hit Rate": f"{hit_rate:.0f}%",
-            "Hits": f"{hits_l10}/10",
-            "Recommendation": "✅ OVER" if hit_rate >= 60 else "❌ UNDER" if hit_rate <= 40 else "⚠️ NEUTRAL"
+    for i, date in enumerate(dates):
+        value = max(0, int(random.gauss(base_stat, base_stat * 0.3)))
+        games.append({
+            'date': date,
+            'value': value,
+            'opponent': random.choice(list(TEAM_NAMES.keys()))
         })
 
-    # Matchup difficulty (mock)
-    matchup_data = []
-    opponents = base_df["Opponent"].unique()[:5]
+    return games
 
-    for opp in opponents:
-        opp_games = base_df[base_df["Opponent"] == opp]
-        avg_vs = opp_games["Value"].mean() if len(opp_games) > 0 else season_avg
-        difficulty = "🔥 SMASH" if avg_vs > season_avg + 3 else "❄️ AVOID" if avg_vs < season_avg - 3 else "📊 NEUTRAL"
-
-        matchup_data.append({
-            "Opponent": opp,
-            "Avg Against": f"{avg_vs:.1f}",
-            "Difficulty": difficulty
-        })
-
-    return pd.DataFrame(hit_rates), pd.DataFrame(matchup_data), l5_avg, l10_avg, season_avg
-
-
-def create_stats_chart(df, stat_type, num_games):
-    """
-    Create a professional bar chart using Plotly
-    """
-
-    chart_df = df.head(num_games)
-
-    # Create bar chart with gradient colors
+def create_bar_chart(games, line, stat_name):
+    """Create sleek bar chart matching React app style"""
     fig = go.Figure()
 
-    # Color bars based on value (higher = greener)
-    colors = px.colors.sequential.Viridis
+    # Determine hit/miss for colors
+    colors = ['#10b981' if g['value'] > line else '#ef4444' for g in games]
 
     fig.add_trace(go.Bar(
-        x=chart_df["Date"],
-        y=chart_df["Value"],
-        text=chart_df["Value"],
-        textposition="outside",
+        x=[g['date'] for g in games],
+        y=[g['value'] for g in games],
         marker=dict(
-            color=chart_df["Value"],
-            colorscale="Blues",
-            line=dict(color='rgb(8,48,107)', width=1.5)
+            color=colors,
+            line=dict(color='#18181b', width=1)
         ),
-        hovertemplate="<b>%{x}</b><br>" +
-                      f"{stat_type}: %{y}<br>" +
-                      "Opponent: %{customdata}<br>" +
-                      "<extra></extra>",
-        customdata=chart_df["Opponent"]
+        text=[g['value'] for g in games],
+        textposition='outside',
+        hovertemplate='<b>%{x}</b><br>%{y}<br><extra></extra>'
     ))
 
+    # Add line threshold
+    fig.add_hline(
+        y=line,
+        line_dash="dash",
+        line_color="#eab308",
+        line_width=2,
+        annotation_text=f"Line: {line}",
+        annotation_position="right"
+    )
+
     fig.update_layout(
-        title=dict(
-            text=f"{stat_type} - Last {num_games} Games",
-            font=dict(size=24, color="#1d428a", family="Arial Black")
-        ),
+        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='rgba(0,0,0,0)',
+        font=dict(color='white', family='Arial'),
+        height=300,
+        margin=dict(l=10, r=10, t=10, b=40),
         xaxis=dict(
-            title="Game Date",
-            tickangle=-45,
-            showgrid=True,
-            gridcolor='lightgray'
+            showgrid=False,
+            showline=False,
+            zeroline=False
         ),
         yaxis=dict(
-            title=stat_type,
             showgrid=True,
-            gridcolor='lightgray'
+            gridcolor='rgba(63, 63, 70, 0.3)',
+            showline=False,
+            zeroline=False,
+            title=stat_name
         ),
-        plot_bgcolor='rgba(240,240,240,0.5)',
-        paper_bgcolor='white',
-        height=500,
         hovermode='x unified'
     )
 
     return fig
 
-
 # ========== MAIN APP ==========
 
-st.markdown('<h1 class="main-header">🏀 NBA Player Prop Research</h1>', unsafe_allow_html=True)
+# Initialize session state
+if 'selected_game' not in st.session_state:
+    st.session_state.selected_game = None
+if 'selected_player' not in st.session_state:
+    st.session_state.selected_player = None
 
+# Header
 st.markdown("""
-<div style='text-align: center; color: #666; margin-bottom: 2rem;'>
-    <p style='font-size: 1.2rem;'>Research player stats, trends, and hit rates. <b>Free forever.</b></p>
-    <p style='font-size: 0.9rem;'>📊 Unlock premium insights for smarter betting decisions</p>
+<div class="main-header">
+    <div style="max-width: 1400px; margin: 0 auto; padding: 0 1rem; display: flex; justify-content: space-between; align-items: center;">
+        <div style="display: flex; align-items: center; gap: 1rem;">
+            <div style="width: 40px; height: 40px; background: linear-gradient(135deg, #10b981, #059669); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 1.5rem;">P</div>
+            <span style="font-size: 1.5rem; font-weight: 700; color: white;">PropStats</span>
+        </div>
+        <div style="color: #71717a; font-size: 0.9rem;">🏀 NBA Player Props Research</div>
+    </div>
 </div>
 """, unsafe_allow_html=True)
 
+# Back button if player is selected
+if st.session_state.selected_player:
+    col1, col2, col3 = st.columns([1, 6, 1])
+    with col1:
+        if st.button("← Back to Games"):
+            st.session_state.selected_player = None
+            st.rerun()
 
-# Sidebar Configuration
-st.sidebar.header("⚙️ Settings")
+# Main Content
+if st.session_state.selected_player is None:
+    # Show today's games
+    st.markdown(f"""
+    <div style="margin-bottom: 2rem;">
+        <h1 style="color: white; font-size: 2rem; font-weight: 800; margin-bottom: 0.5rem;">Today's Games</h1>
+        <p style="color: #71717a; font-size: 1rem;">{datetime.now().strftime('%A, %B %d, %Y')}</p>
+    </div>
+    """, unsafe_allow_html=True)
 
-# Player Selection
-selected_player = st.sidebar.selectbox(
-    "Select Player",
-    options=list(MOCK_PLAYERS.keys()),
-    index=0
-)
+    games = generate_todays_games()
 
-player_info = MOCK_PLAYERS[selected_player]
+    for idx, game in enumerate(games):
+        away_color = TEAM_COLORS.get(game['away_team'], '#666')
+        home_color = TEAM_COLORS.get(game['home_team'], '#666')
 
-st.sidebar.markdown(f"""
-**Team:** {player_info['team']}
-**Position:** {player_info['position']}
-""")
+        with st.expander(
+            f"🏀  {TEAM_NAMES[game['away_team']]} @ {TEAM_NAMES[game['home_team']]}  •  {game['time']}",
+            expanded=(idx < 2)  # Expand first 2 games by default
+        ):
+            st.markdown(f"""
+            <div style="display: flex; justify-content: space-around; align-items: center; padding: 1rem 0; border-bottom: 1px solid #3f3f46; margin-bottom: 1rem;">
+                <div style="text-align: center;">
+                    <div class="team-badge" style="background: linear-gradient(135deg, {away_color}40, {away_color}20); color: {away_color};">
+                        {game['away_team']}
+                    </div>
+                    <div style="color: #a1a1aa; font-size: 0.9rem; margin-top: 0.5rem;">Away</div>
+                </div>
+                <div style="color: #71717a; font-size: 1.5rem; font-weight: 700;">@</div>
+                <div style="text-align: center;">
+                    <div class="team-badge" style="background: linear-gradient(135deg, {home_color}40, {home_color}20); color: {home_color};">
+                        {game['home_team']}
+                    </div>
+                    <div style="color: #a1a1aa; font-size: 0.9rem; margin-top: 0.5rem;">Home</div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
 
-st.sidebar.divider()
+            # Away team players
+            st.markdown(f"**{TEAM_NAMES[game['away_team']]} Players**")
+            cols = st.columns(2)
+            for i, player in enumerate(game['away_players']):
+                with cols[i % 2]:
+                    if st.button(
+                        f"{player['name']} • {player['pos']}",
+                        key=f"away_{idx}_{i}",
+                        use_container_width=True
+                    ):
+                        st.session_state.selected_player = player
+                        st.session_state.selected_game = game
+                        st.rerun()
 
-# Stat Selection
-stat_type = st.sidebar.selectbox(
-    "Stat Type",
-    options=["Points", "Rebounds", "Assists", "Threes", "Blocks", "Steals"],
-    index=0
-)
+                    # Show quick stats
+                    stats_html = "".join([
+                        f'<span class="stat-badge">{k.upper()}: {v}</span>'
+                        for k, v in list(player['stats'].items())[:3]
+                    ])
+                    st.markdown(f'<div style="margin: 0.5rem 0;">{stats_html}</div>', unsafe_allow_html=True)
 
-# Game Range Selection
-num_games = st.sidebar.select_slider(
-    "Number of Games",
-    options=[5, 10, 15],
-    value=10
-)
+            st.markdown("<br>", unsafe_allow_html=True)
 
-st.sidebar.divider()
-st.sidebar.markdown("---")
-st.sidebar.markdown("### 🔓 Premium Access")
+            # Home team players
+            st.markdown(f"**{TEAM_NAMES[game['home_team']]} Players**")
+            cols = st.columns(2)
+            for i, player in enumerate(game['home_players']):
+                with cols[i % 2]:
+                    if st.button(
+                        f"{player['name']} • {player['pos']}",
+                        key=f"home_{idx}_{i}",
+                        use_container_width=True
+                    ):
+                        st.session_state.selected_player = player
+                        st.session_state.selected_game = game
+                        st.rerun()
 
-# Access Code Input (for premium features)
-access_code = st.sidebar.text_input(
-    "Enter Access Code",
-    type="password",
-    placeholder="BETS2024",
-    help="Get premium access with code BETS2024"
-)
+                    # Show quick stats
+                    stats_html = "".join([
+                        f'<span class="stat-badge">{k.upper()}: {v}</span>'
+                        for k, v in list(player['stats'].items())[:3]
+                    ])
+                    st.markdown(f'<div style="margin: 0.5rem 0;">{stats_html}</div>', unsafe_allow_html=True)
 
-is_premium = access_code == "BETS2024"
-
-if is_premium:
-    st.sidebar.success("✅ Premium Unlocked!")
 else:
-    st.sidebar.info("💎 Enter code to unlock premium insights")
+    # Player Analysis View
+    player = st.session_state.selected_player
+    game = st.session_state.selected_game
 
-
-# ========== MAIN CONTENT ==========
-
-# Generate Data
-game_data = generate_mock_game_data(selected_player, stat_type, num_games=15)
-
-# Display Chart
-st.subheader(f"📈 {selected_player} - {stat_type} Trends")
-
-col1, col2, col3 = st.columns(3)
-
-with col1:
-    st.metric(
-        label="Last 5 Avg",
-        value=f"{game_data.head(5)['Value'].mean():.1f}",
-        delta=f"{game_data.head(5)['Value'].mean() - game_data.head(10)['Value'].mean():.1f}"
-    )
-
-with col2:
-    st.metric(
-        label="Last 10 Avg",
-        value=f"{game_data.head(10)['Value'].mean():.1f}"
-    )
-
-with col3:
-    st.metric(
-        label="Season Avg",
-        value=f"{game_data['Value'].mean():.1f}"
-    )
-
-# Show Chart
-chart = create_stats_chart(game_data, stat_type, num_games)
-st.plotly_chart(chart, use_container_width=True)
-
-# Show Game Log
-with st.expander("📋 View Game Log"):
-    display_df = game_data.head(num_games).copy()
-    display_df.index = range(1, len(display_df) + 1)
-    st.dataframe(display_df, use_container_width=True)
-
-
-# ========== PAYWALL SECTION ==========
-
-st.markdown("---")
-
-if not is_premium:
-    # Show Locked Premium Section
-    st.markdown("""
-    <div class="premium-lock">
-        <h2>🔒 Premium Insights</h2>
-        <p style='font-size: 1.1rem; margin: 1rem 0;'>
-            Unlock advanced analytics to make smarter prop bets:
-        </p>
-        <ul style='list-style: none; padding: 0; font-size: 1rem;'>
-            <li>✅ Hit Rate Analysis (Last 5, 10, 20 games)</li>
-            <li>✅ Line Recommendations (Over/Under)</li>
-            <li>✅ Matchup Difficulty Ratings</li>
-            <li>✅ Defense vs. Position Trends</li>
-            <li>✅ Home/Away Splits</li>
-        </ul>
-        <p style='margin-top: 1.5rem; font-size: 1.3rem;'>
-            <b>Unlock for just $5/month</b>
+    # Player header
+    st.markdown(f"""
+    <div style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(5, 150, 105, 0.05));
+                border: 1px solid #3f3f46; border-radius: 16px; padding: 2rem; margin-bottom: 2rem;">
+        <h1 style="color: white; font-size: 2.5rem; margin-bottom: 0.5rem;">{player['name']}</h1>
+        <p style="color: #a1a1aa; font-size: 1.1rem;">
+            {player['pos']} • {TEAM_NAMES[game['away_team']]} @ {TEAM_NAMES[game['home_team']]} • {game['time']}
         </p>
     </div>
     """, unsafe_allow_html=True)
 
-    # CTA Button (Placeholder Stripe Link)
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        if st.button("💳 Unlock Premium Access - $5", use_container_width=True, type="primary"):
-            st.info("🔗 Redirecting to payment... (Replace with your Stripe Payment Link)")
-            st.markdown("""
-            **Setup Instructions:**
-            1. Create a Stripe account at [stripe.com](https://stripe.com)
-            2. Create a Payment Link for $5/month subscription
-            3. Replace this button with: `st.link_button("Unlock Premium", "YOUR_STRIPE_LINK")`
-            """)
+    # Stat selection
+    available_stats = list(player['stats'].keys())
 
-    st.warning("💡 **Hint:** Enter access code 'BETS2024' in the sidebar to demo premium features")
-
-else:
-    # Show Premium Content
-    st.success("🎉 Premium Features Unlocked!")
-
-    hit_rate_df, matchup_df, l5, l10, season = generate_premium_data(
-        selected_player, stat_type, game_data
-    )
-
-    st.subheader("🎯 Hit Rate Analysis")
-
-    # Show hit rates
-    st.dataframe(
-        hit_rate_df.style.set_properties(**{
-            'background-color': '#f0f2f6',
-            'color': '#000',
-            'border-color': 'white'
-        }),
-        use_container_width=True,
-        hide_index=True
-    )
-
-    st.markdown("---")
-
-    st.subheader("🏟️ Matchup Difficulty")
-
-    col1, col2 = st.columns(2)
-
+    col1, col2, col3 = st.columns([2, 2, 4])
     with col1:
-        st.dataframe(
-            matchup_df,
-            use_container_width=True,
-            hide_index=True
+        selected_stat = st.selectbox(
+            "Select Stat",
+            options=available_stats,
+            format_func=lambda x: x.upper()
         )
 
+    base_value = player['stats'][selected_stat]
+
     with col2:
-        st.markdown("""
-        ### 📊 Interpretation Guide
+        line = st.number_input(
+            "Line",
+            min_value=0.5,
+            max_value=100.0,
+            value=float(base_value),
+            step=0.5
+        )
 
-        - **🔥 SMASH**: Player performs well above average
-        - **📊 NEUTRAL**: Performance near season average
-        - **❄️ AVOID**: Player underperforms against this team
+    # Generate game log
+    game_log = generate_player_game_log(base_value)
 
-        ### 💡 Pro Tips
-        - Look for 70%+ hit rates on recent lines
-        - Check home/away splits for location edges
-        - Monitor injury reports before betting
-        """)
+    # Calculate hit rate
+    hits = sum(1 for g in game_log if g['value'] > line)
+    total = len(game_log)
+    hit_rate = (hits / total * 100) if total > 0 else 0
 
-    st.markdown("---")
+    # Calculate averages
+    l5_avg = sum(g['value'] for g in game_log[-5:]) / 5
+    l10_avg = sum(g['value'] for g in game_log[-10:]) / 10
+    season_avg = sum(g['value'] for g in game_log) / len(game_log)
 
-    # Advanced Stats Summary
-    st.subheader("📈 Advanced Metrics")
-
+    # Metrics
     col1, col2, col3, col4 = st.columns(4)
 
     with col1:
-        st.metric("L5 Avg", f"{l5:.1f}", delta=f"{l5 - season:.1f}")
-
+        st.metric("Season Avg", f"{season_avg:.1f}")
     with col2:
-        st.metric("L10 Avg", f"{l10:.1f}", delta=f"{l10 - season:.1f}")
-
+        st.metric("L10 Avg", f"{l10_avg:.1f}", delta=f"{l10_avg - season_avg:+.1f}")
     with col3:
-        st.metric("Season Avg", f"{season:.1f}")
-
+        st.metric("L5 Avg", f"{l5_avg:.1f}", delta=f"{l5_avg - l10_avg:+.1f}")
     with col4:
-        consistency = 100 - (game_data["Value"].std() / game_data["Value"].mean() * 100)
-        st.metric("Consistency", f"{consistency:.0f}%")
+        color_class = 'hit-high' if hit_rate >= 65 else 'hit-medium' if hit_rate >= 50 else 'hit-low'
+        st.markdown(f"""
+        <div class="{color_class}" style="padding: 1rem; border-radius: 12px; text-align: center;">
+            <div style="font-size: 0.75rem; opacity: 0.7; margin-bottom: 0.25rem;">Hit Rate</div>
+            <div style="font-size: 2rem; font-weight: 800;">{hit_rate:.0f}%</div>
+            <div style="font-size: 0.85rem; opacity: 0.9;">{hits}/{total} Games</div>
+        </div>
+        """, unsafe_allow_html=True)
 
+    st.markdown("<br>", unsafe_allow_html=True)
 
-# ========== FOOTER ==========
+    # Chart
+    st.markdown(f"### Last {len(game_log)} Games")
+    chart = create_bar_chart(game_log, line, selected_stat.upper())
+    st.plotly_chart(chart, use_container_width=True)
 
-st.markdown("---")
+    # Recommendation
+    if hit_rate >= 70 and season_avg > line:
+        verdict = "STRONG OVER"
+        verdict_color = "#10b981"
+        confidence = "High"
+    elif hit_rate >= 55 and season_avg > line:
+        verdict = "LEAN OVER"
+        verdict_color = "#84cc16"
+        confidence = "Medium"
+    elif hit_rate <= 30 and season_avg < line:
+        verdict = "STRONG UNDER"
+        verdict_color = "#ef4444"
+        confidence = "High"
+    elif hit_rate <= 45 and season_avg < line:
+        verdict = "LEAN UNDER"
+        verdict_color = "#f97316"
+        confidence = "Medium"
+    else:
+        verdict = "TOSS UP"
+        verdict_color = "#71717a"
+        confidence = "Low"
 
+    st.markdown(f"""
+    <div style="background: linear-gradient(135deg, {verdict_color}20, {verdict_color}10);
+                border: 2px solid {verdict_color}; border-radius: 16px;
+                padding: 2rem; text-align: center; margin: 2rem 0;">
+        <div style="font-size: 0.9rem; color: #a1a1aa; margin-bottom: 0.5rem;">Recommendation</div>
+        <div style="font-size: 2.5rem; font-weight: 900; color: {verdict_color}; margin-bottom: 0.5rem;">{verdict}</div>
+        <div style="font-size: 1rem; color: #a1a1aa;">Confidence: {confidence}</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Game Log Table
+    with st.expander("📋 Detailed Game Log"):
+        df = pd.DataFrame(game_log)
+        df['Hit'] = df['value'] > line
+        df['vs Line'] = df['value'] - line
+        df = df[['date', 'opponent', 'value', 'Hit', 'vs Line']]
+        df.columns = ['Date', 'Opponent', selected_stat.upper(), 'Hit', '+/-']
+        st.dataframe(df, use_container_width=True, hide_index=True)
+
+# Footer
 st.markdown("""
-<div style='text-align: center; color: #888; padding: 2rem 0;'>
-    <p><b>Built with Streamlit</b> | Data updates every 6 hours</p>
-    <p style='font-size: 0.9rem;'>⚠️ For entertainment purposes only. Gamble responsibly.</p>
+<div style="margin-top: 4rem; padding: 2rem 0; border-top: 1px solid #3f3f46; text-align: center; color: #71717a;">
+    <p>PropStats © 2025 • Data updates every 6 hours • For entertainment purposes only</p>
+    <p style="font-size: 0.85rem; margin-top: 0.5rem;">⚠️ Gamble responsibly. Must be 21+ where legal.</p>
 </div>
 """, unsafe_allow_html=True)
-
-
-# ========== DEPLOYMENT GUIDE (Hidden in Code) ==========
-"""
-═══════════════════════════════════════════════════════════════
-📦 HOW TO DEPLOY TO STREAMLIT COMMUNITY CLOUD (FREE)
-═══════════════════════════════════════════════════════════════
-
-STEP 1: Prepare Your GitHub Repository
----------------------------------------
-1. Create a new GitHub repository (or use existing)
-2. Add these files to your repo:
-   - app.py (this file)
-   - requirements.txt (see below)
-   - README.md (optional)
-
-3. Create requirements.txt with:
-   ```
-   streamlit>=1.31.0
-   pandas>=2.0.0
-   plotly>=5.18.0
-   ```
-
-4. Push to GitHub:
-   ```bash
-   git add .
-   git commit -m "Add NBA Props Research Streamlit app"
-   git push origin main
-   ```
-
-STEP 2: Deploy on Streamlit Cloud
-----------------------------------
-1. Go to https://share.streamlit.io/
-2. Sign in with GitHub
-3. Click "New app"
-4. Select your repository
-5. Main file path: app.py
-6. Click "Deploy"!
-
-Your app will be live at: https://yourapp.streamlit.app
-
-═══════════════════════════════════════════════════════════════
-💳 ADDING REAL STRIPE PAYMENTS
-═══════════════════════════════════════════════════════════════
-
-STEP 1: Create Stripe Payment Link
------------------------------------
-1. Go to https://stripe.com and create account
-2. Navigate to Products > Add Product
-   - Name: "NBA Props Premium"
-   - Price: $5/month (recurring)
-3. Click "Create payment link"
-4. Copy the payment link URL
-
-STEP 2: Update App Code
-------------------------
-Replace the button section (line ~380) with:
-
-```python
-st.link_button(
-    "💳 Unlock Premium Access - $5",
-    "https://buy.stripe.com/YOUR_PAYMENT_LINK_HERE",
-    use_container_width=True
-)
-```
-
-STEP 3: Handle Payment Verification (Advanced)
------------------------------------------------
-For production, integrate Stripe webhooks to verify payments
-and manage access codes. This requires:
-- Stripe webhook endpoint
-- Database to store customer subscriptions
-- Backend API for verification
-
-For MVP, manual access codes work fine!
-
-═══════════════════════════════════════════════════════════════
-🔌 USING REAL NBA DATA (Optional Upgrade)
-═══════════════════════════════════════════════════════════════
-
-Replace mock data with balldontlie API:
-
-```python
-import requests
-
-def fetch_real_player_stats(player_name, num_games=10):
-    # Search for player
-    url = "https://www.balldontlie.io/api/v1/players"
-    response = requests.get(url, params={"search": player_name})
-    player_id = response.json()["data"][0]["id"]
-
-    # Get stats
-    stats_url = "https://www.balldontlie.io/api/v1/stats"
-    stats = requests.get(stats_url, params={
-        "player_ids[]": player_id,
-        "per_page": num_games
-    })
-
-    return stats.json()
-```
-
-Note: API rate limits apply. Mock data is fine for MVP!
-
-═══════════════════════════════════════════════════════════════
-"""
