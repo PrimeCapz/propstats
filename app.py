@@ -914,6 +914,12 @@ if st.session_state.view == 'slate':
         home_color = TEAM_COLORS.get(game['home_team'], '#666')
 
         with cols[idx % 2]:
+            # Safe stat access with defaults
+            away_ppg = game.get('away_stats', {}).get('ppg', 'N/A')
+            away_pace = game.get('away_stats', {}).get('pace', 'N/A')
+            home_ppg = game.get('home_stats', {}).get('ppg', 'N/A')
+            home_pace = game.get('home_stats', {}).get('pace', 'N/A')
+
             st.markdown(f"""
             <div class="game-card fade-in">
                 <div class="game-card-header">
@@ -922,7 +928,7 @@ if st.session_state.view == 'slate':
                         <div style="display: flex; gap: 0.5rem;">
                             <div style="text-align: center;">
                                 <div style="font-size: 0.65rem; color: #9ca3af; font-weight: 600;">PLAYERS</div>
-                                <div style="font-size: 1.125rem; font-weight: 800; color: #3b82f6;">{len(game['away_players']) + len(game['home_players'])}</div>
+                                <div style="font-size: 1.125rem; font-weight: 800; color: #3b82f6;">{len(game.get('away_players', [])) + len(game.get('home_players', []))}</div>
                             </div>
                         </div>
                     </div>
@@ -934,17 +940,17 @@ if st.session_state.view == 'slate':
                                 <div style="width: 14px; height: 14px; background: {away_color}; border-radius: 4px; box-shadow: 0 2px 4px {away_color}40;"></div>
                                 <div>
                                     <div style="font-weight: 800; font-size: 1.25rem; color: #111827; letter-spacing: -0.5px;">{game['away_team']}</div>
-                                    <div style="font-size: 0.75rem; color: #6b7280; font-weight: 500;">{TEAM_NAMES[game['away_team']]}</div>
+                                    <div style="font-size: 0.75rem; color: #6b7280; font-weight: 500;">{TEAM_NAMES.get(game['away_team'], game['away_team'])}</div>
                                 </div>
                             </div>
                             <div style="display: flex; gap: 0.75rem;">
                                 <div style="text-align: right;">
                                     <div style="font-size: 0.65rem; color: #6b7280;">PPG</div>
-                                    <div style="font-size: 0.95rem; font-weight: 700; color: #111827;">{game['away_stats']['ppg']}</div>
+                                    <div style="font-size: 0.95rem; font-weight: 700; color: #111827;">{away_ppg}</div>
                                 </div>
                                 <div style="text-align: right;">
                                     <div style="font-size: 0.65rem; color: #6b7280;">PACE</div>
-                                    <div style="font-size: 0.95rem; font-weight: 700; color: #111827;">{game['away_stats']['pace']}</div>
+                                    <div style="font-size: 0.95rem; font-weight: 700; color: #111827;">{away_pace}</div>
                                 </div>
                             </div>
                         </div>
@@ -953,17 +959,17 @@ if st.session_state.view == 'slate':
                                 <div style="width: 14px; height: 14px; background: {home_color}; border-radius: 4px; box-shadow: 0 2px 4px {home_color}40;"></div>
                                 <div>
                                     <div style="font-weight: 800; font-size: 1.25rem; color: #111827; letter-spacing: -0.5px;">{game['home_team']}</div>
-                                    <div style="font-size: 0.75rem; color: #6b7280; font-weight: 500;">{TEAM_NAMES[game['home_team']]}</div>
+                                    <div style="font-size: 0.75rem; color: #6b7280; font-weight: 500;">{TEAM_NAMES.get(game['home_team'], game['home_team'])}</div>
                                 </div>
                             </div>
                             <div style="display: flex; gap: 0.75rem;">
                                 <div style="text-align: right;">
                                     <div style="font-size: 0.65rem; color: #6b7280;">PPG</div>
-                                    <div style="font-size: 0.95rem; font-weight: 700; color: #111827;">{game['home_stats']['ppg']}</div>
+                                    <div style="font-size: 0.95rem; font-weight: 700; color: #111827;">{home_ppg}</div>
                                 </div>
                                 <div style="text-align: right;">
                                     <div style="font-size: 0.65rem; color: #6b7280;">PACE</div>
-                                    <div style="font-size: 0.95rem; font-weight: 700; color: #111827;">{game['home_stats']['pace']}</div>
+                                    <div style="font-size: 0.95rem; font-weight: 700; color: #111827;">{home_pace}</div>
                                 </div>
                             </div>
                         </div>
@@ -1010,14 +1016,23 @@ elif st.session_state.view == 'matchup':
     # Team Stats Comparison
     col1, col2 = st.columns(2, gap="large")
 
+    # Safe stat access
+    away_stats = game.get('away_stats', {})
+    home_stats = game.get('home_stats', {})
+
+    away_ppg = away_stats.get('ppg', 110)
+    away_pace = away_stats.get('pace', 100)
+    away_off_rank = away_stats.get('off_rank', 15)
+    away_def_rank = away_stats.get('def_rank', 15)
+
     with col1:
         st.markdown(f"""
         <div class="prop-card">
             <div class="prop-card-header">
                 <div style="display: flex; align-items: center; gap: 0.75rem;">
-                    <div style="width: 16px; height: 16px; background: {TEAM_COLORS[game['away_team']]}; border-radius: 4px;"></div>
+                    <div style="width: 16px; height: 16px; background: {TEAM_COLORS.get(game['away_team'], '#666')}; border-radius: 4px;"></div>
                     <h3 style="font-size: 1.25rem; font-weight: 700; color: #111827; margin: 0;">
-                        {game['away_team']} {TEAM_NAMES[game['away_team']]}
+                        {game['away_team']} {TEAM_NAMES.get(game['away_team'], game['away_team'])}
                     </h3>
                 </div>
             </div>
@@ -1026,40 +1041,45 @@ elif st.session_state.view == 'matchup':
                     <div class="data-row">
                         <span style="color: #6b7280; font-weight: 500;">PPG</span>
                         <div class="progress-bar">
-                            <div class="progress-fill" style="width: {game['away_stats']['ppg']/1.3}%"></div>
+                            <div class="progress-fill" style="width: {away_ppg/1.3}%"></div>
                         </div>
-                        <span style="font-weight: 700; color: #111827;">{game['away_stats']['ppg']}</span>
+                        <span style="font-weight: 700; color: #111827;">{away_ppg}</span>
                     </div>
                     <div class="data-row">
                         <span style="color: #6b7280; font-weight: 500;">Pace</span>
                         <div class="progress-bar">
-                            <div class="progress-fill" style="width: {game['away_stats']['pace']}%"></div>
+                            <div class="progress-fill" style="width: {away_pace}%"></div>
                         </div>
-                        <span style="font-weight: 700; color: #111827;">{game['away_stats']['pace']}</span>
+                        <span style="font-weight: 700; color: #111827;">{away_pace}</span>
                     </div>
                     <div class="data-row">
                         <span style="color: #6b7280; font-weight: 500;">Off Rank</span>
                         <span></span>
-                        <span style="font-weight: 700; color: #10b981;">#{game['away_stats']['off_rank']}</span>
+                        <span style="font-weight: 700; color: #10b981;">#{away_off_rank}</span>
                     </div>
                     <div class="data-row">
                         <span style="color: #6b7280; font-weight: 500;">Def Rank</span>
                         <span></span>
-                        <span style="font-weight: 700; color: #ef4444;">#{game['away_stats']['def_rank']}</span>
+                        <span style="font-weight: 700; color: #ef4444;">#{away_def_rank}</span>
                     </div>
                 </div>
             </div>
         </div>
         """, unsafe_allow_html=True)
 
+    home_ppg = home_stats.get('ppg', 110)
+    home_pace = home_stats.get('pace', 100)
+    home_off_rank = home_stats.get('off_rank', 15)
+    home_def_rank = home_stats.get('def_rank', 15)
+
     with col2:
         st.markdown(f"""
         <div class="prop-card">
             <div class="prop-card-header">
                 <div style="display: flex; align-items: center; gap: 0.75rem;">
-                    <div style="width: 16px; height: 16px; background: {TEAM_COLORS[game['home_team']]}; border-radius: 4px;"></div>
+                    <div style="width: 16px; height: 16px; background: {TEAM_COLORS.get(game['home_team'], '#666')}; border-radius: 4px;"></div>
                     <h3 style="font-size: 1.25rem; font-weight: 700; color: #111827; margin: 0;">
-                        {game['home_team']} {TEAM_NAMES[game['home_team']]}
+                        {game['home_team']} {TEAM_NAMES.get(game['home_team'], game['home_team'])}
                     </h3>
                 </div>
             </div>
@@ -1068,26 +1088,26 @@ elif st.session_state.view == 'matchup':
                     <div class="data-row">
                         <span style="color: #6b7280; font-weight: 500;">PPG</span>
                         <div class="progress-bar">
-                            <div class="progress-fill" style="width: {game['home_stats']['ppg']/1.3}%"></div>
+                            <div class="progress-fill" style="width: {home_ppg/1.3}%"></div>
                         </div>
-                        <span style="font-weight: 700; color: #111827;">{game['home_stats']['ppg']}</span>
+                        <span style="font-weight: 700; color: #111827;">{home_ppg}</span>
                     </div>
                     <div class="data-row">
                         <span style="color: #6b7280; font-weight: 500;">Pace</span>
                         <div class="progress-bar">
-                            <div class="progress-fill" style="width: {game['home_stats']['pace']}%"></div>
+                            <div class="progress-fill" style="width: {home_pace}%"></div>
                         </div>
-                        <span style="font-weight: 700; color: #111827;">{game['home_stats']['pace']}</span>
+                        <span style="font-weight: 700; color: #111827;">{home_pace}</span>
                     </div>
                     <div class="data-row">
                         <span style="color: #6b7280; font-weight: 500;">Off Rank</span>
                         <span></span>
-                        <span style="font-weight: 700; color: #10b981;">#{game['home_stats']['off_rank']}</span>
+                        <span style="font-weight: 700; color: #10b981;">#{home_off_rank}</span>
                     </div>
                     <div class="data-row">
                         <span style="color: #6b7280; font-weight: 500;">Def Rank</span>
                         <span></span>
-                        <span style="font-weight: 700; color: #ef4444;">#{game['home_stats']['def_rank']}</span>
+                        <span style="font-weight: 700; color: #ef4444;">#{home_def_rank}</span>
                     </div>
                 </div>
             </div>
@@ -1096,28 +1116,34 @@ elif st.session_state.view == 'matchup':
 
     # Player Selection
     if game.get('away_players'):
-        st.markdown(f"<div class='section-header'>{TEAM_NAMES[game['away_team']]} Players</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='section-header'>{TEAM_NAMES.get(game['away_team'], game['away_team'])} Players</div>", unsafe_allow_html=True)
         cols = st.columns(3, gap="medium")
         for i, player in enumerate(game['away_players']):
             with cols[i % 3]:
-                if st.button(f"{player['name']}\n{player['pos']} • #{player['number']}", key=f"away_{i}", use_container_width=True):
+                player_name = player.get('name', 'Unknown Player')
+                player_pos = player.get('pos', '?')
+                player_num = player.get('number', '0')
+                if st.button(f"{player_name}\n{player_pos} • #{player_num}", key=f"away_{i}", use_container_width=True):
                     st.session_state.selected_player = player
                     st.session_state.view = 'player'
                     st.rerun()
     else:
-        st.info(f"Loading {TEAM_NAMES[game['away_team']]} roster...")
+        st.info(f"Loading {TEAM_NAMES.get(game['away_team'], game['away_team'])} roster...")
 
     if game.get('home_players'):
-        st.markdown(f"<div class='section-header'>{TEAM_NAMES[game['home_team']]} Players</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='section-header'>{TEAM_NAMES.get(game['home_team'], game['home_team'])} Players</div>", unsafe_allow_html=True)
         cols = st.columns(3, gap="medium")
         for i, player in enumerate(game['home_players']):
             with cols[i % 3]:
-                if st.button(f"{player['name']}\n{player['pos']} • #{player['number']}", key=f"home_{i}", use_container_width=True):
+                player_name = player.get('name', 'Unknown Player')
+                player_pos = player.get('pos', '?')
+                player_num = player.get('number', '0')
+                if st.button(f"{player_name}\n{player_pos} • #{player_num}", key=f"home_{i}", use_container_width=True):
                     st.session_state.selected_player = player
                     st.session_state.view = 'player'
                     st.rerun()
     else:
-        st.info(f"Loading {TEAM_NAMES[game['home_team']]} roster...")
+        st.info(f"Loading {TEAM_NAMES.get(game['home_team'], game['home_team'])} roster...")
 
 # ========== LAYER 3: PLAYER DEEP DIVE ==========
 elif st.session_state.view == 'player':
