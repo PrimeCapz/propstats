@@ -1,6 +1,6 @@
 """
 🏀 NBA Props Research Tool
-Clean, game-first interface for analyzing player props
+Sleek, layered interface with neon accents
 """
 
 import streamlit as st
@@ -17,12 +17,12 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Dark Theme Styling (matching React app)
+# Enhanced Dark Theme with Neon Accents (Gemini + Claude Hybrid)
 st.markdown("""
 <style>
-    /* Main container */
+    /* Main Container */
     .stApp {
-        background-color: #09090b;
+        background-color: #0E1117;
     }
 
     /* Hide default Streamlit elements */
@@ -30,124 +30,182 @@ st.markdown("""
     footer {visibility: hidden;}
     header {visibility: hidden;}
 
-    /* Custom header */
+    /* Custom Header */
     .main-header {
-        background: rgba(24, 24, 27, 0.8);
+        background: linear-gradient(135deg, #1A1C24 0%, #0E1117 100%);
         backdrop-filter: blur(12px);
-        border-bottom: 1px solid #27272a;
-        padding: 1rem 0;
+        border-bottom: 2px solid #00FFA3;
+        padding: 1.2rem 0;
         margin-bottom: 2rem;
         position: sticky;
         top: 0;
         z-index: 999;
+        box-shadow: 0 4px 20px rgba(0, 255, 163, 0.1);
     }
 
-    /* Game cards */
-    .game-card {
-        background: linear-gradient(135deg, rgba(39, 39, 42, 0.4), rgba(24, 24, 27, 0.6));
-        border: 1px solid #3f3f46;
+    /* Game Cards with Hover Effects */
+    div[data-testid="stExpander"] {
+        background: linear-gradient(135deg, #1A1C24 0%, #151820 100%);
+        border: 1px solid #2A2D3A;
         border-radius: 16px;
-        padding: 1.5rem;
         margin: 1rem 0;
-        cursor: pointer;
         transition: all 0.3s ease;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
     }
 
-    .game-card:hover {
-        border-color: #52525b;
+    div[data-testid="stExpander"]:hover {
+        border-color: #00FFA3;
+        box-shadow: 0 8px 24px rgba(0, 255, 163, 0.2);
         transform: translateY(-2px);
-        box-shadow: 0 8px 16px rgba(0,0,0,0.3);
     }
 
-    /* Team colors */
-    .team-badge {
-        display: inline-block;
-        padding: 0.5rem 1rem;
+    /* Neon Button Styling */
+    .stButton button {
+        background: linear-gradient(135deg, rgba(0, 255, 163, 0.1), rgba(0, 255, 163, 0.05));
+        color: #00FFA3;
+        border: 2px solid #00FFA3;
         border-radius: 12px;
         font-weight: 700;
-        font-size: 1.2rem;
+        padding: 0.8rem 1.5rem;
+        transition: all 0.3s ease;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        font-size: 0.95rem;
     }
 
-    /* Player cards */
-    .player-card {
-        background: rgba(39, 39, 42, 0.5);
-        border: 1px solid #3f3f46;
-        border-radius: 12px;
+    .stButton button:hover {
+        background: #00FFA3;
+        color: #000;
+        box-shadow: 0 0 20px rgba(0, 255, 163, 0.6),
+                    0 0 40px rgba(0, 255, 163, 0.3);
+        transform: translateY(-2px);
+    }
+
+    /* Player Chip Buttons */
+    .player-chip {
+        background: linear-gradient(135deg, #1A1C24, #151820);
+        border: 1px solid #2A2D3A;
+        border-radius: 10px;
         padding: 1rem;
         margin: 0.5rem 0;
         transition: all 0.2s ease;
     }
 
-    .player-card:hover {
-        background: rgba(52, 52, 56, 0.6);
-        border-color: #10b981;
+    .player-chip:hover {
+        border-color: #00FFA3;
+        background: linear-gradient(135deg, rgba(0, 255, 163, 0.1), rgba(0, 255, 163, 0.05));
     }
 
-    /* Stat badges */
+    /* Team Badges */
+    .team-badge {
+        display: inline-block;
+        padding: 0.6rem 1.2rem;
+        border-radius: 10px;
+        font-weight: 800;
+        font-size: 1.3rem;
+        text-shadow: 0 0 10px currentColor;
+    }
+
+    /* Stat Badges with Neon Glow */
     .stat-badge {
         display: inline-block;
-        background: rgba(16, 185, 129, 0.1);
-        color: #10b981;
-        padding: 0.25rem 0.75rem;
-        border-radius: 6px;
+        background: linear-gradient(135deg, rgba(0, 255, 163, 0.15), rgba(0, 255, 163, 0.05));
+        color: #00FFA3;
+        border: 1px solid rgba(0, 255, 163, 0.3);
+        padding: 0.4rem 0.9rem;
+        border-radius: 8px;
         font-size: 0.85rem;
-        font-weight: 600;
+        font-weight: 700;
         margin: 0.25rem;
+        box-shadow: 0 0 10px rgba(0, 255, 163, 0.2);
     }
 
-    /* Hit rate colors */
+    /* Hit Rate Cards */
     .hit-high {
-        background: linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(5, 150, 105, 0.1));
-        color: #10b981;
+        background: linear-gradient(135deg, rgba(0, 255, 163, 0.2), rgba(0, 255, 163, 0.1));
+        border: 2px solid #00FFA3;
+        color: #00FFA3;
+        box-shadow: 0 0 20px rgba(0, 255, 163, 0.3);
     }
     .hit-medium {
-        background: linear-gradient(135deg, rgba(234, 179, 8, 0.2), rgba(202, 138, 4, 0.1));
-        color: #eab308;
+        background: linear-gradient(135deg, rgba(255, 193, 7, 0.2), rgba(255, 193, 7, 0.1));
+        border: 2px solid #FFC107;
+        color: #FFC107;
+        box-shadow: 0 0 20px rgba(255, 193, 7, 0.3);
     }
     .hit-low {
-        background: linear-gradient(135deg, rgba(239, 68, 68, 0.2), rgba(220, 38, 38, 0.1));
-        color: #ef4444;
+        background: linear-gradient(135deg, rgba(239, 68, 68, 0.2), rgba(239, 68, 68, 0.1));
+        border: 2px solid #EF4444;
+        color: #EF4444;
+        box-shadow: 0 0 20px rgba(239, 68, 68, 0.3);
     }
 
-    /* Buttons */
-    .stButton button {
-        background: rgba(39, 39, 42, 0.8);
-        color: white;
-        border: 1px solid #52525b;
-        border-radius: 12px;
-        padding: 0.75rem 1.5rem;
-        font-weight: 600;
-        transition: all 0.2s ease;
-    }
-
-    .stButton button:hover {
-        background: rgba(52, 52, 56, 0.9);
-        border-color: #10b981;
-        transform: translateY(-1px);
-    }
-
-    /* Metrics */
+    /* Metrics Enhancement */
     div[data-testid="stMetricValue"] {
-        font-size: 2rem;
-        color: #10b981;
+        font-size: 2.2rem;
+        color: #00FFA3;
+        text-shadow: 0 0 10px rgba(0, 255, 163, 0.5);
+        font-weight: 900;
     }
 
-    /* Expanders */
+    div[data-testid="stMetricDelta"] {
+        color: #888;
+    }
+
+    /* Expander Header */
     .streamlit-expanderHeader {
-        background: rgba(39, 39, 42, 0.6);
+        background: linear-gradient(135deg, rgba(26, 28, 36, 0.9), rgba(21, 24, 32, 0.9));
         border-radius: 12px;
-        border: 1px solid #3f3f46;
+        border: 1px solid #2A2D3A;
+        font-weight: 700;
+        font-size: 1.1rem;
+        padding: 1rem 1.5rem;
     }
 
-    /* Remove extra padding */
+    .streamlit-expanderHeader:hover {
+        border-color: #00FFA3;
+        box-shadow: 0 0 15px rgba(0, 255, 163, 0.2);
+    }
+
+    /* Input Fields */
+    .stSelectbox, .stNumberInput {
+        background: #1A1C24;
+        border-radius: 10px;
+    }
+
+    input, select {
+        background-color: #1A1C24 !important;
+        color: white !important;
+        border: 1px solid #2A2D3A !important;
+        border-radius: 8px !important;
+    }
+
+    input:focus, select:focus {
+        border-color: #00FFA3 !important;
+        box-shadow: 0 0 10px rgba(0, 255, 163, 0.3) !important;
+    }
+
+    /* Container Padding */
     .block-container {
         padding-top: 1rem;
         max-width: 1400px;
     }
+
+    /* Back Button Special Styling */
+    .back-button {
+        color: #888;
+        font-size: 1rem;
+        cursor: pointer;
+        transition: color 0.2s;
+    }
+
+    .back-button:hover {
+        color: #00FFA3;
+    }
 </style>
 """, unsafe_allow_html=True)
 
-# Team data with colors (matching React app)
+# Team data
 TEAM_COLORS = {
     'ATL': '#E03A3E', 'BOS': '#007A33', 'BKN': '#000000', 'CHA': '#1D1160',
     'CHI': '#CE1141', 'CLE': '#860038', 'DAL': '#00538C', 'DEN': '#0E2240',
@@ -170,67 +228,87 @@ TEAM_NAMES = {
     'UTA': 'Jazz', 'WAS': 'Wizards'
 }
 
-# Star players for each team
+# Enhanced roster with more players per team
 TEAM_ROSTERS = {
     'LAL': [
         {'id': '2544', 'name': 'LeBron James', 'pos': 'F', 'stats': {'points': 25.5, 'rebounds': 7.2, 'assists': 8.1}},
-        {'id': '203076', 'name': 'Anthony Davis', 'pos': 'F-C', 'stats': {'points': 27.8, 'rebounds': 11.3, 'assists': 3.5}}
+        {'id': '203076', 'name': 'Anthony Davis', 'pos': 'F-C', 'stats': {'points': 27.8, 'rebounds': 11.3, 'assists': 3.5}},
+        {'id': '1629027', 'name': 'Austin Reaves', 'pos': 'G', 'stats': {'points': 16.2, 'rebounds': 4.3, 'assists': 5.8}},
+        {'id': '1630224', 'name': "D'Angelo Russell", 'pos': 'G', 'stats': {'points': 18.1, 'rebounds': 2.9, 'assists': 6.2}}
     ],
     'GSW': [
         {'id': '201939', 'name': 'Stephen Curry', 'pos': 'G', 'stats': {'points': 26.4, 'rebounds': 4.5, 'assists': 5.2, 'threes': 4.8}},
-        {'id': '1629029', 'name': 'Jonathan Kuminga', 'pos': 'F', 'stats': {'points': 16.8, 'rebounds': 5.2, 'assists': 2.1}}
+        {'id': '1629029', 'name': 'Jonathan Kuminga', 'pos': 'F', 'stats': {'points': 16.8, 'rebounds': 5.2, 'assists': 2.1}},
+        {'id': '203110', 'name': 'Klay Thompson', 'pos': 'G', 'stats': {'points': 19.5, 'rebounds': 3.5, 'assists': 2.3, 'threes': 3.2}},
+        {'id': '203546', 'name': 'Draymond Green', 'pos': 'F', 'stats': {'points': 8.6, 'rebounds': 7.2, 'assists': 6.8}}
     ],
     'BOS': [
         {'id': '1628369', 'name': 'Jayson Tatum', 'pos': 'F', 'stats': {'points': 28.2, 'rebounds': 8.6, 'assists': 4.9}},
-        {'id': '1628464', 'name': 'Jaylen Brown', 'pos': 'G-F', 'stats': {'points': 24.7, 'rebounds': 6.1, 'assists': 3.5}}
+        {'id': '1628464', 'name': 'Jaylen Brown', 'pos': 'G-F', 'stats': {'points': 24.7, 'rebounds': 6.1, 'assists': 3.5}},
+        {'id': '1630527', 'name': 'Derrick White', 'pos': 'G', 'stats': {'points': 15.2, 'rebounds': 4.1, 'assists': 5.3}},
+        {'id': '1627759', 'name': 'Kristaps Porzingis', 'pos': 'C', 'stats': {'points': 20.1, 'rebounds': 7.2, 'assists': 1.9}}
     ],
     'DAL': [
         {'id': '1629029', 'name': 'Luka Doncic', 'pos': 'G', 'stats': {'points': 32.4, 'rebounds': 8.0, 'assists': 9.8}},
-        {'id': '1626157', 'name': 'Kyrie Irving', 'pos': 'G', 'stats': {'points': 25.2, 'rebounds': 4.9, 'assists': 5.3}}
+        {'id': '1626157', 'name': 'Kyrie Irving', 'pos': 'G', 'stats': {'points': 25.2, 'rebounds': 4.9, 'assists': 5.3}},
+        {'id': '1629648', 'name': 'Dereck Lively II', 'pos': 'C', 'stats': {'points': 9.2, 'rebounds': 8.4, 'assists': 1.8}}
     ],
     'MIL': [
         {'id': '203507', 'name': 'Giannis Antetokounmpo', 'pos': 'F', 'stats': {'points': 31.1, 'rebounds': 11.2, 'assists': 6.1}},
-        {'id': '203081', 'name': 'Damian Lillard', 'pos': 'G', 'stats': {'points': 25.7, 'rebounds': 4.3, 'assists': 7.6}}
+        {'id': '203081', 'name': 'Damian Lillard', 'pos': 'G', 'stats': {'points': 25.7, 'rebounds': 4.3, 'assists': 7.6}},
+        {'id': '203114', 'name': 'Khris Middleton', 'pos': 'F', 'stats': {'points': 15.1, 'rebounds': 4.7, 'assists': 5.3}}
     ],
     'PHI': [
         {'id': '203954', 'name': 'Joel Embiid', 'pos': 'C', 'stats': {'points': 29.5, 'rebounds': 10.8, 'assists': 5.2}},
-        {'id': '1630178', 'name': 'Tyrese Maxey', 'pos': 'G', 'stats': {'points': 27.4, 'rebounds': 3.8, 'assists': 6.9}}
+        {'id': '1630178', 'name': 'Tyrese Maxey', 'pos': 'G', 'stats': {'points': 27.4, 'rebounds': 3.8, 'assists': 6.9}},
+        {'id': '203967', 'name': 'Tobias Harris', 'pos': 'F', 'stats': {'points': 17.2, 'rebounds': 5.4, 'assists': 3.1}}
     ],
     'DEN': [
         {'id': '203999', 'name': 'Nikola Jokic', 'pos': 'C', 'stats': {'points': 27.9, 'rebounds': 12.3, 'assists': 9.2}},
-        {'id': '1628378', 'name': 'Jamal Murray', 'pos': 'G', 'stats': {'points': 21.2, 'rebounds': 4.1, 'assists': 6.5}}
+        {'id': '1628378', 'name': 'Jamal Murray', 'pos': 'G', 'stats': {'points': 21.2, 'rebounds': 4.1, 'assists': 6.5}},
+        {'id': '203924', 'name': 'Aaron Gordon', 'pos': 'F', 'stats': {'points': 14.3, 'rebounds': 6.6, 'assists': 3.5}}
     ],
     'PHX': [
         {'id': '201142', 'name': 'Kevin Durant', 'pos': 'F', 'stats': {'points': 28.3, 'rebounds': 6.8, 'assists': 5.0}},
-        {'id': '1626164', 'name': 'Devin Booker', 'pos': 'G', 'stats': {'points': 26.8, 'rebounds': 4.6, 'assists': 6.9}}
+        {'id': '1626164', 'name': 'Devin Booker', 'pos': 'G', 'stats': {'points': 26.8, 'rebounds': 4.6, 'assists': 6.9}},
+        {'id': '203944', 'name': 'Bradley Beal', 'pos': 'G', 'stats': {'points': 18.2, 'rebounds': 4.4, 'assists': 5.0}}
     ],
     'OKC': [
         {'id': '1628983', 'name': 'Shai Gilgeous-Alexander', 'pos': 'G', 'stats': {'points': 30.8, 'rebounds': 5.5, 'assists': 6.2}},
-        {'id': '1630602', 'name': 'Chet Holmgren', 'pos': 'C', 'stats': {'points': 16.9, 'rebounds': 7.8, 'assists': 2.5}}
+        {'id': '1630602', 'name': 'Chet Holmgren', 'pos': 'C', 'stats': {'points': 16.9, 'rebounds': 7.8, 'assists': 2.5}},
+        {'id': '1630534', 'name': 'Jalen Williams', 'pos': 'F', 'stats': {'points': 19.1, 'rebounds': 4.5, 'assists': 4.5}}
     ],
     'MIN': [
         {'id': '1630162', 'name': 'Anthony Edwards', 'pos': 'G', 'stats': {'points': 27.6, 'rebounds': 5.4, 'assists': 5.1}},
-        {'id': '1626157', 'name': 'Rudy Gobert', 'pos': 'C', 'stats': {'points': 13.8, 'rebounds': 12.9, 'assists': 1.2}}
+        {'id': '1626157', 'name': 'Rudy Gobert', 'pos': 'C', 'stats': {'points': 13.8, 'rebounds': 12.9, 'assists': 1.2}},
+        {'id': '1630567', 'name': 'Jaden McDaniels', 'pos': 'F', 'stats': {'points': 10.5, 'rebounds': 3.9, 'assists': 1.9}}
     ],
     'MIA': [
         {'id': '1628389', 'name': 'Bam Adebayo', 'pos': 'C', 'stats': {'points': 19.4, 'rebounds': 10.2, 'assists': 4.1}},
-        {'id': '1630527', 'name': 'Tyler Herro', 'pos': 'G', 'stats': {'points': 23.8, 'rebounds': 5.3, 'assists': 5.0}}
+        {'id': '1630527', 'name': 'Tyler Herro', 'pos': 'G', 'stats': {'points': 23.8, 'rebounds': 5.3, 'assists': 5.0}},
+        {'id': '202710', 'name': 'Jimmy Butler', 'pos': 'F', 'stats': {'points': 20.8, 'rebounds': 5.3, 'assists': 5.0}}
     ],
     'NYK': [
         {'id': '1629649', 'name': 'Jalen Brunson', 'pos': 'G', 'stats': {'points': 28.1, 'rebounds': 3.8, 'assists': 6.7}},
-        {'id': '1629628', 'name': 'Julius Randle', 'pos': 'F', 'stats': {'points': 24.3, 'rebounds': 9.2, 'assists': 5.0}}
+        {'id': '1629628', 'name': 'Julius Randle', 'pos': 'F', 'stats': {'points': 24.3, 'rebounds': 9.2, 'assists': 5.0}},
+        {'id': '203497', 'name': 'OG Anunoby', 'pos': 'F', 'stats': {'points': 15.1, 'rebounds': 4.8, 'assists': 2.1}}
     ],
     'CLE': [
         {'id': '1628378', 'name': 'Donovan Mitchell', 'pos': 'G', 'stats': {'points': 27.8, 'rebounds': 5.3, 'assists': 6.2}},
-        {'id': '1629029', 'name': 'Evan Mobley', 'pos': 'F-C', 'stats': {'points': 16.2, 'rebounds': 9.4, 'assists': 3.1}}
+        {'id': '1629029', 'name': 'Evan Mobley', 'pos': 'F-C', 'stats': {'points': 16.2, 'rebounds': 9.4, 'assists': 3.1}},
+        {'id': '1629636', 'name': 'Darius Garland', 'pos': 'G', 'stats': {'points': 18.0, 'rebounds': 2.7, 'assists': 6.5}}
     ],
     'ATL': [
         {'id': '1629027', 'name': 'Trae Young', 'pos': 'G', 'stats': {'points': 26.4, 'rebounds': 2.8, 'assists': 10.8}},
-        {'id': '1629028', 'name': 'Dejounte Murray', 'pos': 'G', 'stats': {'points': 20.1, 'rebounds': 5.3, 'assists': 5.2}}
+        {'id': '1629029', 'name': 'Dejounte Murray', 'pos': 'G', 'stats': {'points': 20.1, 'rebounds': 5.3, 'assists': 5.2}}
     ],
     'MEM': [
         {'id': '1629630', 'name': 'Ja Morant', 'pos': 'G', 'stats': {'points': 25.9, 'rebounds': 5.8, 'assists': 8.1}},
         {'id': '1630583', 'name': 'Jaren Jackson Jr', 'pos': 'F-C', 'stats': {'points': 18.6, 'rebounds': 6.4, 'assists': 1.6}}
+    ],
+    'BKN': [
+        {'id': '1629028', 'name': 'Mikal Bridges', 'pos': 'F', 'stats': {'points': 21.8, 'rebounds': 4.5, 'assists': 3.7}},
+        {'id': '1629673', 'name': 'Cam Thomas', 'pos': 'G', 'stats': {'points': 22.5, 'rebounds': 3.2, 'assists': 2.9}}
     ]
 }
 
@@ -260,12 +338,12 @@ def generate_todays_games():
     return games
 
 def generate_player_game_log(base_stat, num_games=15):
-    """Generate realistic game log for a player"""
+    """Generate realistic game log"""
     games = []
     dates = [(datetime.now() - timedelta(days=i*3)).strftime("%b %d") for i in range(num_games)]
     dates.reverse()
 
-    for i, date in enumerate(dates):
+    for date in dates:
         value = max(0, int(random.gauss(base_stat, base_stat * 0.3)))
         games.append({
             'date': date,
@@ -276,93 +354,96 @@ def generate_player_game_log(base_stat, num_games=15):
     return games
 
 def create_bar_chart(games, line, stat_name):
-    """Create sleek bar chart matching React app style"""
+    """Create dark-themed bar chart with neon accents"""
     fig = go.Figure()
 
-    # Determine hit/miss for colors
-    colors = ['#10b981' if g['value'] > line else '#ef4444' for g in games]
+    colors = ['#00FFA3' if g['value'] > line else '#EF4444' for g in games]
 
     fig.add_trace(go.Bar(
         x=[g['date'] for g in games],
         y=[g['value'] for g in games],
         marker=dict(
             color=colors,
-            line=dict(color='#18181b', width=1)
+            line=dict(color='#0E1117', width=2)
         ),
         text=[g['value'] for g in games],
         textposition='outside',
+        textfont=dict(color='white', size=11, family='Arial Black'),
         hovertemplate='<b>%{x}</b><br>%{y}<br><extra></extra>'
     ))
 
-    # Add line threshold
+    # Neon yellow threshold line
     fig.add_hline(
         y=line,
         line_dash="dash",
-        line_color="#eab308",
-        line_width=2,
+        line_color="#FFC107",
+        line_width=3,
         annotation_text=f"Line: {line}",
-        annotation_position="right"
+        annotation_position="right",
+        annotation_font=dict(color="#FFC107", size=14, family='Arial Black')
     )
 
     fig.update_layout(
-        plot_bgcolor='rgba(0,0,0,0)',
-        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='#0E1117',
+        paper_bgcolor='#0E1117',
         font=dict(color='white', family='Arial'),
-        height=300,
+        height=350,
         margin=dict(l=10, r=10, t=10, b=40),
         xaxis=dict(
             showgrid=False,
             showline=False,
-            zeroline=False
+            zeroline=False,
+            color='#888'
         ),
         yaxis=dict(
             showgrid=True,
-            gridcolor='rgba(63, 63, 70, 0.3)',
+            gridcolor='rgba(42, 45, 58, 0.5)',
             showline=False,
             zeroline=False,
-            title=stat_name
+            title=stat_name,
+            color='#888'
         ),
         hovermode='x unified'
     )
 
     return fig
 
-# ========== MAIN APP ==========
-
-# Initialize session state
+# ========== SESSION STATE MANAGEMENT ==========
+if 'view' not in st.session_state:
+    st.session_state.view = 'slate'  # Options: 'slate', 'analysis'
 if 'selected_game' not in st.session_state:
     st.session_state.selected_game = None
 if 'selected_player' not in st.session_state:
     st.session_state.selected_player = None
 
-# Header
+# ========== HEADER ==========
 st.markdown("""
 <div class="main-header">
     <div style="max-width: 1400px; margin: 0 auto; padding: 0 1rem; display: flex; justify-content: space-between; align-items: center;">
         <div style="display: flex; align-items: center; gap: 1rem;">
-            <div style="width: 40px; height: 40px; background: linear-gradient(135deg, #10b981, #059669); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 1.5rem;">P</div>
-            <span style="font-size: 1.5rem; font-weight: 700; color: white;">PropStats</span>
+            <div style="width: 45px; height: 45px; background: linear-gradient(135deg, #00FFA3, #00CC82); border-radius: 12px;
+                        display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 1.5rem;
+                        box-shadow: 0 0 20px rgba(0, 255, 163, 0.5);">P</div>
+            <span style="font-size: 1.6rem; font-weight: 900; color: white; text-shadow: 0 0 10px rgba(0, 255, 163, 0.3);">PropStats</span>
         </div>
-        <div style="color: #71717a; font-size: 0.9rem;">🏀 NBA Player Props Research</div>
+        <div style="color: #00FFA3; font-size: 1rem; font-weight: 600; text-shadow: 0 0 10px rgba(0, 255, 163, 0.3);">
+            🏀 NBA PLAYER PROPS
+        </div>
     </div>
 </div>
 """, unsafe_allow_html=True)
 
-# Back button if player is selected
-if st.session_state.selected_player:
-    col1, col2, col3 = st.columns([1, 6, 1])
-    with col1:
-        if st.button("← Back to Games"):
-            st.session_state.selected_player = None
-            st.rerun()
-
-# Main Content
-if st.session_state.selected_player is None:
-    # Show today's games
+# ========== LAYER 1: THE DAILY SLATE ==========
+if st.session_state.view == 'slate':
     st.markdown(f"""
-    <div style="margin-bottom: 2rem;">
-        <h1 style="color: white; font-size: 2rem; font-weight: 800; margin-bottom: 0.5rem;">Today's Games</h1>
-        <p style="color: #71717a; font-size: 1rem;">{datetime.now().strftime('%A, %B %d, %Y')}</p>
+    <div style="margin-bottom: 2.5rem; text-align: center;">
+        <h1 style="color: white; font-size: 2.5rem; font-weight: 900; margin-bottom: 0.5rem;
+                   text-shadow: 0 0 20px rgba(0, 255, 163, 0.3);">
+            Today's NBA Slate
+        </h1>
+        <p style="color: #00FFA3; font-size: 1.1rem; font-weight: 600;">
+            {datetime.now().strftime('%A, %B %d, %Y')}
+        </p>
     </div>
     """, unsafe_allow_html=True)
 
@@ -374,93 +455,102 @@ if st.session_state.selected_player is None:
 
         with st.expander(
             f"🏀  {TEAM_NAMES[game['away_team']]} @ {TEAM_NAMES[game['home_team']]}  •  {game['time']}",
-            expanded=(idx < 2)  # Expand first 2 games by default
+            expanded=(idx < 2)
         ):
             st.markdown(f"""
-            <div style="display: flex; justify-content: space-around; align-items: center; padding: 1rem 0; border-bottom: 1px solid #3f3f46; margin-bottom: 1rem;">
+            <div style="display: flex; justify-content: space-around; align-items: center;
+                        padding: 1.5rem 0; border-bottom: 1px solid #2A2D3A; margin-bottom: 1.5rem;">
                 <div style="text-align: center;">
-                    <div class="team-badge" style="background: linear-gradient(135deg, {away_color}40, {away_color}20); color: {away_color};">
+                    <div class="team-badge" style="background: linear-gradient(135deg, {away_color}60, {away_color}30);
+                                                    color: {away_color}; border: 2px solid {away_color}40;">
                         {game['away_team']}
                     </div>
-                    <div style="color: #a1a1aa; font-size: 0.9rem; margin-top: 0.5rem;">Away</div>
+                    <div style="color: #888; font-size: 0.9rem; margin-top: 0.5rem; font-weight: 600;">AWAY</div>
                 </div>
-                <div style="color: #71717a; font-size: 1.5rem; font-weight: 700;">@</div>
+                <div style="color: #00FFA3; font-size: 2rem; font-weight: 900; text-shadow: 0 0 10px rgba(0, 255, 163, 0.3);">@</div>
                 <div style="text-align: center;">
-                    <div class="team-badge" style="background: linear-gradient(135deg, {home_color}40, {home_color}20); color: {home_color};">
+                    <div class="team-badge" style="background: linear-gradient(135deg, {home_color}60, {home_color}30);
+                                                    color: {home_color}; border: 2px solid {home_color}40;">
                         {game['home_team']}
                     </div>
-                    <div style="color: #a1a1aa; font-size: 0.9rem; margin-top: 0.5rem;">Home</div>
+                    <div style="color: #888; font-size: 0.9rem; margin-top: 0.5rem; font-weight: 600;">HOME</div>
                 </div>
             </div>
             """, unsafe_allow_html=True)
 
-            # Away team players
-            st.markdown(f"**{TEAM_NAMES[game['away_team']]} Players**")
+            # Player Chips Layout
+            st.markdown(f"### {TEAM_NAMES[game['away_team']]} Players")
             cols = st.columns(2)
             for i, player in enumerate(game['away_players']):
                 with cols[i % 2]:
                     if st.button(
-                        f"{player['name']} • {player['pos']}",
+                        f"🎯 {player['name']} • {player['pos']}",
                         key=f"away_{idx}_{i}",
                         use_container_width=True
                     ):
                         st.session_state.selected_player = player
                         st.session_state.selected_game = game
+                        st.session_state.view = 'analysis'
                         st.rerun()
 
-                    # Show quick stats
                     stats_html = "".join([
                         f'<span class="stat-badge">{k.upper()}: {v}</span>'
                         for k, v in list(player['stats'].items())[:3]
                     ])
-                    st.markdown(f'<div style="margin: 0.5rem 0;">{stats_html}</div>', unsafe_allow_html=True)
+                    st.markdown(f'<div style="margin: 0.5rem 0 1rem 0;">{stats_html}</div>', unsafe_allow_html=True)
 
-            st.markdown("<br>", unsafe_allow_html=True)
-
-            # Home team players
-            st.markdown(f"**{TEAM_NAMES[game['home_team']]} Players**")
+            st.markdown(f"### {TEAM_NAMES[game['home_team']]} Players")
             cols = st.columns(2)
             for i, player in enumerate(game['home_players']):
                 with cols[i % 2]:
                     if st.button(
-                        f"{player['name']} • {player['pos']}",
+                        f"🎯 {player['name']} • {player['pos']}",
                         key=f"home_{idx}_{i}",
                         use_container_width=True
                     ):
                         st.session_state.selected_player = player
                         st.session_state.selected_game = game
+                        st.session_state.view = 'analysis'
                         st.rerun()
 
-                    # Show quick stats
                     stats_html = "".join([
                         f'<span class="stat-badge">{k.upper()}: {v}</span>'
                         for k, v in list(player['stats'].items())[:3]
                     ])
-                    st.markdown(f'<div style="margin: 0.5rem 0;">{stats_html}</div>', unsafe_allow_html=True)
+                    st.markdown(f'<div style="margin: 0.5rem 0 1rem 0;">{stats_html}</div>', unsafe_allow_html=True)
 
-else:
-    # Player Analysis View
+# ========== LAYER 2: PLAYER ANALYSIS ==========
+elif st.session_state.view == 'analysis':
+    # Back Button
+    if st.button("← BACK TO SLATE", use_container_width=False):
+        st.session_state.view = 'slate'
+        st.rerun()
+
     player = st.session_state.selected_player
     game = st.session_state.selected_game
 
-    # Player header
+    # Player Header
     st.markdown(f"""
-    <div style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(5, 150, 105, 0.05));
-                border: 1px solid #3f3f46; border-radius: 16px; padding: 2rem; margin-bottom: 2rem;">
-        <h1 style="color: white; font-size: 2.5rem; margin-bottom: 0.5rem;">{player['name']}</h1>
-        <p style="color: #a1a1aa; font-size: 1.1rem;">
+    <div style="background: linear-gradient(135deg, rgba(0, 255, 163, 0.15), rgba(0, 255, 163, 0.05));
+                border: 2px solid #00FFA3; border-radius: 16px; padding: 2rem; margin-bottom: 2rem;
+                box-shadow: 0 0 30px rgba(0, 255, 163, 0.2);">
+        <h1 style="color: white; font-size: 2.8rem; margin-bottom: 0.5rem; font-weight: 900;
+                   text-shadow: 0 0 20px rgba(0, 255, 163, 0.3);">
+            {player['name']}
+        </h1>
+        <p style="color: #00FFA3; font-size: 1.2rem; font-weight: 600;">
             {player['pos']} • {TEAM_NAMES[game['away_team']]} @ {TEAM_NAMES[game['home_team']]} • {game['time']}
         </p>
     </div>
     """, unsafe_allow_html=True)
 
-    # Stat selection
+    # Stat & Line Selection
+    col1, col2 = st.columns([1, 1])
     available_stats = list(player['stats'].keys())
 
-    col1, col2, col3 = st.columns([2, 2, 4])
     with col1:
         selected_stat = st.selectbox(
-            "Select Stat",
+            "📊 SELECT STAT",
             options=available_stats,
             format_func=lambda x: x.upper()
         )
@@ -469,27 +559,24 @@ else:
 
     with col2:
         line = st.number_input(
-            "Line",
+            "🎯 BETTING LINE",
             min_value=0.5,
             max_value=100.0,
             value=float(base_value),
             step=0.5
         )
 
-    # Generate game log
+    # Generate Data
     game_log = generate_player_game_log(base_value)
-
-    # Calculate hit rate
     hits = sum(1 for g in game_log if g['value'] > line)
     total = len(game_log)
     hit_rate = (hits / total * 100) if total > 0 else 0
 
-    # Calculate averages
     l5_avg = sum(g['value'] for g in game_log[-5:]) / 5
     l10_avg = sum(g['value'] for g in game_log[-10:]) / 10
     season_avg = sum(g['value'] for g in game_log) / len(game_log)
 
-    # Metrics
+    # Metrics Row
     col1, col2, col3, col4 = st.columns(4)
 
     with col1:
@@ -501,53 +588,57 @@ else:
     with col4:
         color_class = 'hit-high' if hit_rate >= 65 else 'hit-medium' if hit_rate >= 50 else 'hit-low'
         st.markdown(f"""
-        <div class="{color_class}" style="padding: 1rem; border-radius: 12px; text-align: center;">
-            <div style="font-size: 0.75rem; opacity: 0.7; margin-bottom: 0.25rem;">Hit Rate</div>
-            <div style="font-size: 2rem; font-weight: 800;">{hit_rate:.0f}%</div>
-            <div style="font-size: 0.85rem; opacity: 0.9;">{hits}/{total} Games</div>
+        <div class="{color_class}" style="padding: 1.2rem; border-radius: 12px; text-align: center;">
+            <div style="font-size: 0.75rem; opacity: 0.8; margin-bottom: 0.3rem; font-weight: 600;">HIT RATE</div>
+            <div style="font-size: 2.2rem; font-weight: 900;">{hit_rate:.0f}%</div>
+            <div style="font-size: 0.9rem; opacity: 0.9; font-weight: 600;">{hits}/{total} Games</div>
         </div>
         """, unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
 
     # Chart
-    st.markdown(f"### Last {len(game_log)} Games")
+    st.markdown(f"### 📈 Last {len(game_log)} Games Performance")
     chart = create_bar_chart(game_log, line, selected_stat.upper())
     st.plotly_chart(chart, use_container_width=True)
 
-    # Recommendation
+    # Verdict Card
     if hit_rate >= 70 and season_avg > line:
-        verdict = "STRONG OVER"
-        verdict_color = "#10b981"
+        verdict = "STRONG OVER ✅"
+        verdict_color = "#00FFA3"
         confidence = "High"
     elif hit_rate >= 55 and season_avg > line:
-        verdict = "LEAN OVER"
+        verdict = "LEAN OVER 📈"
         verdict_color = "#84cc16"
         confidence = "Medium"
     elif hit_rate <= 30 and season_avg < line:
-        verdict = "STRONG UNDER"
-        verdict_color = "#ef4444"
+        verdict = "STRONG UNDER ❌"
+        verdict_color = "#EF4444"
         confidence = "High"
     elif hit_rate <= 45 and season_avg < line:
-        verdict = "LEAN UNDER"
+        verdict = "LEAN UNDER 📉"
         verdict_color = "#f97316"
         confidence = "Medium"
     else:
-        verdict = "TOSS UP"
+        verdict = "TOSS UP ⚖️"
         verdict_color = "#71717a"
         confidence = "Low"
 
     st.markdown(f"""
-    <div style="background: linear-gradient(135deg, {verdict_color}20, {verdict_color}10);
-                border: 2px solid {verdict_color}; border-radius: 16px;
-                padding: 2rem; text-align: center; margin: 2rem 0;">
-        <div style="font-size: 0.9rem; color: #a1a1aa; margin-bottom: 0.5rem;">Recommendation</div>
-        <div style="font-size: 2.5rem; font-weight: 900; color: {verdict_color}; margin-bottom: 0.5rem;">{verdict}</div>
-        <div style="font-size: 1rem; color: #a1a1aa;">Confidence: {confidence}</div>
+    <div style="background: linear-gradient(135deg, {verdict_color}25, {verdict_color}10);
+                border: 3px solid {verdict_color}; border-radius: 16px;
+                padding: 2.5rem; text-align: center; margin: 2rem 0;
+                box-shadow: 0 0 30px {verdict_color}40;">
+        <div style="font-size: 1rem; color: #888; margin-bottom: 0.5rem; font-weight: 600;">RECOMMENDATION</div>
+        <div style="font-size: 3rem; font-weight: 900; color: {verdict_color}; margin-bottom: 0.5rem;
+                    text-shadow: 0 0 20px {verdict_color}50;">
+            {verdict}
+        </div>
+        <div style="font-size: 1.1rem; color: #888; font-weight: 600;">Confidence: {confidence}</div>
     </div>
     """, unsafe_allow_html=True)
 
-    # Game Log Table
+    # Game Log
     with st.expander("📋 Detailed Game Log"):
         df = pd.DataFrame(game_log)
         df['Hit'] = df['value'] > line
@@ -558,8 +649,8 @@ else:
 
 # Footer
 st.markdown("""
-<div style="margin-top: 4rem; padding: 2rem 0; border-top: 1px solid #3f3f46; text-align: center; color: #71717a;">
-    <p>PropStats © 2025 • Data updates every 6 hours • For entertainment purposes only</p>
-    <p style="font-size: 0.85rem; margin-top: 0.5rem;">⚠️ Gamble responsibly. Must be 21+ where legal.</p>
+<div style="margin-top: 4rem; padding: 2rem 0; border-top: 2px solid #2A2D3A; text-align: center; color: #888;">
+    <p style="font-weight: 600;">PropStats © 2025 • Powered by Real-Time NBA Data</p>
+    <p style="font-size: 0.85rem; margin-top: 0.5rem; color: #666;">⚠️ For entertainment purposes only. Gamble responsibly. 21+</p>
 </div>
 """, unsafe_allow_html=True)
