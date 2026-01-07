@@ -228,34 +228,43 @@ def get_player_game_log(player_id, num_games=20):
         return []
 
 def get_enriched_games():
-    """Get today's games with full team stats and rosters"""
+    """Get today's games with team stats (rosters fetched on-demand)"""
     games = get_todays_games()
     team_stats = get_team_stats()
 
     enriched = []
     for game in games:
-        # Get rosters
-        away_roster = get_team_roster(game['away_team_id'])
-        home_roster = get_team_roster(game['home_team_id'])
-
-        # Enrich players with stats (limit to top players to avoid API limits)
-        for player in away_roster[:2]:  # Top 2 players per team
-            player['stats'] = get_player_season_stats(player['id'])
-
-        for player in home_roster[:2]:
-            player['stats'] = get_player_season_stats(player['id'])
-
         enriched.append({
             'away_team': game['away_team'],
             'home_team': game['home_team'],
             'time': game['time'],
-            'away_players': away_roster,
-            'home_players': home_roster,
+            'away_team_id': game['away_team_id'],
+            'home_team_id': game['home_team_id'],
+            'away_players': [],  # Fetch on-demand when user clicks into game
+            'home_players': [],  # Fetch on-demand when user clicks into game
             'away_stats': team_stats.get(game['away_team'], {}),
             'home_stats': team_stats.get(game['home_team'], {})
         })
 
     return enriched
+
+def enrich_game_with_rosters(game):
+    """Fetch rosters for a specific game (called when user clicks into game)"""
+    if not game.get('away_players'):  # Only fetch if not already loaded
+        away_roster = get_team_roster(game['away_team_id'])
+        home_roster = get_team_roster(game['home_team_id'])
+
+        # Enrich players with stats
+        for player in away_roster[:3]:  # Top 3 players
+            player['stats'] = get_player_season_stats(player['id'])
+
+        for player in home_roster[:3]:
+            player['stats'] = get_player_season_stats(player['id'])
+
+        game['away_players'] = away_roster
+        game['home_players'] = home_roster
+
+    return game
 
 # Initialize data on module load
 def init_nba_data():

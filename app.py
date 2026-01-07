@@ -12,7 +12,7 @@ import statistics
 
 # Import live NBA data module
 try:
-    from nba_data import get_enriched_games, get_player_game_log, init_nba_data
+    from nba_data import get_enriched_games, get_player_game_log, init_nba_data, enrich_game_with_rosters
     NBA_DATA_AVAILABLE = True
 except ImportError:
     NBA_DATA_AVAILABLE = False
@@ -981,6 +981,16 @@ if st.session_state.view == 'slate':
 elif st.session_state.view == 'matchup':
     game = st.session_state.selected_game
 
+    # Enrich with rosters if using live data and rosters not loaded
+    if NBA_DATA_AVAILABLE and not game.get('away_players'):
+        with st.spinner('Loading rosters...'):
+            try:
+                game = enrich_game_with_rosters(game)
+                st.session_state.selected_game = game  # Update session state
+            except Exception as e:
+                print(f"Error enriching game with rosters: {e}")
+                st.warning("Unable to load live rosters. Showing limited data.")
+
     if st.button("← Back to Games", type="secondary"):
         st.session_state.view = 'slate'
         st.rerun()
@@ -1085,23 +1095,29 @@ elif st.session_state.view == 'matchup':
         """, unsafe_allow_html=True)
 
     # Player Selection
-    st.markdown(f"<div class='section-header'>{TEAM_NAMES[game['away_team']]} Players</div>", unsafe_allow_html=True)
-    cols = st.columns(3, gap="medium")
-    for i, player in enumerate(game['away_players']):
-        with cols[i % 3]:
-            if st.button(f"{player['name']}\n{player['pos']} • #{player['number']}", key=f"away_{i}", use_container_width=True):
-                st.session_state.selected_player = player
-                st.session_state.view = 'player'
-                st.rerun()
+    if game.get('away_players'):
+        st.markdown(f"<div class='section-header'>{TEAM_NAMES[game['away_team']]} Players</div>", unsafe_allow_html=True)
+        cols = st.columns(3, gap="medium")
+        for i, player in enumerate(game['away_players']):
+            with cols[i % 3]:
+                if st.button(f"{player['name']}\n{player['pos']} • #{player['number']}", key=f"away_{i}", use_container_width=True):
+                    st.session_state.selected_player = player
+                    st.session_state.view = 'player'
+                    st.rerun()
+    else:
+        st.info(f"Loading {TEAM_NAMES[game['away_team']]} roster...")
 
-    st.markdown(f"<div class='section-header'>{TEAM_NAMES[game['home_team']]} Players</div>", unsafe_allow_html=True)
-    cols = st.columns(3, gap="medium")
-    for i, player in enumerate(game['home_players']):
-        with cols[i % 3]:
-            if st.button(f"{player['name']}\n{player['pos']} • #{player['number']}", key=f"home_{i}", use_container_width=True):
-                st.session_state.selected_player = player
-                st.session_state.view = 'player'
-                st.rerun()
+    if game.get('home_players'):
+        st.markdown(f"<div class='section-header'>{TEAM_NAMES[game['home_team']]} Players</div>", unsafe_allow_html=True)
+        cols = st.columns(3, gap="medium")
+        for i, player in enumerate(game['home_players']):
+            with cols[i % 3]:
+                if st.button(f"{player['name']}\n{player['pos']} • #{player['number']}", key=f"home_{i}", use_container_width=True):
+                    st.session_state.selected_player = player
+                    st.session_state.view = 'player'
+                    st.rerun()
+    else:
+        st.info(f"Loading {TEAM_NAMES[game['home_team']]} roster...")
 
 # ========== LAYER 3: PLAYER DEEP DIVE ==========
 elif st.session_state.view == 'player':
