@@ -1,6 +1,6 @@
 """
 🏀 NBA Props Research Tool
-Sleek, layered interface with neon accents
+Three-tier navigation with premium glassmorphism UI
 """
 
 import streamlit as st
@@ -17,7 +17,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# Enhanced Dark Theme with Neon Accents (Gemini + Claude Hybrid)
+# Premium Dark Mode + Glassmorphism CSS
 st.markdown("""
 <style>
     /* Main Container */
@@ -46,8 +46,8 @@ st.markdown("""
     /* Game Cards with Hover Effects */
     div[data-testid="stExpander"] {
         background: linear-gradient(135deg, #1A1C24 0%, #151820 100%);
-        border: 1px solid #2A2D3A;
-        border-radius: 16px;
+        border: 1px solid #333;
+        border-radius: 12px;
         margin: 1rem 0;
         transition: all 0.3s ease;
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
@@ -59,7 +59,7 @@ st.markdown("""
         transform: translateY(-2px);
     }
 
-    /* Neon Button Styling */
+    /* Neon Chip Buttons */
     .stButton button {
         background: linear-gradient(135deg, rgba(0, 255, 163, 0.1), rgba(0, 255, 163, 0.05));
         color: #00FFA3;
@@ -81,19 +81,25 @@ st.markdown("""
         transform: translateY(-2px);
     }
 
-    /* Player Chip Buttons */
-    .player-chip {
-        background: linear-gradient(135deg, #1A1C24, #151820);
-        border: 1px solid #2A2D3A;
-        border-radius: 10px;
-        padding: 1rem;
-        margin: 0.5rem 0;
-        transition: all 0.2s ease;
+    /* Glassmorphism Effect */
+    .glass-card {
+        background: rgba(26, 28, 36, 0.7);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 16px;
+        padding: 2rem;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
     }
 
-    .player-chip:hover {
-        border-color: #00FFA3;
-        background: linear-gradient(135deg, rgba(0, 255, 163, 0.1), rgba(0, 255, 163, 0.05));
+    .glass-premium {
+        background: rgba(0, 255, 163, 0.05);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border: 2px solid rgba(0, 255, 163, 0.3);
+        border-radius: 16px;
+        padding: 2rem;
+        box-shadow: 0 8px 32px rgba(0, 255, 163, 0.2);
     }
 
     /* Team Badges */
@@ -106,7 +112,7 @@ st.markdown("""
         text-shadow: 0 0 10px currentColor;
     }
 
-    /* Stat Badges with Neon Glow */
+    /* Stat Badges */
     .stat-badge {
         display: inline-block;
         background: linear-gradient(135deg, rgba(0, 255, 163, 0.15), rgba(0, 255, 163, 0.05));
@@ -118,6 +124,34 @@ st.markdown("""
         font-weight: 700;
         margin: 0.25rem;
         box-shadow: 0 0 10px rgba(0, 255, 163, 0.2);
+    }
+
+    /* Matchup Difficulty Badge */
+    .difficulty-badge {
+        display: inline-block;
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        font-weight: 700;
+        font-size: 0.9rem;
+        margin: 0.5rem;
+    }
+
+    .difficulty-easy {
+        background: linear-gradient(135deg, rgba(0, 255, 163, 0.2), rgba(0, 255, 163, 0.1));
+        border: 1px solid #00FFA3;
+        color: #00FFA3;
+    }
+
+    .difficulty-medium {
+        background: linear-gradient(135deg, rgba(255, 193, 7, 0.2), rgba(255, 193, 7, 0.1));
+        border: 1px solid #FFC107;
+        color: #FFC107;
+    }
+
+    .difficulty-hard {
+        background: linear-gradient(135deg, rgba(239, 68, 68, 0.2), rgba(239, 68, 68, 0.1));
+        border: 1px solid #EF4444;
+        color: #EF4444;
     }
 
     /* Hit Rate Cards */
@@ -140,7 +174,7 @@ st.markdown("""
         box-shadow: 0 0 20px rgba(239, 68, 68, 0.3);
     }
 
-    /* Metrics Enhancement */
+    /* Metrics */
     div[data-testid="stMetricValue"] {
         font-size: 2.2rem;
         color: #00FFA3;
@@ -148,15 +182,11 @@ st.markdown("""
         font-weight: 900;
     }
 
-    div[data-testid="stMetricDelta"] {
-        color: #888;
-    }
-
     /* Expander Header */
     .streamlit-expanderHeader {
         background: linear-gradient(135deg, rgba(26, 28, 36, 0.9), rgba(21, 24, 32, 0.9));
         border-radius: 12px;
-        border: 1px solid #2A2D3A;
+        border: 1px solid #333;
         font-weight: 700;
         font-size: 1.1rem;
         padding: 1rem 1.5rem;
@@ -168,16 +198,11 @@ st.markdown("""
     }
 
     /* Input Fields */
-    .stSelectbox, .stNumberInput {
-        background: #1A1C24;
-        border-radius: 10px;
-    }
-
     input, select {
         background-color: #1A1C24 !important;
         color: white !important;
-        border: 1px solid #2A2D3A !important;
-        border-radius: 8px !important;
+        border: 1px solid #333 !important;
+        border-radius: 12px !important;
     }
 
     input:focus, select:focus {
@@ -185,22 +210,10 @@ st.markdown("""
         box-shadow: 0 0 10px rgba(0, 255, 163, 0.3) !important;
     }
 
-    /* Container Padding */
+    /* Container */
     .block-container {
         padding-top: 1rem;
         max-width: 1400px;
-    }
-
-    /* Back Button Special Styling */
-    .back-button {
-        color: #888;
-        font-size: 1rem;
-        cursor: pointer;
-        transition: color 0.2s;
-    }
-
-    .back-button:hover {
-        color: #00FFA3;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -228,7 +241,27 @@ TEAM_NAMES = {
     'UTA': 'Jazz', 'WAS': 'Wizards'
 }
 
-# Enhanced roster with more players per team
+# Team stats for matchup board
+TEAM_STATS = {
+    'LAL': {'ppg': 116.2, 'pace': 99.8, 'def_rank': 15, 'off_rank': 8},
+    'GSW': {'ppg': 118.5, 'pace': 101.2, 'def_rank': 12, 'off_rank': 3},
+    'BOS': {'ppg': 120.1, 'pace': 98.5, 'def_rank': 2, 'off_rank': 1},
+    'MIA': {'ppg': 110.8, 'pace': 96.2, 'def_rank': 5, 'off_rank': 18},
+    'DAL': {'ppg': 117.9, 'pace': 100.1, 'def_rank': 14, 'off_rank': 5},
+    'PHX': {'ppg': 115.4, 'pace': 99.5, 'def_rank': 18, 'off_rank': 7},
+    'MIL': {'ppg': 119.2, 'pace': 100.8, 'def_rank': 10, 'off_rank': 2},
+    'PHI': {'ppg': 114.3, 'pace': 97.8, 'def_rank': 8, 'off_rank': 12},
+    'DEN': {'ppg': 116.8, 'pace': 98.9, 'def_rank': 16, 'off_rank': 6},
+    'MIN': {'ppg': 113.5, 'pace': 99.2, 'def_rank': 7, 'off_rank': 14},
+    'OKC': {'ppg': 118.9, 'pace': 101.5, 'def_rank': 1, 'off_rank': 4},
+    'MEM': {'ppg': 112.1, 'pace': 100.3, 'def_rank': 11, 'off_rank': 16},
+    'NYK': {'ppg': 111.7, 'pace': 96.8, 'def_rank': 3, 'off_rank': 19},
+    'ATL': {'ppg': 117.5, 'pace': 101.8, 'def_rank': 22, 'off_rank': 9},
+    'CLE': {'ppg': 115.9, 'pace': 98.1, 'def_rank': 6, 'off_rank': 10},
+    'BKN': {'ppg': 109.4, 'pace': 99.7, 'def_rank': 25, 'off_rank': 23}
+}
+
+# Enhanced rosters
 TEAM_ROSTERS = {
     'LAL': [
         {'id': '2544', 'name': 'LeBron James', 'pos': 'F', 'stats': {'points': 25.5, 'rebounds': 7.2, 'assists': 8.1}},
@@ -313,7 +346,7 @@ TEAM_ROSTERS = {
 }
 
 def generate_todays_games():
-    """Generate mock games for today"""
+    """Generate mock games"""
     matchups = [
         ('LAL', 'GSW', '10:00 PM ET'),
         ('BOS', 'MIA', '7:30 PM ET'),
@@ -332,7 +365,9 @@ def generate_todays_games():
             'home_team': home,
             'time': time,
             'away_players': TEAM_ROSTERS.get(away, []),
-            'home_players': TEAM_ROSTERS.get(home, [])
+            'home_players': TEAM_ROSTERS.get(home, []),
+            'away_stats': TEAM_STATS.get(away, {}),
+            'home_stats': TEAM_STATS.get(home, {})
         })
 
     return games
@@ -353,8 +388,20 @@ def generate_player_game_log(base_stat, num_games=15):
 
     return games
 
+def get_matchup_difficulty(opponent_team, player_pos):
+    """Calculate matchup difficulty based on opponent defensive rank"""
+    opp_stats = TEAM_STATS.get(opponent_team, {})
+    def_rank = opp_stats.get('def_rank', 15)
+
+    if def_rank <= 10:
+        return 'hard', f"Opponent Rank: {def_rank}th vs {player_pos}"
+    elif def_rank <= 20:
+        return 'medium', f"Opponent Rank: {def_rank}th vs {player_pos}"
+    else:
+        return 'easy', f"Opponent Rank: {def_rank}th vs {player_pos}"
+
 def create_bar_chart(games, line, stat_name):
-    """Create dark-themed bar chart with neon accents"""
+    """Create dark-themed bar chart"""
     fig = go.Figure()
 
     colors = ['#00FFA3' if g['value'] > line else '#EF4444' for g in games]
@@ -372,7 +419,6 @@ def create_bar_chart(games, line, stat_name):
         hovertemplate='<b>%{x}</b><br>%{y}<br><extra></extra>'
     ))
 
-    # Neon yellow threshold line
     fig.add_hline(
         y=line,
         line_dash="dash",
@@ -389,28 +435,17 @@ def create_bar_chart(games, line, stat_name):
         font=dict(color='white', family='Arial'),
         height=350,
         margin=dict(l=10, r=10, t=10, b=40),
-        xaxis=dict(
-            showgrid=False,
-            showline=False,
-            zeroline=False,
-            color='#888'
-        ),
-        yaxis=dict(
-            showgrid=True,
-            gridcolor='rgba(42, 45, 58, 0.5)',
-            showline=False,
-            zeroline=False,
-            title=stat_name,
-            color='#888'
-        ),
+        xaxis=dict(showgrid=False, showline=False, zeroline=False, color='#888'),
+        yaxis=dict(showgrid=True, gridcolor='rgba(42, 45, 58, 0.5)', showline=False,
+                   zeroline=False, title=stat_name, color='#888'),
         hovermode='x unified'
     )
 
     return fig
 
-# ========== SESSION STATE MANAGEMENT ==========
+# ========== THREE-TIER SESSION STATE ==========
 if 'view' not in st.session_state:
-    st.session_state.view = 'slate'  # Options: 'slate', 'analysis'
+    st.session_state.view = 'slate'  # Options: 'slate', 'matchup', 'player'
 if 'selected_game' not in st.session_state:
     st.session_state.selected_game = None
 if 'selected_player' not in st.session_state:
@@ -433,7 +468,7 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# ========== LAYER 1: THE DAILY SLATE ==========
+# ========== LAYER 1: THE SLATE ==========
 if st.session_state.view == 'slate':
     st.markdown(f"""
     <div style="margin-bottom: 2.5rem; text-align: center;">
@@ -449,91 +484,154 @@ if st.session_state.view == 'slate':
 
     games = generate_todays_games()
 
+    # Display games in grid
+    cols = st.columns(2)
     for idx, game in enumerate(games):
         away_color = TEAM_COLORS.get(game['away_team'], '#666')
         home_color = TEAM_COLORS.get(game['home_team'], '#666')
 
-        with st.expander(
-            f"🏀  {TEAM_NAMES[game['away_team']]} @ {TEAM_NAMES[game['home_team']]}  •  {game['time']}",
-            expanded=(idx < 2)
-        ):
+        with cols[idx % 2]:
             st.markdown(f"""
-            <div style="display: flex; justify-content: space-around; align-items: center;
-                        padding: 1.5rem 0; border-bottom: 1px solid #2A2D3A; margin-bottom: 1.5rem;">
-                <div style="text-align: center;">
-                    <div class="team-badge" style="background: linear-gradient(135deg, {away_color}60, {away_color}30);
-                                                    color: {away_color}; border: 2px solid {away_color}40;">
-                        {game['away_team']}
+            <div class="glass-card" style="margin: 1rem 0; text-align: center; cursor: pointer;">
+                <div style="display: flex; justify-content: space-around; align-items: center; padding: 1rem 0;">
+                    <div>
+                        <div style="color: {away_color}; font-size: 2rem; font-weight: 900;">{game['away_team']}</div>
+                        <div style="color: #888; font-size: 0.8rem; margin-top: 0.5rem;">{TEAM_NAMES[game['away_team']]}</div>
                     </div>
-                    <div style="color: #888; font-size: 0.9rem; margin-top: 0.5rem; font-weight: 600;">AWAY</div>
+                    <div style="color: #00FFA3; font-size: 1.5rem; font-weight: 900;">@</div>
+                    <div>
+                        <div style="color: {home_color}; font-size: 2rem; font-weight: 900;">{game['home_team']}</div>
+                        <div style="color: #888; font-size: 0.8rem; margin-top: 0.5rem;">{TEAM_NAMES[game['home_team']]}</div>
+                    </div>
                 </div>
-                <div style="color: #00FFA3; font-size: 2rem; font-weight: 900; text-shadow: 0 0 10px rgba(0, 255, 163, 0.3);">@</div>
-                <div style="text-align: center;">
-                    <div class="team-badge" style="background: linear-gradient(135deg, {home_color}60, {home_color}30);
-                                                    color: {home_color}; border: 2px solid {home_color}40;">
-                        {game['home_team']}
-                    </div>
-                    <div style="color: #888; font-size: 0.9rem; margin-top: 0.5rem; font-weight: 600;">HOME</div>
+                <div style="color: #00FFA3; font-size: 0.9rem; font-weight: 600; margin-top: 0.5rem;">
+                    {game['time']}
                 </div>
             </div>
             """, unsafe_allow_html=True)
 
-            # Player Chips Layout
-            st.markdown(f"### {TEAM_NAMES[game['away_team']]} Players")
-            cols = st.columns(2)
-            for i, player in enumerate(game['away_players']):
-                with cols[i % 2]:
-                    if st.button(
-                        f"🎯 {player['name']} • {player['pos']}",
-                        key=f"away_{idx}_{i}",
-                        use_container_width=True
-                    ):
-                        st.session_state.selected_player = player
-                        st.session_state.selected_game = game
-                        st.session_state.view = 'analysis'
-                        st.rerun()
+            if st.button(f"View Matchup →", key=f"game_{idx}", use_container_width=True):
+                st.session_state.selected_game = game
+                st.session_state.view = 'matchup'
+                st.rerun()
 
-                    stats_html = "".join([
-                        f'<span class="stat-badge">{k.upper()}: {v}</span>'
-                        for k, v in list(player['stats'].items())[:3]
-                    ])
-                    st.markdown(f'<div style="margin: 0.5rem 0 1rem 0;">{stats_html}</div>', unsafe_allow_html=True)
+# ========== LAYER 2: MATCHUP BOARD (Tale of the Tape) ==========
+elif st.session_state.view == 'matchup':
+    game = st.session_state.selected_game
 
-            st.markdown(f"### {TEAM_NAMES[game['home_team']]} Players")
-            cols = st.columns(2)
-            for i, player in enumerate(game['home_players']):
-                with cols[i % 2]:
-                    if st.button(
-                        f"🎯 {player['name']} • {player['pos']}",
-                        key=f"home_{idx}_{i}",
-                        use_container_width=True
-                    ):
-                        st.session_state.selected_player = player
-                        st.session_state.selected_game = game
-                        st.session_state.view = 'analysis'
-                        st.rerun()
-
-                    stats_html = "".join([
-                        f'<span class="stat-badge">{k.upper()}: {v}</span>'
-                        for k, v in list(player['stats'].items())[:3]
-                    ])
-                    st.markdown(f'<div style="margin: 0.5rem 0 1rem 0;">{stats_html}</div>', unsafe_allow_html=True)
-
-# ========== LAYER 2: PLAYER ANALYSIS ==========
-elif st.session_state.view == 'analysis':
-    # Back Button
-    if st.button("← BACK TO SLATE", use_container_width=False):
+    if st.button("← BACK TO SLATE"):
         st.session_state.view = 'slate'
+        st.rerun()
+
+    st.markdown(f"""
+    <div style="text-align: center; margin-bottom: 2rem;">
+        <h1 style="color: white; font-size: 2.5rem; font-weight: 900;">Tale of the Tape</h1>
+        <p style="color: #00FFA3; font-size: 1.2rem; font-weight: 600;">
+            {TEAM_NAMES[game['away_team']]} @ {TEAM_NAMES[game['home_team']]} • {game['time']}
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Team Comparison
+    col1, col2, col3 = st.columns([5, 2, 5])
+
+    with col1:
+        st.markdown(f"""
+        <div class="glass-card" style="text-align: center;">
+            <h2 style="color: {TEAM_COLORS[game['away_team']]}; font-size: 2rem; margin-bottom: 1rem;">
+                {game['away_team']} {TEAM_NAMES[game['away_team']]}
+            </h2>
+            <div style="color: white; font-size: 1.2rem; margin: 0.5rem 0;">
+                <strong>{game['away_stats']['ppg']}</strong> PPG
+            </div>
+            <div style="color: #888; font-size: 1rem; margin: 0.5rem 0;">
+                Pace: {game['away_stats']['pace']}
+            </div>
+            <div style="color: #888; font-size: 1rem; margin: 0.5rem 0;">
+                Off Rank: #{game['away_stats']['off_rank']}
+            </div>
+            <div style="color: #888; font-size: 1rem; margin: 0.5rem 0;">
+                Def Rank: #{game['away_stats']['def_rank']}
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with col2:
+        st.markdown(f"""
+        <div style="text-align: center; padding: 2rem 0;">
+            <div style="color: #00FFA3; font-size: 3rem; font-weight: 900;">VS</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with col3:
+        st.markdown(f"""
+        <div class="glass-card" style="text-align: center;">
+            <h2 style="color: {TEAM_COLORS[game['home_team']]}; font-size: 2rem; margin-bottom: 1rem;">
+                {game['home_team']} {TEAM_NAMES[game['home_team']]}
+            </h2>
+            <div style="color: white; font-size: 1.2rem; margin: 0.5rem 0;">
+                <strong>{game['home_stats']['ppg']}</strong> PPG
+            </div>
+            <div style="color: #888; font-size: 1rem; margin: 0.5rem 0;">
+                Pace: {game['home_stats']['pace']}
+            </div>
+            <div style="color: #888; font-size: 1rem; margin: 0.5rem 0;">
+                Off Rank: #{game['home_stats']['off_rank']}
+            </div>
+            <div style="color: #888; font-size: 1rem; margin: 0.5rem 0;">
+                Def Rank: #{game['home_stats']['def_rank']}
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    st.markdown("<br><br>", unsafe_allow_html=True)
+
+    # Player Selection
+    st.markdown(f"### {TEAM_NAMES[game['away_team']]} Players")
+    cols = st.columns(2)
+    for i, player in enumerate(game['away_players']):
+        with cols[i % 2]:
+            if st.button(f"🎯 {player['name']} • {player['pos']}", key=f"away_m_{i}", use_container_width=True):
+                st.session_state.selected_player = player
+                st.session_state.view = 'player'
+                st.rerun()
+
+            stats_html = "".join([f'<span class="stat-badge">{k.upper()}: {v}</span>'
+                                 for k, v in list(player['stats'].items())[:3]])
+            st.markdown(f'<div style="margin: 0.5rem 0 1rem 0;">{stats_html}</div>', unsafe_allow_html=True)
+
+    st.markdown(f"### {TEAM_NAMES[game['home_team']]} Players")
+    cols = st.columns(2)
+    for i, player in enumerate(game['home_players']):
+        with cols[i % 2]:
+            if st.button(f"🎯 {player['name']} • {player['pos']}", key=f"home_m_{i}", use_container_width=True):
+                st.session_state.selected_player = player
+                st.session_state.view = 'player'
+                st.rerun()
+
+            stats_html = "".join([f'<span class="stat-badge">{k.upper()}: {v}</span>'
+                                 for k, v in list(player['stats'].items())[:3]])
+            st.markdown(f'<div style="margin: 0.5rem 0 1rem 0;">{stats_html}</div>', unsafe_allow_html=True)
+
+# ========== LAYER 3: PLAYER DEEP DIVE ==========
+elif st.session_state.view == 'player':
+    if st.button("← BACK TO MATCHUP"):
+        st.session_state.view = 'matchup'
         st.rerun()
 
     player = st.session_state.selected_player
     game = st.session_state.selected_game
 
-    # Player Header
+    # Determine opponent team
+    if player in game['away_players']:
+        opponent_team = game['home_team']
+    else:
+        opponent_team = game['away_team']
+
+    difficulty, difficulty_text = get_matchup_difficulty(opponent_team, player['pos'])
+
     st.markdown(f"""
-    <div style="background: linear-gradient(135deg, rgba(0, 255, 163, 0.15), rgba(0, 255, 163, 0.05));
-                border: 2px solid #00FFA3; border-radius: 16px; padding: 2rem; margin-bottom: 2rem;
-                box-shadow: 0 0 30px rgba(0, 255, 163, 0.2);">
+    <div class="glass-card" style="margin-bottom: 2rem;">
         <h1 style="color: white; font-size: 2.8rem; margin-bottom: 0.5rem; font-weight: 900;
                    text-shadow: 0 0 20px rgba(0, 255, 163, 0.3);">
             {player['name']}
@@ -541,32 +639,25 @@ elif st.session_state.view == 'analysis':
         <p style="color: #00FFA3; font-size: 1.2rem; font-weight: 600;">
             {player['pos']} • {TEAM_NAMES[game['away_team']]} @ {TEAM_NAMES[game['home_team']]} • {game['time']}
         </p>
+        <div style="margin-top: 1rem;">
+            <span class="difficulty-badge difficulty-{difficulty}">{difficulty_text}</span>
+        </div>
     </div>
     """, unsafe_allow_html=True)
 
-    # Stat & Line Selection
     col1, col2 = st.columns([1, 1])
     available_stats = list(player['stats'].keys())
 
     with col1:
-        selected_stat = st.selectbox(
-            "📊 SELECT STAT",
-            options=available_stats,
-            format_func=lambda x: x.upper()
-        )
+        selected_stat = st.selectbox("📊 SELECT STAT", options=available_stats,
+                                     format_func=lambda x: x.upper())
 
     base_value = player['stats'][selected_stat]
 
     with col2:
-        line = st.number_input(
-            "🎯 BETTING LINE",
-            min_value=0.5,
-            max_value=100.0,
-            value=float(base_value),
-            step=0.5
-        )
+        line = st.number_input("🎯 BETTING LINE", min_value=0.5, max_value=100.0,
+                               value=float(base_value), step=0.5)
 
-    # Generate Data
     game_log = generate_player_game_log(base_value)
     hits = sum(1 for g in game_log if g['value'] > line)
     total = len(game_log)
@@ -576,7 +667,6 @@ elif st.session_state.view == 'analysis':
     l10_avg = sum(g['value'] for g in game_log[-10:]) / 10
     season_avg = sum(g['value'] for g in game_log) / len(game_log)
 
-    # Metrics Row
     col1, col2, col3, col4 = st.columns(4)
 
     with col1:
@@ -597,32 +687,21 @@ elif st.session_state.view == 'analysis':
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # Chart
     st.markdown(f"### 📈 Last {len(game_log)} Games Performance")
     chart = create_bar_chart(game_log, line, selected_stat.upper())
     st.plotly_chart(chart, use_container_width=True)
 
-    # Verdict Card
+    # Verdict
     if hit_rate >= 70 and season_avg > line:
-        verdict = "STRONG OVER ✅"
-        verdict_color = "#00FFA3"
-        confidence = "High"
+        verdict, verdict_color, confidence = "STRONG OVER ✅", "#00FFA3", "High"
     elif hit_rate >= 55 and season_avg > line:
-        verdict = "LEAN OVER 📈"
-        verdict_color = "#84cc16"
-        confidence = "Medium"
+        verdict, verdict_color, confidence = "LEAN OVER 📈", "#84cc16", "Medium"
     elif hit_rate <= 30 and season_avg < line:
-        verdict = "STRONG UNDER ❌"
-        verdict_color = "#EF4444"
-        confidence = "High"
+        verdict, verdict_color, confidence = "STRONG UNDER ❌", "#EF4444", "High"
     elif hit_rate <= 45 and season_avg < line:
-        verdict = "LEAN UNDER 📉"
-        verdict_color = "#f97316"
-        confidence = "Medium"
+        verdict, verdict_color, confidence = "LEAN UNDER 📉", "#f97316", "Medium"
     else:
-        verdict = "TOSS UP ⚖️"
-        verdict_color = "#71717a"
-        confidence = "Low"
+        verdict, verdict_color, confidence = "TOSS UP ⚖️", "#71717a", "Low"
 
     st.markdown(f"""
     <div style="background: linear-gradient(135deg, {verdict_color}25, {verdict_color}10);
@@ -638,7 +717,22 @@ elif st.session_state.view == 'analysis':
     </div>
     """, unsafe_allow_html=True)
 
-    # Game Log
+    # Glassmorphism Premium Feature Teaser
+    st.markdown("""
+    <div class="glass-premium" style="margin: 2rem 0; text-align: center;">
+        <h3 style="color: #00FFA3; margin-bottom: 1rem;">🔒 Premium Insights</h3>
+        <p style="color: white; margin-bottom: 1.5rem;">
+            Unlock advanced matchup analysis, defense vs. position trends, and AI-powered recommendations
+        </p>
+        <div style="color: #888; font-size: 0.9rem;">
+            ✅ Historical matchup data<br>
+            ✅ Defensive scheme analysis<br>
+            ✅ Injury impact reports<br>
+            ✅ Real-time line movement alerts
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
     with st.expander("📋 Detailed Game Log"):
         df = pd.DataFrame(game_log)
         df['Hit'] = df['value'] > line
@@ -649,7 +743,7 @@ elif st.session_state.view == 'analysis':
 
 # Footer
 st.markdown("""
-<div style="margin-top: 4rem; padding: 2rem 0; border-top: 2px solid #2A2D3A; text-align: center; color: #888;">
+<div style="margin-top: 4rem; padding: 2rem 0; border-top: 2px solid #333; text-align: center; color: #888;">
     <p style="font-weight: 600;">PropStats © 2025 • Powered by Real-Time NBA Data</p>
     <p style="font-size: 0.85rem; margin-top: 0.5rem; color: #666;">⚠️ For entertainment purposes only. Gamble responsibly. 21+</p>
 </div>
