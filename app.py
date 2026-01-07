@@ -27,9 +27,13 @@ st.markdown("""
         font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     }
 
-    /* Clean Background */
+    /* Clean Background with Subtle Pattern */
     .stApp {
-        background: linear-gradient(to bottom, #f8f9fa 0%, #ffffff 100%);
+        background: #f8f9fa;
+        background-image:
+            radial-gradient(circle at 20% 50%, rgba(59, 130, 246, 0.03) 0%, transparent 50%),
+            radial-gradient(circle at 80% 80%, rgba(16, 185, 129, 0.03) 0%, transparent 50%);
+        background-attachment: fixed;
     }
 
     #MainMenu, footer, header { visibility: hidden; }
@@ -333,7 +337,52 @@ st.markdown("""
 
     .block-container {
         padding-top: 1rem;
-        max-width: 1400px;
+        max-width: 1600px;
+    }
+
+    /* Quick Stats Badge */
+    .quick-stat {
+        background: white;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        padding: 0.75rem 1rem;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin: 0.25rem;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+    }
+
+    .quick-stat-label {
+        font-size: 0.75rem;
+        color: #6b7280;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .quick-stat-value {
+        font-size: 1.125rem;
+        color: #111827;
+        font-weight: 700;
+    }
+
+    /* Stat Comparison */
+    .stat-comparison {
+        display: grid;
+        grid-template-columns: 1fr auto 1fr;
+        gap: 1rem;
+        align-items: center;
+        padding: 0.75rem;
+        background: #f9fafb;
+        border-radius: 8px;
+        margin: 0.5rem 0;
+    }
+
+    .stat-vs {
+        color: #9ca3af;
+        font-weight: 700;
+        font-size: 0.875rem;
     }
 
     /* Tag System */
@@ -658,18 +707,22 @@ if 'selected_stat' not in st.session_state:
 current_date = datetime.now().strftime('%b %d, %Y')
 st.markdown(f"""
 <div class="main-header">
-    <div style="max-width: 1400px; margin: 0 auto; padding: 0 1.5rem; display: flex; justify-content: space-between; align-items: center;">
-        <div style="display: flex; align-items: center; gap: 1rem;">
-            <div style="width: 40px; height: 40px; background: linear-gradient(135deg, #3b82f6, #2563eb); border-radius: 10px;
-                        display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 1.25rem; color: white;">P</div>
+    <div style="max-width: 1600px; margin: 0 auto; padding: 0 2rem; display: flex; justify-content: space-between; align-items: center;">
+        <div style="display: flex; align-items: center; gap: 1.5rem;">
+            <div style="width: 45px; height: 45px; background: linear-gradient(135deg, #3b82f6, #2563eb); border-radius: 12px;
+                        display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 1.5rem; color: white;
+                        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);">P</div>
             <div>
-                <div style="font-size: 1.5rem; font-weight: 800; color: #111827;">PropStats</div>
-                <div style="font-size: 0.75rem; color: #6b7280; font-weight: 500;">NBA Props Research</div>
+                <div style="font-size: 1.75rem; font-weight: 900; color: #111827; letter-spacing: -0.5px;">PropStats</div>
+                <div style="font-size: 0.8rem; color: #6b7280; font-weight: 600; letter-spacing: 0.5px;">NBA PROPS RESEARCH</div>
             </div>
         </div>
-        <div style="display: flex; gap: 0.5rem; align-items: center;">
+        <div style="display: flex; gap: 1rem; align-items: center;">
             <span class="tag tag-live">● LIVE</span>
-            <span style="color: #6b7280; font-size: 0.875rem; font-weight: 500;">{current_date}</span>
+            <div style="text-align: right;">
+                <div style="font-size: 0.7rem; color: #9ca3af; font-weight: 600; text-transform: uppercase;">Today</div>
+                <div style="color: #111827; font-size: 0.9rem; font-weight: 700;">{current_date}</div>
+            </div>
         </div>
     </div>
 </div>
@@ -678,9 +731,19 @@ st.markdown(f"""
 # ========== LAYER 1: TODAY'S SLATE ==========
 if st.session_state.view == 'slate':
     st.markdown("""
-    <div style="margin: 2rem 0 1.5rem 0;">
-        <h1 style="color: #111827; font-size: 2rem; font-weight: 800; margin-bottom: 0.5rem;">Today's Games</h1>
-        <p style="color: #6b7280; font-size: 1rem;">Select a matchup to view player props</p>
+    <div style="margin: 2.5rem 0 2rem 0;">
+        <div style="display: flex; justify-content: space-between; align-items: end; margin-bottom: 1rem;">
+            <div>
+                <h1 style="color: #111827; font-size: 2.5rem; font-weight: 900; margin-bottom: 0.5rem; letter-spacing: -1px;">Today's Games</h1>
+                <p style="color: #6b7280; font-size: 1.05rem;">Select a matchup to view detailed player props</p>
+            </div>
+            <div class="quick-stat" style="margin: 0;">
+                <div>
+                    <div class="quick-stat-label">Total Games</div>
+                    <div class="quick-stat-value">8</div>
+                </div>
+            </div>
+        </div>
     </div>
     """, unsafe_allow_html=True)
 
@@ -694,30 +757,53 @@ if st.session_state.view == 'slate':
         with cols[idx % 2]:
             st.markdown(f"""
             <div class="game-card fade-in">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem;">
                     <span class="tag tag-upcoming">{game['time']}</span>
-                    <span style="color: #9ca3af; font-size: 0.875rem; font-weight: 600;">NBA</span>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <div style="text-align: center;">
+                            <div style="font-size: 0.65rem; color: #9ca3af; font-weight: 600;">PLAYERS</div>
+                            <div style="font-size: 1.125rem; font-weight: 800; color: #3b82f6;">{len(game['away_players']) + len(game['home_players'])}</div>
+                        </div>
+                    </div>
                 </div>
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <div style="flex: 1;">
-                        <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem;">
-                            <div style="width: 12px; height: 12px; background: {away_color}; border-radius: 3px;"></div>
+                <div style="display: grid; gap: 1rem;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; gap: 1rem;">
+                        <div style="display: flex; align-items: center; gap: 0.75rem; flex: 1;">
+                            <div style="width: 14px; height: 14px; background: {away_color}; border-radius: 4px; box-shadow: 0 2px 4px {away_color}40;"></div>
                             <div>
-                                <div style="font-weight: 700; font-size: 1.125rem; color: #111827;">{game['away_team']}</div>
-                                <div style="font-size: 0.75rem; color: #6b7280;">{TEAM_NAMES[game['away_team']]}</div>
+                                <div style="font-weight: 800; font-size: 1.25rem; color: #111827; letter-spacing: -0.5px;">{game['away_team']}</div>
+                                <div style="font-size: 0.75rem; color: #6b7280; font-weight: 500;">{TEAM_NAMES[game['away_team']]}</div>
                             </div>
                         </div>
-                        <div style="display: flex; align-items: center; gap: 0.75rem;">
-                            <div style="width: 12px; height: 12px; background: {home_color}; border-radius: 3px;"></div>
-                            <div>
-                                <div style="font-weight: 700; font-size: 1.125rem; color: #111827;">{game['home_team']}</div>
-                                <div style="font-size: 0.75rem; color: #6b7280;">{TEAM_NAMES[game['home_team']]}</div>
+                        <div style="display: flex; gap: 0.75rem;">
+                            <div style="text-align: right;">
+                                <div style="font-size: 0.65rem; color: #6b7280;">PPG</div>
+                                <div style="font-size: 0.95rem; font-weight: 700; color: #111827;">{game['away_stats']['ppg']}</div>
+                            </div>
+                            <div style="text-align: right;">
+                                <div style="font-size: 0.65rem; color: #6b7280;">PACE</div>
+                                <div style="font-size: 0.95rem; font-weight: 700; color: #111827;">{game['away_stats']['pace']}</div>
                             </div>
                         </div>
                     </div>
-                    <div style="text-align: right;">
-                        <div style="font-size: 0.75rem; color: #6b7280; margin-bottom: 0.25rem;">Props</div>
-                        <div style="font-size: 1.5rem; font-weight: 800; color: #3b82f6;">{len(game['away_players']) + len(game['home_players'])}</div>
+                    <div style="display: flex; align-items: center; justify-content: space-between; gap: 1rem;">
+                        <div style="display: flex; align-items: center; gap: 0.75rem; flex: 1;">
+                            <div style="width: 14px; height: 14px; background: {home_color}; border-radius: 4px; box-shadow: 0 2px 4px {home_color}40;"></div>
+                            <div>
+                                <div style="font-weight: 800; font-size: 1.25rem; color: #111827; letter-spacing: -0.5px;">{game['home_team']}</div>
+                                <div style="font-size: 0.75rem; color: #6b7280; font-weight: 500;">{TEAM_NAMES[game['home_team']]}</div>
+                            </div>
+                        </div>
+                        <div style="display: flex; gap: 0.75rem;">
+                            <div style="text-align: right;">
+                                <div style="font-size: 0.65rem; color: #6b7280;">PPG</div>
+                                <div style="font-size: 0.95rem; font-weight: 700; color: #111827;">{game['home_stats']['ppg']}</div>
+                            </div>
+                            <div style="text-align: right;">
+                                <div style="font-size: 0.65rem; color: #6b7280;">PACE</div>
+                                <div style="font-size: 0.95rem; font-weight: 700; color: #111827;">{game['home_stats']['pace']}</div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
