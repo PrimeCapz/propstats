@@ -35,81 +35,34 @@ st.markdown("""
         font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     }
 
-    /* Layered Background with Court-Inspired Depth */
+    /* Clean Background */
     .stApp {
-        background: #f1f3f5;
-        background-image:
-            radial-gradient(circle at 20% 50%, rgba(59, 130, 246, 0.08) 0%, transparent 50%),
-            radial-gradient(circle at 80% 80%, rgba(16, 185, 129, 0.08) 0%, transparent 50%),
-            radial-gradient(circle at 50% 20%, rgba(139, 92, 246, 0.05) 0%, transparent 50%),
-            repeating-linear-gradient(0deg, transparent, transparent 100px, rgba(59, 130, 246, 0.02) 100px, rgba(59, 130, 246, 0.02) 200px),
-            linear-gradient(180deg, rgba(255, 255, 255, 0.5) 0%, rgba(241, 243, 245, 0) 100%);
-        background-attachment: fixed;
-        position: relative;
-    }
-
-    .stApp::before {
-        content: '';
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background-image:
-            radial-gradient(circle at 50% 50%, transparent 40%, rgba(59, 130, 246, 0.03) 100%);
-        pointer-events: none;
-        z-index: 0;
+        background: #f8f9fa;
     }
 
     #MainMenu, footer, header { visibility: hidden; }
 
-    /* Layered Professional Header with Glassmorphism */
+    /* Professional Header */
     .main-header {
-        background: linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(250, 251, 252, 0.95) 100%);
-        backdrop-filter: blur(20px) saturate(180%);
-        -webkit-backdrop-filter: blur(20px) saturate(180%);
-        border-bottom: 1px solid rgba(229, 231, 235, 0.8);
+        background: white;
+        border-bottom: 1px solid #e5e7eb;
         padding: 1.25rem 0;
         position: sticky;
         top: 0;
         z-index: 999;
-        box-shadow:
-            0 1px 3px rgba(0, 0, 0, 0.05),
-            0 4px 20px rgba(59, 130, 246, 0.08),
-            0 10px 40px rgba(0, 0, 0, 0.04),
-            inset 0 -1px 0 rgba(255, 255, 255, 0.9),
-            inset 0 1px 0 rgba(255, 255, 255, 0.5);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
     }
 
-    /* Layered Prop Card - Enhanced with Glassmorphism */
+    /* Clean Prop Card */
     .prop-card {
-        background: linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(255, 255, 255, 0.95) 100%);
-        backdrop-filter: blur(10px);
-        border: 1px solid rgba(229, 231, 235, 0.8);
-        border-radius: 16px;
+        background: white;
+        border: 1px solid #e5e7eb;
+        border-radius: 12px;
         padding: 0;
         margin: 0.75rem 0;
-        transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-        box-shadow:
-            0 2px 4px rgba(0, 0, 0, 0.04),
-            0 8px 16px rgba(0, 0, 0, 0.05),
-            0 16px 32px rgba(0, 0, 0, 0.03),
-            inset 0 1px 0 rgba(255, 255, 255, 0.8);
+        transition: all 0.3s ease;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
         position: relative;
-        overflow: hidden;
-    }
-
-    .prop-card::before {
-        content: '';
-        position: absolute;
-        top: 0;
-        right: 0;
-        bottom: 0;
-        left: 0;
-        background: radial-gradient(circle at top right, rgba(59, 130, 246, 0.03) 0%, transparent 60%);
-        opacity: 0;
-        transition: opacity 0.4s;
-        pointer-events: none;
     }
 
     .prop-card::after {
@@ -156,66 +109,20 @@ st.markdown("""
 
     /* Game Card - Premium 3D Depth with Glassmorphism */
     .game-card {
-        background: linear-gradient(135deg, rgba(255, 255, 255, 0.98) 0%, rgba(255, 255, 255, 0.95) 100%);
-        backdrop-filter: blur(10px);
-        border: 1px solid rgba(229, 231, 235, 0.8);
-        border-radius: 20px;
+        background: white;
+        border: 1px solid #e5e7eb;
+        border-radius: 16px;
         padding: 0;
         margin: 1rem 0;
-        transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-        box-shadow:
-            0 2px 4px rgba(0, 0, 0, 0.04),
-            0 8px 16px rgba(0, 0, 0, 0.06),
-            0 16px 32px rgba(0, 0, 0, 0.04),
-            inset 0 1px 0 rgba(255, 255, 255, 0.8),
-            inset 0 -1px 0 rgba(0, 0, 0, 0.02);
+        transition: all 0.3s ease;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
         position: relative;
-        overflow: hidden;
-    }
-
-    .game-card::before {
-        content: '';
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 5px;
-        height: 100%;
-        background: linear-gradient(180deg, #3b82f6, #8b5cf6, #ec4899);
-        opacity: 0;
-        transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-
-    .game-card::after {
-        content: '';
-        position: absolute;
-        top: 0;
-        right: 0;
-        bottom: 0;
-        left: 0;
-        background: radial-gradient(circle at top right, rgba(59, 130, 246, 0.05) 0%, transparent 60%);
-        opacity: 0;
-        transition: opacity 0.4s;
-        pointer-events: none;
     }
 
     .game-card:hover {
-        transform: translateY(-6px) scale(1.01);
-        box-shadow:
-            0 4px 12px rgba(59, 130, 246, 0.15),
-            0 12px 40px rgba(59, 130, 246, 0.12),
-            0 20px 60px rgba(0, 0, 0, 0.1),
-            inset 0 1px 0 rgba(255, 255, 255, 1),
-            inset 0 -1px 0 rgba(59, 130, 246, 0.1);
-        border-color: rgba(59, 130, 246, 0.4);
-    }
-
-    .game-card:hover::before {
-        opacity: 1;
-        width: 6px;
-    }
-
-    .game-card:hover::after {
-        opacity: 1;
+        transform: translateY(-4px);
+        box-shadow: 0 8px 24px rgba(59, 130, 246, 0.15);
+        border-color: #3b82f6;
     }
 
     .game-card-header {
@@ -832,25 +739,19 @@ st.markdown("""
         }
     }
 
-    /* Enhanced Stat Cards with Glassmorphism */
+    /* Enhanced Stat Cards */
     .stat-card-premium {
-        background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.9) 100%);
-        backdrop-filter: blur(10px) saturate(180%);
-        border: 1px solid rgba(255, 255, 255, 0.5);
-        border-radius: 16px;
+        background: white;
+        border: 1px solid #e5e7eb;
+        border-radius: 12px;
         padding: 1.5rem;
-        box-shadow:
-            0 4px 12px rgba(0, 0, 0, 0.08),
-            0 12px 32px rgba(0, 0, 0, 0.06),
-            inset 0 1px 0 rgba(255, 255, 255, 0.8);
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        transition: all 0.3s ease;
     }
 
     .stat-card-premium:hover {
         transform: translateY(-2px);
-        box-shadow:
-            0 6px 16px rgba(0, 0, 0, 0.1),
-            0 16px 40px rgba(0, 0, 0, 0.08);
+        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
     }
 
     /* Subtle Animations */
@@ -1593,10 +1494,10 @@ elif st.session_state.view == 'player':
                             {player['name']}
                         </h1>
                         <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
-                            <span class="team-badge" style="background: rgba(255,255,255,0.25); color: white; padding: 0.5rem 1rem; backdrop-filter: blur(10px);">
+                            <span class="team-badge" style="background: rgba(255,255,255,0.25); color: white; padding: 0.5rem 1rem;">
                                 {player_team} • {player['pos']} • #{player.get('number', '0')}
                             </span>
-                            <span class="team-badge" style="background: rgba(255,255,255,0.15); color: white; padding: 0.5rem 1rem; backdrop-filter: blur(10px);">
+                            <span class="team-badge" style="background: rgba(255,255,255,0.15); color: white; padding: 0.5rem 1rem;">
                                 vs {opponent_team}
                             </span>
                         </div>
