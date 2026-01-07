@@ -2,3 +2,4 @@ streamlit>=1.31.0
 pandas>=2.0.0
 plotly>=5.18.0
 qrcode[pil]>=7.4.2
+nba_api>=1.4.1

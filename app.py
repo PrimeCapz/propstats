@@ -10,6 +10,14 @@ from datetime import datetime, timedelta
 import random
 import statistics
 
+# Import live NBA data module
+try:
+    from nba_data import get_enriched_games, get_player_game_log, init_nba_data
+    NBA_DATA_AVAILABLE = True
+except ImportError:
+    NBA_DATA_AVAILABLE = False
+    print("NBA data module not available, using mock data")
+
 # Page Configuration
 st.set_page_config(
     page_title="PropStats",
@@ -684,7 +692,19 @@ TEAM_ROSTERS = {
 
 # Helper Functions
 def generate_todays_games():
-    """Generate mock games"""
+    """Fetch today's games - uses live NBA data when available"""
+
+    # Try to use live NBA data first
+    if NBA_DATA_AVAILABLE:
+        try:
+            games = get_enriched_games()
+            if games:  # If we got live data, use it
+                return games
+        except Exception as e:
+            print(f"Error fetching live NBA data: {e}")
+            # Fall through to mock data
+
+    # Fallback to mock data
     matchups = [
         ('LAL', 'GSW', '10:00 PM ET'),
         ('BOS', 'MIA', '7:30 PM ET'),
@@ -710,8 +730,29 @@ def generate_todays_games():
 
     return games
 
-def generate_player_game_log(base_stat, num_games=20):
-    """Generate realistic game log"""
+def generate_player_game_log(player_id, stat_type, base_stat, num_games=20):
+    """Fetch player game log - uses live NBA data when available"""
+
+    # Try to use live NBA data first
+    if NBA_DATA_AVAILABLE and player_id:
+        try:
+            real_games = get_player_game_log(player_id, num_games)
+            if real_games:
+                # Convert to format expected by app
+                formatted_games = []
+                for game in real_games:
+                    value = game.get(stat_type, 0)
+                    formatted_games.append({
+                        'date': game['date'],
+                        'value': value,
+                        'opponent': game['opponent']
+                    })
+                return formatted_games
+        except Exception as e:
+            print(f"Error fetching player game log: {e}")
+            # Fall through to mock data
+
+    # Fallback to mock data
     games = []
     dates = [(datetime.now() - timedelta(days=i*3)).strftime("%b %d") for i in range(num_games)]
     dates.reverse()
@@ -1136,7 +1177,8 @@ elif st.session_state.view == 'player':
                                value=float(base_value), step=0.5, key="line_input")
 
     # Generate Data
-    game_log = generate_player_game_log(base_value)
+    player_id = player.get('id', None)
+    game_log = generate_player_game_log(player_id, selected_stat, base_value)
 
     l5_games = game_log[-5:]
     l10_games = game_log[-10:]
