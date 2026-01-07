@@ -655,7 +655,8 @@ if 'selected_stat' not in st.session_state:
     st.session_state.selected_stat = 'points'
 
 # ========== CLEAN HEADER ==========
-st.markdown("""
+current_date = datetime.now().strftime('%b %d, %Y')
+st.markdown(f"""
 <div class="main-header">
     <div style="max-width: 1400px; margin: 0 auto; padding: 0 1.5rem; display: flex; justify-content: space-between; align-items: center;">
         <div style="display: flex; align-items: center; gap: 1rem;">
@@ -668,11 +669,11 @@ st.markdown("""
         </div>
         <div style="display: flex; gap: 0.5rem; align-items: center;">
             <span class="tag tag-live">● LIVE</span>
-            <span style="color: #6b7280; font-size: 0.875rem; font-weight: 500;">{datetime.now().strftime('%b %d, %Y')}</span>
+            <span style="color: #6b7280; font-size: 0.875rem; font-weight: 500;">{current_date}</span>
         </div>
     </div>
 </div>
-""".format(datetime=datetime), unsafe_allow_html=True)
+""", unsafe_allow_html=True)
 
 # ========== LAYER 1: TODAY'S SLATE ==========
 if st.session_state.view == 'slate':
