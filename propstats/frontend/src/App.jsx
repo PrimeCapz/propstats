@@ -69,11 +69,15 @@ function BarChart({ games, line, stat }) {
 
 function HitRateBox({ label, hits, total, highlight }) {
   const pct = total > 0 ? Math.round((hits / total) * 100) : 0;
-  const color = pct >= 70 ? 'emerald' : pct >= 50 ? 'yellow' : 'red';
+  const colorClasses = pct >= 70
+    ? 'bg-gradient-to-br from-emerald-500/20 to-emerald-600/5 border-emerald-500/40 text-emerald-400'
+    : pct >= 50
+    ? 'bg-gradient-to-br from-yellow-500/20 to-yellow-600/5 border-yellow-500/40 text-yellow-400'
+    : 'bg-gradient-to-br from-red-500/20 to-red-600/5 border-red-500/40 text-red-400';
   return (
-    <div className={`rounded-xl p-4 bg-gradient-to-br from-${color}-500/20 to-${color}-600/5 border border-${color}-500/40 ${highlight ? 'ring-2 ring-white/20' : ''}`}>
+    <div className={`rounded-xl p-4 border ${colorClasses} ${highlight ? 'ring-2 ring-white/20' : ''}`}>
       <div className="text-[10px] uppercase tracking-widest text-zinc-500">{label}</div>
-      <div className={`text-3xl font-black text-${color}-400`}>{pct}%</div>
+      <div className="text-3xl font-black">{pct}%</div>
       <div className="text-xs text-zinc-500">{hits}/{total}</div>
     </div>
   );
@@ -147,7 +151,7 @@ export default function App() {
   const calc = list => { const h = list.filter(g => g.hit).length; return { hits: h, total: list.length, pct: list.length ? Math.round(h/list.length*100) : 0 }; };
   const l5 = calc(games.slice(0,5)), l10 = calc(games.slice(0,10)), l20 = calc(games.slice(0,20));
   const avg = games.length ? (games.reduce((a,g) => a+g.value, 0)/games.length).toFixed(1) : 0;
-  const verdict = l10.pct >= 70 && avg > line ? {t:'STRONG OVER',c:'emerald'} : l10.pct >= 55 && avg > line ? {t:'LEAN OVER',c:'emerald'} : l10.pct <= 30 && avg < line ? {t:'STRONG UNDER',c:'red'} : l10.pct <= 45 && avg < line ? {t:'LEAN UNDER',c:'red'} : {t:'TOSS UP',c:'zinc'};
+  const verdict = l10.pct >= 70 && avg > line ? {t:'STRONG OVER',classes:'bg-emerald-500/20 text-emerald-400'} : l10.pct >= 55 && avg > line ? {t:'LEAN OVER',classes:'bg-emerald-500/20 text-emerald-400'} : l10.pct <= 30 && avg < line ? {t:'STRONG UNDER',classes:'bg-red-500/20 text-red-400'} : l10.pct <= 45 && avg < line ? {t:'LEAN UNDER',classes:'bg-red-500/20 text-red-400'} : {t:'TOSS UP',classes:'bg-zinc-500/20 text-zinc-400'};
   const teamColor = player ? TEAM_COLORS[player.team] || '#666' : '#666';
 
   return (
@@ -181,7 +185,7 @@ export default function App() {
                   <h1 className="text-2xl font-black">{player.name}</h1>
                   <p className="text-zinc-400">{player.team} • {player.position}</p>
                 </div>
-                <div className={`bg-${verdict.c}-500/20 text-${verdict.c}-400 px-4 py-2 rounded-xl text-center`}>
+                <div className={`${verdict.classes} px-4 py-2 rounded-xl text-center`}>
                   <div className="text-xs opacity-70">Verdict</div>
                   <div className="font-black">{verdict.t}</div>
                 </div>
