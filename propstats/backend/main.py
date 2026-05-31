@@ -1,6 +1,5 @@
 """
-PropStats API v3.0 - NBA Props Research
-2025-26 Season - Auto-refreshing data
+PropStats API v3.0 - NBA Props + Baseball Analysis
 """
 
 from fastapi import FastAPI, HTTPException, Query, Request
@@ -13,6 +12,23 @@ import time
 # NBA API imports
 from nba_api.stats.static import players
 from nba_api.stats.endpoints import playergamelog, commonplayerinfo
+
+# Baseball engine
+from baseball_engine import (
+    get_today_games,
+    get_full_game_analysis,
+    get_pitcher_season_stats,
+    get_pitcher_splits,
+    get_pitcher_recent_starts,
+    get_pitch_arsenal,
+    get_batter_season_stats,
+    get_batter_splits,
+    get_batter_vs_pitcher,
+    get_game_lineups,
+    get_weather_for_venue,
+    get_ballpark_factors,
+    search_mlb_players,
+)
 
 app = FastAPI(title="PropStats API", version="3.0.0")
 
@@ -392,6 +408,103 @@ def clear_cache(secret: str = Query(...)):
     conn.close()
     
     return {"status": "cache_cleared", "season": CURRENT_SEASON}
+
+# ─────────────────────────────────────────────
+#  BASEBALL ROUTES
+# ─────────────────────────────────────────────
+
+@app.get("/baseball/games")
+def baseball_games(date: str = Query(None, description="YYYY-MM-DD, defaults to today")):
+    """All MLB games for a date with probable pitchers."""
+    games = get_today_games(date)
+    return {"games": games, "count": len(games), "date": date or "today"}
+
+
+@app.get("/baseball/game/{game_pk}/analysis")
+def baseball_game_analysis(game_pk: int):
+    """Full deep-dive analysis: pitchers, lineups, H2H matchups, weather, park factors."""
+    result = get_full_game_analysis(game_pk)
+    if "error" in result:
+        raise HTTPException(status_code=404, detail=result["error"])
+    return result
+
+
+@app.get("/baseball/game/{game_pk}/lineups")
+def baseball_lineups(game_pk: int):
+    """Confirmed/probable lineups for a game."""
+    return get_game_lineups(game_pk)
+
+
+@app.get("/baseball/pitcher/{pitcher_id}/profile")
+def baseball_pitcher_profile(pitcher_id: int, season: int = Query(None)):
+    """Pitcher profile: season stats, pitch arsenal, splits, recent starts."""
+    stats = get_pitcher_season_stats(pitcher_id, season)
+    if not stats:
+        raise HTTPException(status_code=404, detail="Pitcher not found")
+    arsenal = get_pitch_arsenal(pitcher_id, season)
+    splits = get_pitcher_splits(pitcher_id, season)
+    recent = get_pitcher_recent_starts(pitcher_id, season)
+    return {
+        "pitcher_id": pitcher_id,
+        "profile": stats,
+        "arsenal": arsenal,
+        "splits": splits,
+        "recent_starts": recent,
+    }
+
+
+@app.get("/baseball/batter/{batter_id}/profile")
+def baseball_batter_profile(batter_id: int, season: int = Query(None)):
+    """Batter profile: season stats + splits."""
+    stats = get_batter_season_stats(batter_id, season)
+    if not stats:
+        raise HTTPException(status_code=404, detail="Batter not found")
+    splits = get_batter_splits(batter_id, season)
+    return {"batter_id": batter_id, "profile": stats, "splits": splits}
+
+
+@app.get("/baseball/matchup")
+def baseball_matchup(
+    batter_id: int = Query(...),
+    pitcher_id: int = Query(...),
+    season: int = Query(None),
+):
+    """Head-to-head matchup: career + season H2H history."""
+    batter = get_batter_season_stats(batter_id, season)
+    pitcher = get_pitcher_season_stats(pitcher_id, season)
+    h2h = get_batter_vs_pitcher(batter_id, pitcher_id, season)
+    return {
+        "batter": batter,
+        "pitcher": pitcher,
+        "h2h": h2h,
+    }
+
+
+@app.get("/baseball/players/search")
+def baseball_search(
+    q: str = Query(..., min_length=2),
+    type: str = Query("all", regex="^(all|pitcher|batter)$"),
+):
+    """Search MLB players by name."""
+    results = search_mlb_players(q, type)
+    return {"players": results, "count": len(results)}
+
+
+@app.get("/baseball/weather")
+def baseball_weather(
+    venue_id: int = Query(...),
+    game_date: str = Query(..., description="YYYY-MM-DD"),
+    game_time: str = Query(None, description="ISO datetime string"),
+):
+    """Weather forecast for a specific venue and date."""
+    return get_weather_for_venue(venue_id, game_date, game_time)
+
+
+@app.get("/baseball/park/{venue_name}")
+def baseball_park_factors(venue_name: str):
+    """Park factors for a venue."""
+    return get_ballpark_factors(venue_name)
+
 
 if __name__ == "__main__":
     import uvicorn

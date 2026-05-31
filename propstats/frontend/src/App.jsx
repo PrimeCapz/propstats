@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import BaseballAnalysis from './BaseballAnalysis';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
@@ -125,6 +126,7 @@ function PlayerSearch({ onSelect, onClose }) {
 }
 
 export default function App() {
+  const [mode, setMode] = useState('nba');
   const [showSearch, setShowSearch] = useState(false);
   const [player, setPlayer] = useState(null);
   const [stat, setStat] = useState('points');
@@ -153,14 +155,23 @@ export default function App() {
   return (
     <div className="min-h-screen bg-[#09090b] text-white">
       <header className="border-b border-zinc-800 bg-zinc-950/80 backdrop-blur sticky top-0 z-40">
-        <div className="max-w-6xl mx-auto px-4 py-3 flex justify-between items-center">
-          <div className="flex items-center gap-2"><div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center font-black">P</div><span className="font-bold">PropStats</span></div>
-          <button onClick={() => setShowSearch(true)} className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 rounded-xl text-sm">🔍 Search</button>
+        <div className="max-w-6xl mx-auto px-4 py-3 flex items-center gap-3">
+          <div className="flex items-center gap-2 mr-2">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center font-black">P</div>
+            <span className="font-bold">PropStats</span>
+          </div>
+          <div className="flex gap-1 bg-zinc-900 p-1 rounded-xl">
+            <button onClick={() => setMode('nba')} className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${mode === 'nba' ? 'bg-emerald-600 text-white' : 'text-zinc-400 hover:text-white'}`}>NBA Props</button>
+            <button onClick={() => setMode('baseball')} className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${mode === 'baseball' ? 'bg-blue-600 text-white' : 'text-zinc-400 hover:text-white'}`}>⚾ Baseball</button>
+          </div>
+          {mode === 'nba' && <button onClick={() => setShowSearch(true)} className="ml-auto px-4 py-2 bg-zinc-800 hover:bg-zinc-700 rounded-xl text-sm">🔍 Search</button>}
         </div>
       </header>
       {showSearch && <PlayerSearch onSelect={p => { setPlayer(p); setShowSearch(false); setLine(COMMON_LINES[stat]?.[1] || 19.5); }} onClose={() => setShowSearch(false)} />}
       <main className="max-w-6xl mx-auto px-4 py-6">
-        {!player ? (
+        {mode === 'baseball' ? (
+          <BaseballAnalysis />
+        ) : !player ? (
           <div className="text-center py-20">
             <h2 className="text-2xl font-bold mb-4">Search any NBA player</h2>
             <div className="flex flex-wrap justify-center gap-2">
