@@ -284,15 +284,25 @@ function PitcherCard({ side, pitcherData, teamName }) {
 
 function MatchupRow({ item }) {
   const [expanded, setExpanded] = useState(false);
+  const [last5, setLast5] = useState(null);
   const { batter, h2h, matchup_grade } = item;
   const grade = matchup_grade || {};
   const gc = gradeColor[grade.grade] || 'zinc';
   const career = h2h?.career_summary || {};
   const hasPa = career.pa > 0;
 
+  const loadLast5 = async () => {
+    if (last5 || !batter?.player_id) return;
+    try {
+      const r = await fetch(`${API_URL}/baseball/batter/${batter.player_id}/last5`);
+      const d = await r.json();
+      setLast5(d.games || []);
+    } catch { setLast5([]); }
+  };
+
   return (
     <div className="border-b border-zinc-800/50 last:border-0">
-      <button className="w-full px-3 py-2.5 flex items-center gap-3 hover:bg-zinc-800/30 text-left" onClick={() => setExpanded(x => !x)}>
+      <button className="w-full px-3 py-2.5 flex items-center gap-3 hover:bg-zinc-800/30 text-left" onClick={() => { setExpanded(x => !x); loadLast5(); }}>
         <span className="text-xs text-zinc-500 w-4 text-right">{batter.order}</span>
         <span className="text-xs bg-zinc-800 rounded px-1.5 py-0.5 w-8 text-center text-zinc-300">{batter.position}</span>
         <span className="flex-1 text-sm font-medium">{batter.name}</span>
@@ -304,6 +314,21 @@ function MatchupRow({ item }) {
       </button>
       {expanded && (
         <div className="px-4 pb-3 bg-zinc-900/30">
+          {last5 && (
+            <div className="mb-3 pt-2">
+              <div className="text-xs text-zinc-500 mb-1.5">Last 5 Games</div>
+              <Last5Bar games={last5} />
+              {last5.length > 0 && (
+                <div className="flex gap-4 mt-1.5 text-xs text-zinc-500">
+                  <span>L5 AVG: <span className="text-white font-bold">
+                    {(() => { const ab = last5.reduce((s,g)=>s+g.ab,0); const h = last5.reduce((s,g)=>s+g.h,0); return ab>0 ? `.${String(Math.round(h/ab*1000)).padStart(3,'0')}` : '-'; })()}
+                  </span></span>
+                  <span>TB: <span className="text-white font-bold">{last5.reduce((s,g)=>s+g.total_bases,0)}</span></span>
+                  <span>HR: <span className="text-white font-bold">{last5.reduce((s,g)=>s+g.hr,0)}</span></span>
+                </div>
+              )}
+            </div>
+          )}
           {hasPa ? (
             <div>
               <div className="text-xs text-zinc-500 mb-2">Career H2H vs this pitcher ({career.pa} PA)</div>
@@ -405,6 +430,112 @@ function AnalysisSummary({ analysis, awayTeam, homeTeam }) {
   );
 }
 
+// ── Odds Badge ────────────────────────────────────────────────────────────────
+
+function OddsLine({ odds }) {
+  if (!odds || !odds.total) return null;
+  const ml = odds.moneyline || {};
+  const tot = odds.total || {};
+  const fmtML = (v) => v > 0 ? `+${v}` : v < 0 ? `${v}` : 'Live';
+  return (
+    <div className="mt-2 grid grid-cols-3 gap-1 text-xs">
+      <div className="bg-zinc-800 rounded-lg p-1.5 text-center">
+        <div className="text-zinc-600 text-[9px]">AWAY ML</div>
+        <div className={`font-bold ${ml.away > 0 ? 'text-zinc-300' : ml.away < 0 ? 'text-emerald-400' : 'text-zinc-500'}`}>{fmtML(ml.away)}</div>
+      </div>
+      <div className="bg-zinc-800 rounded-lg p-1.5 text-center">
+        <div className="text-zinc-600 text-[9px]">O/U</div>
+        <div className="font-bold text-yellow-400">{tot.line}</div>
+        <div className="text-[9px] text-zinc-600">O{tot.over_odds} U{tot.under_odds}</div>
+      </div>
+      <div className="bg-zinc-800 rounded-lg p-1.5 text-center">
+        <div className="text-zinc-600 text-[9px]">HOME ML</div>
+        <div className={`font-bold ${ml.home < 0 ? 'text-emerald-400' : ml.home > 0 ? 'text-zinc-300' : 'text-zinc-500'}`}>{fmtML(ml.home)}</div>
+      </div>
+    </div>
+  );
+}
+
+// ── Prop Card ─────────────────────────────────────────────────────────────────
+
+function PropCard({ prop }) {
+  const leanColor = prop.lean === 'OVER' ? 'emerald' : prop.lean === 'UNDER' ? 'red' : 'zinc';
+  const confBadge = prop.confidence === 'Strong' ? 'bg-yellow-500/20 text-yellow-400' : prop.confidence === 'Lean' ? 'bg-blue-500/20 text-blue-400' : 'bg-zinc-700 text-zinc-400';
+
+  return (
+    <div className={`bg-zinc-900/60 border border-${leanColor}-500/30 rounded-xl p-3`}>
+      <div className="flex items-start justify-between gap-2 mb-2">
+        <div>
+          <div className="text-xs text-zinc-500 uppercase tracking-widest">{prop.prop_type}</div>
+          <div className="font-semibold text-sm">{prop.batter || prop.pitcher || 'Game Total'}</div>
+        </div>
+        <div className="flex flex-col items-end gap-1">
+          <span className={`text-xs font-bold px-2 py-0.5 rounded-lg bg-${leanColor}-500/20 text-${leanColor}-400`}>{prop.lean}</span>
+          <span className={`text-xs px-2 py-0.5 rounded-lg ${confBadge}`}>{prop.confidence}</span>
+        </div>
+      </div>
+      {prop.line && (
+        <div className="flex gap-3 text-xs mb-2">
+          <span className="text-zinc-500">Line</span>
+          <span className="font-bold text-white">{prop.line}</span>
+          {prop.avg_k_per_start > 0 && <span className="text-zinc-500">Avg: <span className="text-white">{prop.avg_k_per_start}K/start</span></span>}
+          {prop.l5_avg && <span className="text-zinc-500">L5 AVG: <span className={statColor(prop.l5_avg, [0.300, 0.240, 0])}>{prop.l5_avg}</span></span>}
+        </div>
+      )}
+      {prop.recent_k_games?.length > 0 && (
+        <div className="flex gap-1 mb-2">
+          {prop.recent_k_games.map((k, i) => (
+            <span key={i} className={`text-xs font-bold px-1.5 py-0.5 rounded ${k >= 9 ? 'bg-emerald-500/20 text-emerald-400' : k >= 7 ? 'bg-yellow-500/20 text-yellow-400' : 'bg-zinc-700 text-zinc-400'}`}>{k}K</span>
+          ))}
+        </div>
+      )}
+      {prop.recent_hits?.length > 0 && (
+        <div className="flex gap-1 mb-2">
+          {prop.recent_hits.map((h, i) => (
+            <span key={i} className={`text-xs font-bold px-1.5 py-0.5 rounded ${h >= 3 ? 'bg-emerald-500/20 text-emerald-400' : h >= 1 ? 'bg-yellow-500/20 text-yellow-400' : 'bg-red-500/20 text-red-400'}`}>{h}H</span>
+          ))}
+        </div>
+      )}
+      <ul className="space-y-0.5">
+        {(prop.notes || []).map((n, i) => (
+          <li key={i} className="text-xs text-zinc-400 flex gap-1.5"><span className={`text-${leanColor}-500`}>•</span>{n}</li>
+        ))}
+      </ul>
+      {prop.posted_line && (
+        <div className="mt-2 pt-2 border-t border-zinc-800 flex gap-3 text-xs">
+          <span className="text-zinc-500">Posted O/U: <span className="font-bold text-white">{prop.posted_line}</span></span>
+          {prop.over_odds && <span className="text-zinc-500">O{prop.over_odds} U{prop.under_odds}</span>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Last 5 mini bar ───────────────────────────────────────────────────────────
+
+function Last5Bar({ games }) {
+  if (!games || games.length === 0) return <span className="text-xs text-zinc-600">No data</span>;
+  return (
+    <div className="flex gap-1 items-center">
+      {games.map((g, i) => (
+        <div key={i} className="group relative">
+          <div className={`w-5 h-5 rounded text-[9px] font-bold flex items-center justify-center
+            ${g.h >= 3 ? 'bg-emerald-500/30 text-emerald-400' : g.h >= 1 ? 'bg-yellow-500/20 text-yellow-400' : 'bg-red-500/10 text-red-400'}`}>
+            {g.h}
+          </div>
+          <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 hidden group-hover:block z-30 pointer-events-none">
+            <div className="bg-zinc-800 border border-zinc-700 rounded-lg px-2 py-1 text-xs whitespace-nowrap">
+              <div className="font-bold">{g.home_away} {g.opponent}</div>
+              <div>{g.ab} AB · {g.h} H · {g.hr} HR · {g.rbi} RBI · {g.bb} BB · {g.k} K</div>
+              <div className="text-zinc-500">{g.date?.slice(5)}</div>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ── Game Card (today's games list) ────────────────────────────────────────────
 
 function GameCard({ game, onSelect }) {
@@ -427,6 +558,7 @@ function GameCard({ game, onSelect }) {
           <div className="text-xs text-zinc-500">{game.home.record}</div>
         </div>
       </div>
+      <OddsLine odds={game.odds} />
       <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
         <div className="bg-zinc-800/50 rounded-lg p-2">
           <div className="text-zinc-600 mb-0.5">Away SP</div>
@@ -656,10 +788,80 @@ function QuickMatchup() {
   );
 }
 
+// ── Prop Sheet Panel ──────────────────────────────────────────────────────────
+
+function PropSheetPanel({ gamePk }) {
+  const [sheet, setSheet] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState('');
+
+  useEffect(() => {
+    if (!gamePk) return;
+    setLoading(true); setErr('');
+    fetch(`${API_URL}/baseball/game/${gamePk}/prop-sheet`)
+      .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+      .then(d => setSheet(d))
+      .catch(e => setErr(`Could not load prop sheet: ${e.message}`))
+      .finally(() => setLoading(false));
+  }, [gamePk]);
+
+  if (loading) return <div className="text-center py-12"><div className="w-8 h-8 border-4 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" /><div className="text-zinc-400 text-sm">Building prop sheet...</div></div>;
+  if (err) return <div className="text-red-400 text-sm bg-red-500/10 rounded-xl p-4">{err}</div>;
+  if (!sheet) return null;
+
+  const top = sheet.top_plays || [];
+  const all = sheet.props || [];
+  const totals = all.filter(p => p.prop_type === 'Game Total');
+  const kProps = all.filter(p => p.prop_type === 'Strikeouts');
+  const hitProps = all.filter(p => p.prop_type === 'Hits');
+  const hrProps = all.filter(p => p.prop_type === 'Home Run');
+
+  return (
+    <div className="space-y-6">
+      {top.length > 0 && (
+        <div>
+          <div className="text-sm font-semibold mb-3 flex items-center gap-2">
+            <span className="text-yellow-400">★</span> Top Plays
+          </div>
+          <div className="grid sm:grid-cols-2 gap-3">
+            {top.map((p, i) => <PropCard key={i} prop={p} />)}
+          </div>
+        </div>
+      )}
+      {totals.length > 0 && (
+        <div>
+          <div className="text-xs text-zinc-500 uppercase tracking-widest mb-2">Game Total</div>
+          <div className="grid sm:grid-cols-2 gap-3">{totals.map((p, i) => <PropCard key={i} prop={p} />)}</div>
+        </div>
+      )}
+      {kProps.length > 0 && (
+        <div>
+          <div className="text-xs text-zinc-500 uppercase tracking-widest mb-2">Strikeout Props</div>
+          <div className="grid sm:grid-cols-2 gap-3">{kProps.map((p, i) => <PropCard key={i} prop={p} />)}</div>
+        </div>
+      )}
+      {hitProps.length > 0 && (
+        <div>
+          <div className="text-xs text-zinc-500 uppercase tracking-widest mb-2">Hit Props</div>
+          <div className="grid sm:grid-cols-2 gap-3">{hitProps.map((p, i) => <PropCard key={i} prop={p} />)}</div>
+        </div>
+      )}
+      {hrProps.length > 0 && (
+        <div>
+          <div className="text-xs text-zinc-500 uppercase tracking-widest mb-2">Home Run Props</div>
+          <div className="grid sm:grid-cols-2 gap-3">{hrProps.map((p, i) => <PropCard key={i} prop={p} />)}</div>
+        </div>
+      )}
+      {top.length === 0 && all.length === 0 && <div className="text-zinc-500 text-sm">No strong prop angles detected for this game.</div>}
+    </div>
+  );
+}
+
 // ── Main Baseball Analysis Component ─────────────────────────────────────────
 
 export default function BaseballAnalysis() {
   const [view, setView] = useState('games');
+  const [analysisTab, setAnalysisTab] = useState('breakdown');
   const [games, setGames] = useState([]);
   const [gamesDate, setGamesDate] = useState('');
   const [gamesLoading, setGamesLoading] = useState(false);
@@ -667,25 +869,35 @@ export default function BaseballAnalysis() {
   const [analysis, setAnalysis] = useState(null);
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [analysisError, setAnalysisError] = useState('');
+  const [gameOdds, setGameOdds] = useState(null);
 
   const todayStr = new Date().toISOString().slice(0, 10);
 
   const loadGames = async (dateStr) => {
     setGamesLoading(true);
     try {
-      const url = `${API_URL}/baseball/games${dateStr ? `?date=${dateStr}` : ''}`;
+      const url = `${API_URL}/baseball/games/with-odds${dateStr ? `?date=${dateStr}` : ''}`;
       const r = await fetch(url);
       const d = await r.json();
       setGames(d.games || []);
-    } catch { setGames([]); }
-    finally { setGamesLoading(false); }
+    } catch {
+      // fallback to no-odds endpoint
+      try {
+        const url2 = `${API_URL}/baseball/games${dateStr ? `?date=${dateStr}` : ''}`;
+        const r2 = await fetch(url2);
+        const d2 = await r2.json();
+        setGames(d2.games || []);
+      } catch { setGames([]); }
+    } finally { setGamesLoading(false); }
   };
 
   const loadAnalysis = async (game) => {
     setSelectedGame(game);
     setView('analysis');
+    setAnalysisTab('breakdown');
     setAnalysis(null);
     setAnalysisError('');
+    setGameOdds(game.odds || null);
     setAnalysisLoading(true);
     try {
       const r = await fetch(`${API_URL}/baseball/game/${game.game_pk}/analysis`);
@@ -757,56 +969,71 @@ export default function BaseballAnalysis() {
             <div className="bg-red-500/10 border border-red-500/30 rounded-2xl p-4 text-red-400">{analysisError}</div>
           )}
           {analysis && !analysisLoading && (
-            <div className="space-y-6">
-              {/* Game header */}
+            <div className="space-y-5">
+              {/* Game header with live odds */}
               <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-5">
                 <div className="flex items-center justify-between mb-1">
                   <div className="text-xs text-zinc-500">{analysis.venue?.name}</div>
                   <div className="text-xs text-zinc-500">{fmtTime(analysis.game_time)}</div>
                 </div>
-                <div className="flex items-center justify-around text-center">
+                <div className="flex items-center justify-around text-center mb-2">
                   <div>
                     <div className="text-2xl font-black">{analysis.away_team?.abbr}</div>
-                    <div className="text-sm text-zinc-400">{analysis.away_team?.name}</div>
+                    <div className="text-xs text-zinc-400">{analysis.away_team?.name}</div>
                     <div className="text-xs text-zinc-600">{analysis.away_team?.record}</div>
                   </div>
                   <div className="text-zinc-600 text-2xl font-bold">@</div>
                   <div>
                     <div className="text-2xl font-black">{analysis.home_team?.abbr}</div>
-                    <div className="text-sm text-zinc-400">{analysis.home_team?.name}</div>
+                    <div className="text-xs text-zinc-400">{analysis.home_team?.name}</div>
                     <div className="text-xs text-zinc-600">{analysis.home_team?.record}</div>
                   </div>
                 </div>
+                {gameOdds && <OddsLine odds={gameOdds} />}
               </div>
 
-              {/* Analysis summary */}
-              <AnalysisSummary analysis={analysis.analysis} awayTeam={analysis.away_team} homeTeam={analysis.home_team} />
-
-              {/* Pitchers */}
-              <div className="grid lg:grid-cols-2 gap-4">
-                <PitcherCard side="Away" pitcherData={analysis.pitchers?.away} teamName={analysis.away_team?.name} />
-                <PitcherCard side="Home" pitcherData={analysis.pitchers?.home} teamName={analysis.home_team?.name} />
+              {/* Analysis tabs */}
+              <div className="flex gap-2">
+                {[
+                  { key: 'breakdown', label: 'Full Breakdown' },
+                  { key: 'props', label: '★ Prop Sheet' },
+                ].map(t => (
+                  <button key={t.key} onClick={() => setAnalysisTab(t.key)}
+                    className={`px-4 py-2 rounded-xl text-sm font-medium ${analysisTab === t.key
+                      ? t.key === 'props' ? 'bg-purple-600 text-white' : 'bg-blue-600 text-white'
+                      : 'bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white'}`}>
+                    {t.label}
+                  </button>
+                ))}
               </div>
 
-              {/* Weather + Park side by side */}
-              <div className="grid sm:grid-cols-2 gap-4">
-                <WeatherCard weather={analysis.weather} />
-                <ParkCard park={analysis.park_factors} />
-              </div>
+              {analysisTab === 'breakdown' && (
+                <div className="space-y-5">
+                  <AnalysisSummary analysis={analysis.analysis} awayTeam={analysis.away_team} homeTeam={analysis.home_team} />
+                  <div className="grid lg:grid-cols-2 gap-4">
+                    <PitcherCard side="Away" pitcherData={analysis.pitchers?.away} teamName={analysis.away_team?.name} />
+                    <PitcherCard side="Home" pitcherData={analysis.pitchers?.home} teamName={analysis.home_team?.name} />
+                  </div>
+                  <div className="grid sm:grid-cols-2 gap-4">
+                    <WeatherCard weather={analysis.weather} />
+                    <ParkCard park={analysis.park_factors} />
+                  </div>
+                  <div className="grid lg:grid-cols-2 gap-4">
+                    <MatchupPanel
+                      title={`${analysis.away_team?.abbr} Lineup`}
+                      items={analysis.matchups?.away_batters_vs_home_pitcher}
+                      pitcherName={analysis.pitchers?.home?.info?.name || 'Home SP'}
+                    />
+                    <MatchupPanel
+                      title={`${analysis.home_team?.abbr} Lineup`}
+                      items={analysis.matchups?.home_batters_vs_away_pitcher}
+                      pitcherName={analysis.pitchers?.away?.info?.name || 'Away SP'}
+                    />
+                  </div>
+                </div>
+              )}
 
-              {/* Lineup matchups */}
-              <div className="grid lg:grid-cols-2 gap-4">
-                <MatchupPanel
-                  title={`${analysis.away_team?.abbr} Lineup`}
-                  items={analysis.matchups?.away_batters_vs_home_pitcher}
-                  pitcherName={analysis.pitchers?.home?.info?.name || 'Home SP'}
-                />
-                <MatchupPanel
-                  title={`${analysis.home_team?.abbr} Lineup`}
-                  items={analysis.matchups?.home_batters_vs_away_pitcher}
-                  pitcherName={analysis.pitchers?.away?.info?.name || 'Away SP'}
-                />
-              </div>
+              {analysisTab === 'props' && <PropSheetPanel gamePk={analysis.game_pk} />}
             </div>
           )}
         </div>

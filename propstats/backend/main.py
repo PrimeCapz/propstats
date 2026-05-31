@@ -29,6 +29,18 @@ from baseball_engine import (
     get_ballpark_factors,
     search_mlb_players,
 )
+from odds_engine import (
+    get_all_game_odds,
+    get_batter_last_n,
+    get_pitcher_last_n,
+    analyze_pitcher_k_prop,
+    analyze_batter_hit_prop,
+    analyze_batter_hr_prop,
+    analyze_total,
+    build_prop_sheet,
+    get_game_odds_by_espn_id,
+    get_espn_game_map,
+)
 
 app = FastAPI(title="PropStats API", version="3.0.0")
 
@@ -504,6 +516,63 @@ def baseball_weather(
 def baseball_park_factors(venue_name: str):
     """Park factors for a venue."""
     return get_ballpark_factors(venue_name)
+
+
+@app.get("/baseball/odds")
+def baseball_odds(date: str = Query(None, description="YYYY-MM-DD, defaults to today")):
+    """DraftKings lines (ML, run line, O/U) for all games via ESPN — no key required."""
+    odds = get_all_game_odds(date)
+    return {"odds": {f"{k[0]}@{k[1]}": v for k, v in odds.items()}, "date": date or "today"}
+
+
+@app.get("/baseball/game/{game_pk}/odds")
+def baseball_game_odds(game_pk: int, away: str = Query(...), home: str = Query(...),
+                       date: str = Query(None)):
+    """Odds for a single game by team abbreviations."""
+    mapping = get_espn_game_map(date)
+    espn_id = mapping.get((away.upper(), home.upper()))
+    if not espn_id:
+        raise HTTPException(status_code=404, detail="Game not found in ESPN odds")
+    return get_game_odds_by_espn_id(espn_id)
+
+
+@app.get("/baseball/game/{game_pk}/prop-sheet")
+def baseball_prop_sheet(game_pk: int):
+    """Full ranked prop sheet: K props, hit props, HR props, totals with lines & lean."""
+    analysis = get_full_game_analysis(game_pk)
+    if "error" in analysis:
+        raise HTTPException(status_code=404, detail=analysis["error"])
+
+    away_abbr = analysis.get("away_team", {}).get("abbr", "")
+    home_abbr = analysis.get("home_team", {}).get("abbr", "")
+    game_date = analysis.get("game_date", "")
+    mapping = get_espn_game_map(game_date)
+    espn_id = mapping.get((away_abbr, home_abbr))
+    if espn_id:
+        analysis["game_odds"] = get_game_odds_by_espn_id(espn_id)
+
+    return build_prop_sheet(analysis)
+
+
+@app.get("/baseball/batter/{batter_id}/last5")
+def batter_last5(batter_id: int, season: int = Query(None)):
+    """Last 5 games for a batter with AB, H, HR, RBI, BB, K, TB."""
+    games = get_batter_last_n(batter_id, season, 5)
+    return {"batter_id": batter_id, "games": games}
+
+
+@app.get("/baseball/games/with-odds")
+def games_with_odds(date: str = Query(None)):
+    """Today's MLB schedule with live DraftKings lines embedded."""
+    import time as _time
+    games = get_today_games(date)
+    odds_map = get_all_game_odds(date)
+
+    for g in games:
+        key = (g["away"]["team_abbr"].upper(), g["home"]["team_abbr"].upper())
+        g["odds"] = odds_map.get(key, {})
+
+    return {"games": games, "count": len(games), "date": date or "today"}
 
 
 if __name__ == "__main__":
