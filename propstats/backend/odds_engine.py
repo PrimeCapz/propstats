@@ -634,3 +634,461 @@ def build_prop_sheet(game_analysis: dict) -> dict:
         "props": props,
         "top_plays": [p for p in props if p.get("confidence") in ("Strong", "Lean") and p.get("lean") != "NEUTRAL"][:8],
     }
+
+
+# ── Advanced Statcast Scoring Models ──────────────────────────────────────────
+
+def calc_batter_power(savant: dict) -> float:
+    """0.0–1.0 composite batter power score from Statcast metrics."""
+    score = 0.0
+    weight = 0.0
+
+    barrel = savant.get("barrel_pct", 0) or 0
+    hard   = savant.get("hard_hit_pct", 0) or 0
+    ev50   = savant.get("ev50", 0) or 0
+    xslg   = savant.get("xslg", 0) or 0
+    blast  = (savant.get("blast_per_swing", 0) or 0) * 100
+    sweet  = savant.get("sweet_spot", 0) or 0
+
+    # Barrel% (league avg ~8%) — weight 30%
+    if barrel > 0:
+        score  += min(barrel / 20.0, 1.0) * 0.30
+        weight += 0.30
+
+    # Hard hit% (league avg ~37%) — weight 25%
+    if hard > 0:
+        score  += min(hard / 65.0, 1.0) * 0.25
+        weight += 0.25
+
+    # EV50 (50th pct exit velo, avg ~88 mph) — weight 20%
+    if ev50 > 0:
+        score  += min(max(ev50 - 80, 0) / 20.0, 1.0) * 0.20
+        weight += 0.20
+
+    # xSLG (league avg ~.430) — weight 15%
+    if xslg > 0:
+        score  += min(xslg / 0.80, 1.0) * 0.15
+        weight += 0.15
+
+    # Blast% per swing (league avg ~12%) — weight 10%
+    if blast > 0:
+        score  += min(blast / 25.0, 1.0) * 0.10
+        weight += 0.10
+
+    return round(score / weight, 3) if weight > 0 else 0.0
+
+
+def calc_pitcher_vulnerability(savant: dict, pitcher_stats: dict) -> float:
+    """0.0–1.0 pitcher HR/hard-contact vulnerability."""
+    score  = 0.0
+    weight = 0.0
+
+    barrel_ag = savant.get("barrel_pct_against", 0) or 0
+    hard_ag   = savant.get("hard_hit_pct_against", 0) or 0
+    ev_ag     = savant.get("exit_velo_against", 0) or 0
+    hr9       = float(pitcher_stats.get("stats", {}).get("hr9", "1.0") or "1.0") if pitcher_stats else 1.0
+    era       = float(pitcher_stats.get("stats", {}).get("era", "4.50") or "4.50") if pitcher_stats else 4.50
+
+    # Barrel% against (weight 35%)
+    if barrel_ag > 0:
+        score  += min(barrel_ag / 18.0, 1.0) * 0.35
+        weight += 0.35
+
+    # Hard hit% against (weight 25%)
+    if hard_ag > 0:
+        score  += min(hard_ag / 55.0, 1.0) * 0.25
+        weight += 0.25
+
+    # Exit velo against (weight 20%)
+    if ev_ag > 0:
+        score  += min(max(ev_ag - 84, 0) / 10.0, 1.0) * 0.20
+        weight += 0.20
+
+    # HR/9 (league avg ~1.2, weight 20%)
+    score  += min(hr9 / 2.5, 1.0) * 0.20
+    weight += 0.20
+
+    return round(score / weight, 3) if weight > 0 else round(min(hr9 / 2.5, 1.0), 3)
+
+
+def calc_context_score(park: dict, weather: dict, grade: str) -> float:
+    """0.0–1.0 combined park + weather + matchup-grade context."""
+    score = 0.50  # neutral base
+
+    park_hr = park.get("hr", 1.0)
+    w_score = weather.get("impact", {}).get("score", 0) if weather.get("available") else 0
+
+    score += (park_hr - 1.0) * 0.5
+    score += w_score * 0.04
+
+    grade_adj = {"A+": 0.08, "A": 0.05, "B": 0.02, "C": 0.0, "D": -0.03, "F": -0.06}
+    score += grade_adj.get(grade, 0.0)
+
+    return round(min(max(score, 0.0), 1.0), 3)
+
+
+def calc_hr_probability(batter_stats: dict, batter_savant: dict,
+                        pitcher_stats: dict, pitcher_savant: dict,
+                        park: dict, weather: dict) -> float:
+    """Estimate single-game HR probability (0.0–1.0)."""
+    s     = batter_stats.get("stats", {})
+    pa    = max(s.get("pa", 0) or 1, 1)
+    hr    = s.get("hr", 0) or 0
+    base_rate = hr / pa
+
+    park_adj    = park.get("hr", 1.0)
+    weather_adj = 1.0 + (weather.get("impact", {}).get("score", 0) if weather.get("available") else 0) * 0.04
+    p_hr9       = float((pitcher_stats or {}).get("stats", {}).get("hr9", "1.2") or "1.2")
+    league_hr9  = 1.20
+    pitcher_adj = p_hr9 / league_hr9
+
+    barrel_batter  = batter_savant.get("barrel_pct", 8.0) or 8.0
+    barrel_pitcher = pitcher_savant.get("barrel_pct_against", 8.0) or 8.0
+    barrel_adj = (barrel_batter / 8.0) * (barrel_pitcher / 8.0)
+    barrel_adj = min(barrel_adj, 3.0)
+
+    daily_hr_rate = base_rate * park_adj * weather_adj * pitcher_adj * (barrel_adj ** 0.4)
+
+    avg_ab = 3.8
+    prob = 1.0 - (1.0 - daily_hr_rate) ** avg_ab
+    return round(min(max(prob, 0.001), 0.60), 4)
+
+
+def calc_ev(hr_prob: float, hr_odds: int) -> float:
+    """Expected value in $ for a $100 bet on HR."""
+    if not hr_odds or hr_odds == 0:
+        return 0.0
+    if hr_odds > 0:
+        payout = hr_odds
+    else:
+        payout = 10000 / abs(hr_odds)
+    ev = (hr_prob * payout) - ((1 - hr_prob) * 100)
+    return round(ev, 2)
+
+
+def prob_to_american(prob: float) -> str:
+    """Convert probability to American odds."""
+    if prob <= 0 or prob >= 1:
+        return "N/A"
+    if prob >= 0.5:
+        odds = round(-prob / (1 - prob) * 100)
+        return str(odds)
+    else:
+        odds = round((1 - prob) / prob * 100)
+        return f"+{odds}"
+
+
+def power_match_rating(batter_power: float, pitcher_vuln: float) -> int:
+    """Returns 1, 2, or 3 fire emojis based on power × vulnerability."""
+    combined = batter_power * pitcher_vuln
+    if combined >= 0.35:
+        return 3
+    if combined >= 0.18:
+        return 2
+    return 1
+
+
+def get_meatball_matchups(game_analyses: list) -> list:
+    """
+    Top meatball matchups: high-barrel batter vs high-barrel-allowed pitcher.
+    Proxy for 'heart zone xSLG vs zone-5 pitchers'.
+    """
+    from baseball_engine import get_batter_savant, get_pitcher_savant
+    results = []
+    seen = set()
+
+    for analysis in game_analyses:
+        if "error" in analysis:
+            continue
+        pitchers = analysis.get("pitchers", {})
+        park     = analysis.get("park_factors", {})
+        weather  = analysis.get("weather", {})
+        away_t   = analysis.get("away_team", {})
+        home_t   = analysis.get("home_team", {})
+        matchups = analysis.get("matchups", {})
+        season   = analysis.get("season", datetime.now().year)
+
+        for batter_list, pitcher_side, batter_team in [
+            (matchups.get("away_batters_vs_home_pitcher", []), "home", away_t.get("name", "")),
+            (matchups.get("home_batters_vs_away_pitcher", []), "away", home_t.get("name", "")),
+        ]:
+            pitcher_info  = pitchers.get(pitcher_side, {})
+            pitcher_stats = pitcher_info.get("stats", {})
+            pitcher_id    = pitcher_info.get("info", {}).get("id")
+            pitcher_name  = pitcher_stats.get("name", "Unknown")
+
+            if not pitcher_id:
+                continue
+            p_savant = get_pitcher_savant(pitcher_id, season)
+            p_vuln   = calc_pitcher_vulnerability(p_savant, pitcher_stats)
+            p_barrel = p_savant.get("barrel_pct_against", 0)
+            p_ev     = p_savant.get("exit_velo_against", 0)
+
+            for entry in batter_list[:9]:
+                batter     = entry.get("batter", {})
+                batter_id  = batter.get("player_id")
+                batter_name = batter.get("name", "Unknown")
+                if not batter_id or (batter_id, pitcher_id) in seen:
+                    continue
+                seen.add((batter_id, pitcher_id))
+
+                b_savant   = get_batter_savant(batter_id, season)
+                b_power    = calc_batter_power(b_savant)
+                b_xslg     = b_savant.get("xslg", 0)
+                b_barrel   = b_savant.get("barrel_pct", 0)
+                b_bat_speed = b_savant.get("avg_bat_speed", 0)
+
+                combined = b_power * p_vuln
+                if combined < 0.10 or b_xslg < 0.350:
+                    continue
+
+                matchup_score = round(b_xslg * p_vuln * (park.get("hr", 1.0)), 4)
+
+                results.append({
+                    "batter":       batter_name,
+                    "batter_team":  batter_team,
+                    "pitcher":      pitcher_name,
+                    "batter_xslg":  round(b_xslg, 3),
+                    "batter_barrel": round(b_barrel, 1),
+                    "batter_bat_speed": round(b_bat_speed, 1),
+                    "pitcher_barrel_against": round(p_barrel, 1),
+                    "pitcher_ev_against": round(p_ev, 1),
+                    "batter_power": b_power,
+                    "pitcher_vuln": p_vuln,
+                    "park_hr_pf":   park.get("hr", 1.0),
+                    "matchup_score": matchup_score,
+                    "fire_rating":  power_match_rating(b_power, p_vuln),
+                })
+
+    results.sort(key=lambda x: x["matchup_score"], reverse=True)
+    return results[:20]
+
+
+def get_blast_alerts(game_analyses: list) -> list:
+    """
+    Batters with high blast/barrel rates facing HR-prone pitchers.
+    Includes EV calculation if HR odds available.
+    """
+    from baseball_engine import get_batter_savant, get_pitcher_savant, get_batter_season_stats
+    results = []
+    seen = set()
+
+    for analysis in game_analyses:
+        if "error" in analysis:
+            continue
+        pitchers  = analysis.get("pitchers", {})
+        park      = analysis.get("park_factors", {})
+        weather   = analysis.get("weather", {})
+        matchups  = analysis.get("matchups", {})
+        season    = analysis.get("season", datetime.now().year)
+        away_t    = analysis.get("away_team", {})
+        home_t    = analysis.get("home_team", {})
+
+        for batter_list, pitcher_side, batter_team in [
+            (matchups.get("away_batters_vs_home_pitcher", []), "home", away_t.get("name", "")),
+            (matchups.get("home_batters_vs_away_pitcher", []), "away", home_t.get("name", "")),
+        ]:
+            pitcher_info  = pitchers.get(pitcher_side, {})
+            pitcher_stats = pitcher_info.get("stats", {})
+            pitcher_id    = pitcher_info.get("info", {}).get("id")
+            pitcher_name  = pitcher_stats.get("name", "Unknown")
+            if not pitcher_id:
+                continue
+
+            p_savant = get_pitcher_savant(pitcher_id, season)
+            p_hr9    = float((pitcher_stats.get("stats", {}) or {}).get("hr9", "1.2") or "1.2")
+            p_barrel = p_savant.get("barrel_pct_against", 0)
+            p_vuln   = calc_pitcher_vulnerability(p_savant, pitcher_stats)
+
+            for entry in batter_list[:9]:
+                batter     = entry.get("batter", {})
+                batter_id  = batter.get("player_id")
+                batter_name = batter.get("name", "Unknown")
+                order       = batter.get("order", 0)
+                if not batter_id or (batter_id, pitcher_id) in seen:
+                    continue
+                seen.add((batter_id, pitcher_id))
+
+                b_savant = get_batter_savant(batter_id, season)
+                b_stats  = get_batter_season_stats(batter_id, season)
+                b_barrel = b_savant.get("barrel_pct", 0)
+                b_blast  = (b_savant.get("blast_per_swing", 0) or 0) * 100
+                b_power  = calc_batter_power(b_savant)
+                b_ev50   = b_savant.get("ev50", 0)
+
+                # Only surface real blast threats
+                if b_barrel < 8.0 and b_blast < 12.0:
+                    continue
+
+                hr_prob  = calc_hr_probability(b_stats, b_savant, pitcher_stats, p_savant, park, weather)
+                fair_odds = prob_to_american(hr_prob)
+                context   = calc_context_score(park, weather, entry.get("matchup_grade", {}).get("grade", "C"))
+
+                danger_combo = b_barrel >= 12.0 and p_hr9 >= 1.20
+
+                results.append({
+                    "batter":        batter_name,
+                    "batter_team":   batter_team,
+                    "order":         order,
+                    "pitcher":       pitcher_name,
+                    "blast_pct":     round(b_blast, 1),
+                    "barrel_pct":    round(b_barrel, 1),
+                    "pitcher_hr9":   round(p_hr9, 2),
+                    "pitcher_barrel_against": round(p_barrel, 1),
+                    "batter_power":  b_power,
+                    "pitcher_vuln":  p_vuln,
+                    "context_score": context,
+                    "hr_probability": round(hr_prob * 100, 1),
+                    "fair_odds":      fair_odds,
+                    "ev50":           round(b_ev50, 1),
+                    "fire_rating":    power_match_rating(b_power, p_vuln),
+                    "danger_combo":   danger_combo,
+                    "park_hr_pf":     park.get("hr", 1.0),
+                    "park_name":      analysis.get("venue", {}).get("name", ""),
+                })
+
+    results.sort(key=lambda x: (x["danger_combo"], x["barrel_pct"] + x["pitcher_hr9"]), reverse=True)
+    return results[:20]
+
+
+def get_bat_speed_surges(game_analyses: list) -> list:
+    """
+    Batters showing high bat speed. Returns ranked by avg_bat_speed.
+    """
+    from baseball_engine import get_batter_savant
+    results = []
+    seen = set()
+
+    for analysis in game_analyses:
+        if "error" in analysis:
+            continue
+        matchups = analysis.get("matchups", {})
+        pitchers = analysis.get("pitchers", {})
+        season   = analysis.get("season", datetime.now().year)
+        away_t   = analysis.get("away_team", {})
+        home_t   = analysis.get("home_team", {})
+
+        for batter_list, pitcher_side, batter_team in [
+            (matchups.get("away_batters_vs_home_pitcher", []), "home", away_t.get("name", "")),
+            (matchups.get("home_batters_vs_away_pitcher", []), "away", home_t.get("name", "")),
+        ]:
+            pitcher_info = pitchers.get(pitcher_side, {})
+            pitcher_name = pitcher_info.get("stats", {}).get("name", "Unknown")
+
+            for entry in batter_list[:9]:
+                batter     = entry.get("batter", {})
+                batter_id  = batter.get("player_id")
+                batter_name = batter.get("name", "Unknown")
+                if not batter_id or batter_id in seen:
+                    continue
+                seen.add(batter_id)
+
+                b_savant   = get_batter_savant(batter_id, season)
+                bat_speed  = b_savant.get("avg_bat_speed", 0)
+                hard_swing = b_savant.get("hard_swing_rate", 0) * 100
+                blast      = b_savant.get("blast_per_swing", 0) * 100
+                swings     = b_savant.get("swings", 0)
+
+                if bat_speed < 68 or swings < 20:
+                    continue
+
+                results.append({
+                    "batter":        batter_name,
+                    "batter_team":   batter_team,
+                    "pitcher":       pitcher_name,
+                    "avg_bat_speed": round(bat_speed, 1),
+                    "hard_swing_rate": round(hard_swing, 1),
+                    "blast_pct":     round(blast, 1),
+                    "swings":        int(swings),
+                })
+
+    results.sort(key=lambda x: x["avg_bat_speed"], reverse=True)
+    return results[:15]
+
+
+def build_hr_matchup_table(game_analysis: dict) -> list:
+    """
+    Build the full HR matchup grid for one game (like the screenshot table).
+    Returns list of rows with all scoring metrics.
+    """
+    from baseball_engine import get_batter_savant, get_pitcher_savant, get_batter_season_stats
+    import time as _t
+
+    pitchers  = game_analysis.get("pitchers", {})
+    park      = game_analysis.get("park_factors", {})
+    weather   = game_analysis.get("weather", {})
+    matchups  = game_analysis.get("matchups", {})
+    season    = game_analysis.get("season", datetime.now().year)
+    rows = []
+
+    for batter_list, pitcher_side in [
+        (matchups.get("away_batters_vs_home_pitcher", []), "home"),
+        (matchups.get("home_batters_vs_away_pitcher", []), "away"),
+    ]:
+        pitcher_info  = pitchers.get(pitcher_side, {})
+        pitcher_stats = pitcher_info.get("stats", {})
+        pitcher_id    = pitcher_info.get("info", {}).get("id")
+        pitcher_name  = pitcher_stats.get("name", "Unknown")
+        if not pitcher_id:
+            continue
+
+        p_savant = get_pitcher_savant(pitcher_id, season)
+        p_vuln   = calc_pitcher_vulnerability(p_savant, pitcher_stats)
+
+        for entry in batter_list[:9]:
+            batter     = entry.get("batter", {})
+            batter_id  = batter.get("player_id")
+            if not batter_id:
+                continue
+            grade = entry.get("matchup_grade", {}).get("grade", "C")
+            batter_name = batter.get("name", "Unknown")
+
+            b_savant  = get_batter_savant(batter_id, season)
+            b_stats   = get_batter_season_stats(batter_id, season)
+            _t.sleep(0.05)
+
+            b_power  = calc_batter_power(b_savant)
+            hr_prob  = calc_hr_probability(b_stats, b_savant, pitcher_stats, p_savant, park, weather)
+            context  = calc_context_score(park, weather, grade)
+            fire     = power_match_rating(b_power, p_vuln)
+            fair_ml  = prob_to_american(hr_prob)
+
+            s = b_stats.get("stats", {})
+            pa  = max(s.get("pa", 0) or 1, 1)
+            hr  = s.get("hr", 0) or 0
+            avg = s.get("avg", ".000")
+            ops = s.get("ops", ".000")
+
+            # Recent form
+            l5_hits = [g.get("h", 0) for g in get_batter_last_n(batter_id, season, 5)]
+            recent_hr = sum(g.get("hr", 0) for g in get_batter_last_n(batter_id, season, 5))
+            avg_l5_h = sum(l5_hits) / len(l5_hits) if l5_hits else 0
+            form = "Hot" if avg_l5_h >= 1.2 else "Cold" if avg_l5_h <= 0.4 else "Neutral"
+
+            rows.append({
+                "batter":         batter_name,
+                "order":          batter.get("order", 0),
+                "grade":          grade,
+                "pitcher":        pitcher_name,
+                "form":           form,
+                "hr_prob_pct":    round(hr_prob * 100, 1),
+                "fair_odds":      fair_ml,
+                "batter_power":   b_power,
+                "pitcher_vuln":   p_vuln,
+                "context_score":  context,
+                "fire_rating":    fire,
+                "season_hr":      hr,
+                "season_pa":      pa,
+                "season_avg":     avg,
+                "season_ops":     ops,
+                "xslg":           b_savant.get("xslg", 0),
+                "barrel_pct":     b_savant.get("barrel_pct", 0),
+                "avg_bat_speed":  b_savant.get("avg_bat_speed", 0),
+                "blast_pct":      round((b_savant.get("blast_per_swing", 0) or 0) * 100, 1),
+                "hard_hit_pct":   b_savant.get("hard_hit_pct", 0),
+                "ev50":           b_savant.get("ev50", 0),
+                "recent_hr":      recent_hr,
+            })
+
+    rows.sort(key=lambda x: x["hr_prob_pct"], reverse=True)
+    return rows

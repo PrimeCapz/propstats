@@ -857,6 +857,320 @@ function PropSheetPanel({ gamePk }) {
   );
 }
 
+// ── Statcast Advanced Components ─────────────────────────────────────────────
+
+const FireRating = ({ n }) => '🔥'.repeat(Math.min(Math.max(n || 1, 1), 3));
+
+const FormBadge = ({ form }) => {
+  const colors = { Hot: 'text-emerald-400 bg-emerald-500/15 border-emerald-500/30', Cold: 'text-sky-400 bg-sky-500/15 border-sky-500/30', Neutral: 'text-yellow-400 bg-yellow-500/15 border-yellow-500/30' };
+  return <span className={`text-xs px-2 py-0.5 rounded-full border font-medium ${colors[form] || colors.Neutral}`}>{form}</span>;
+};
+
+const GradeBadge = ({ grade }) => {
+  const colors = { 'A+': 'bg-emerald-500 text-black', A: 'bg-green-500 text-black', B: 'bg-lime-500 text-black', C: 'bg-yellow-500 text-black', D: 'bg-orange-500 text-black', F: 'bg-red-500 text-white' };
+  return <span className={`text-xs px-2 py-0.5 rounded font-black ${colors[grade] || 'bg-zinc-700 text-zinc-300'}`}>{grade}</span>;
+};
+
+const PowerBar = ({ val, max = 1, color = 'blue' }) => {
+  const pct = Math.min((val / max) * 100, 100);
+  const gradients = { blue: 'from-blue-600 to-blue-400', green: 'from-emerald-600 to-emerald-400', red: 'from-red-600 to-red-400', orange: 'from-orange-600 to-orange-400' };
+  return (
+    <div className="flex items-center gap-2">
+      <div className="flex-1 h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+        <div className={`h-full rounded-full bg-gradient-to-r ${gradients[color]}`} style={{ width: `${pct}%` }} />
+      </div>
+      <span className="text-xs text-zinc-400 w-10 text-right">{typeof val === 'number' ? val.toFixed(2) : val}</span>
+    </div>
+  );
+};
+
+function HRMatchupTable({ gamePk }) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState('');
+
+  useEffect(() => {
+    setLoading(true);
+    fetch(`${API_URL}/baseball/game/${gamePk}/hr-table`)
+      .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+      .then(d => setData(d))
+      .catch(e => setErr(`HR table error: ${e.message}`))
+      .finally(() => setLoading(false));
+  }, [gamePk]);
+
+  if (loading) return <div className="text-center py-10"><div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto mb-2" /><div className="text-zinc-400 text-sm">Loading Statcast HR table...</div></div>;
+  if (err) return <div className="text-red-400 text-sm p-4 bg-red-500/10 rounded-xl">{err}</div>;
+  if (!data) return null;
+
+  const rows = data.table || [];
+  const weather = data.weather || {};
+  const park = data.park_factors || {};
+
+  return (
+    <div className="space-y-4">
+      {/* Context bar */}
+      <div className="flex flex-wrap gap-3 text-xs">
+        {park.description && <span className="px-3 py-1 bg-zinc-800 rounded-full text-zinc-300">🏟 {data.venue?.name} — {park.description}</span>}
+        {weather.available && <span className="px-3 py-1 bg-zinc-800 rounded-full text-zinc-300">🌤 {weather.condition} · {weather.temp_f}°F · {weather.wind_speed_mph} mph {weather.wind_dir}</span>}
+        {park.hr && <span className={`px-3 py-1 rounded-full ${park.hr >= 1.10 ? 'bg-orange-500/20 text-orange-300' : park.hr <= 0.90 ? 'bg-blue-500/20 text-blue-300' : 'bg-zinc-800 text-zinc-300'}`}>HR Park Factor: {park.hr?.toFixed(2)}</span>}
+      </div>
+
+      {/* Table */}
+      <div className="overflow-x-auto rounded-2xl border border-zinc-800">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-zinc-900/80 text-zinc-500 text-xs uppercase tracking-wider">
+              <th className="text-left px-3 py-3">Batter</th>
+              <th className="px-2 py-3">Grade</th>
+              <th className="px-2 py-3">HR%</th>
+              <th className="px-2 py-3">Form</th>
+              <th className="text-left px-3 py-3">Pitcher</th>
+              <th className="px-2 py-3">Power</th>
+              <th className="px-2 py-3">Vuln</th>
+              <th className="px-2 py-3">Ctx</th>
+              <th className="px-2 py-3">Match</th>
+              <th className="px-2 py-3">Fair ML</th>
+              <th className="px-2 py-3">Barrel%</th>
+              <th className="px-2 py-3">xSLG</th>
+              <th className="px-2 py-3">Bat Spd</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, i) => {
+              const hrColor = row.hr_prob_pct >= 25 ? 'text-orange-400 font-bold' : row.hr_prob_pct >= 15 ? 'text-yellow-400 font-semibold' : 'text-zinc-400';
+              const powerColor = row.batter_power >= 0.7 ? 'text-emerald-400' : row.batter_power >= 0.5 ? 'text-yellow-400' : 'text-zinc-400';
+              const vulnColor = row.pitcher_vuln >= 0.7 ? 'text-red-400' : row.pitcher_vuln >= 0.5 ? 'text-orange-400' : 'text-zinc-400';
+              return (
+                <tr key={i} className={`border-t border-zinc-800/50 hover:bg-zinc-800/30 transition-colors ${row.fire_rating >= 3 ? 'bg-orange-500/5' : ''}`}>
+                  <td className="px-3 py-2.5">
+                    <div className="font-medium text-white">{row.batter}</div>
+                    <div className="text-xs text-zinc-500">#{row.order} · {row.season_avg} AVG</div>
+                  </td>
+                  <td className="px-2 py-2.5 text-center"><GradeBadge grade={row.grade} /></td>
+                  <td className={`px-2 py-2.5 text-center ${hrColor}`}>{row.hr_prob_pct}%</td>
+                  <td className="px-2 py-2.5 text-center"><FormBadge form={row.form} /></td>
+                  <td className="px-3 py-2.5 text-xs text-zinc-300">{row.pitcher}</td>
+                  <td className="px-2 py-2.5 text-center">
+                    <div className={`text-xs font-mono font-bold ${powerColor}`}>{row.batter_power?.toFixed(2)}</div>
+                  </td>
+                  <td className="px-2 py-2.5 text-center">
+                    <div className={`text-xs font-mono font-bold ${vulnColor}`}>{row.pitcher_vuln?.toFixed(2)}</div>
+                  </td>
+                  <td className="px-2 py-2.5 text-center">
+                    <div className={`text-xs font-mono ${row.context_score >= 0.6 ? 'text-orange-400' : row.context_score >= 0.5 ? 'text-yellow-400' : 'text-zinc-400'}`}>{row.context_score?.toFixed(2)}</div>
+                  </td>
+                  <td className="px-2 py-2.5 text-center text-base leading-none"><FireRating n={row.fire_rating} /></td>
+                  <td className={`px-2 py-2.5 text-center text-xs font-mono font-bold ${row.fair_odds?.startsWith('+') ? 'text-emerald-400' : 'text-zinc-300'}`}>{row.fair_odds}</td>
+                  <td className="px-2 py-2.5 text-center text-xs font-mono text-orange-300">{row.barrel_pct > 0 ? `${row.barrel_pct?.toFixed(1)}%` : '—'}</td>
+                  <td className="px-2 py-2.5 text-center text-xs font-mono text-purple-300">{row.xslg > 0 ? row.xslg?.toFixed(3) : '—'}</td>
+                  <td className="px-2 py-2.5 text-center text-xs font-mono text-sky-300">{row.avg_bat_speed > 0 ? `${row.avg_bat_speed?.toFixed(1)}` : '—'}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        {rows.length === 0 && <div className="text-center py-8 text-zinc-500 text-sm">No Statcast data available for this game yet.</div>}
+      </div>
+    </div>
+  );
+}
+
+function SlateAdvancedPanel() {
+  const [activeTab, setActiveTab] = useState('meatball');
+  const [data, setData] = useState({});
+  const [loading, setLoading] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+
+  const endpoints = {
+    meatball: '/baseball/today/meatball-matchups',
+    blast: '/baseball/today/blast-alerts',
+    speed: '/baseball/today/bat-speed',
+  };
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const [mm, ba, bs] = await Promise.all([
+        fetch(`${API_URL}${endpoints.meatball}`).then(r => r.json()),
+        fetch(`${API_URL}${endpoints.blast}`).then(r => r.json()),
+        fetch(`${API_URL}${endpoints.speed}`).then(r => r.json()),
+      ]);
+      setData({ meatball: mm.matchups || [], blast: ba.alerts || [], speed: bs.surges || [] });
+      setLoaded(true);
+    } catch (e) {
+      setData({ error: e.message });
+    } finally { setLoading(false); }
+  };
+
+  if (!loaded && !loading) return (
+    <div className="text-center py-16 space-y-4">
+      <div className="text-4xl">⚾</div>
+      <div className="text-zinc-300 font-semibold">Statcast Advanced Panel</div>
+      <div className="text-zinc-500 text-sm max-w-sm mx-auto">Loads Barrel%, xSLG, Bat Speed, Blast Rate, Meatball Matchups and Danger Combos across today's full slate.</div>
+      <div className="text-zinc-600 text-xs">Takes ~60-90 seconds to analyze all games</div>
+      <button onClick={loadData} className="px-6 py-3 bg-orange-600 hover:bg-orange-500 rounded-xl font-semibold text-white">Load Statcast Data</button>
+    </div>
+  );
+
+  if (loading) return (
+    <div className="text-center py-20 space-y-3">
+      <div className="w-12 h-12 border-4 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto" />
+      <div className="text-zinc-300 font-medium">Fetching Statcast leaderboards...</div>
+      <div className="text-zinc-500 text-sm">Barrel%, xSLG, bat speed, blast rates across all games</div>
+    </div>
+  );
+
+  const tabs = [
+    { key: 'meatball', label: '🎯 Meatball Matchups', count: data.meatball?.length },
+    { key: 'blast', label: '💥 Blast Alerts', count: data.blast?.length },
+    { key: 'speed', label: '⚡ Bat Speed', count: data.speed?.length },
+  ];
+
+  return (
+    <div className="space-y-4">
+      <div className="flex gap-2 flex-wrap">
+        {tabs.map(t => (
+          <button key={t.key} onClick={() => setActiveTab(t.key)}
+            className={`px-4 py-2 rounded-xl text-sm font-medium flex items-center gap-2 ${activeTab === t.key ? 'bg-orange-600 text-white' : 'bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white'}`}>
+            {t.label} <span className="bg-black/30 px-1.5 rounded text-xs">{t.count}</span>
+          </button>
+        ))}
+        <button onClick={loadData} className="ml-auto px-3 py-2 bg-zinc-800 hover:bg-zinc-700 rounded-xl text-xs text-zinc-400">↻ Refresh</button>
+      </div>
+
+      {/* MEATBALL MATCHUPS */}
+      {activeTab === 'meatball' && (
+        <div>
+          <div className="text-xs text-zinc-500 mb-3">Heart-zone power matchups — high xSLG batters vs hard-contact pitchers (Statcast barrel% proxy)</div>
+          <div className="space-y-2">
+            {(data.meatball || []).map((m, i) => (
+              <div key={i} className={`rounded-xl border p-4 ${m.fire_rating >= 3 ? 'bg-orange-500/8 border-orange-500/30' : 'bg-zinc-900/50 border-zinc-800'}`}>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-semibold text-white">{m.batter}</span>
+                      <span className="text-xs text-zinc-500">{m.batter_team}</span>
+                      <span className="text-base"><FireRating n={m.fire_rating} /></span>
+                    </div>
+                    <div className="text-xs text-zinc-400 mt-0.5">vs <span className="text-zinc-300">{m.pitcher}</span></div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <div className="text-orange-400 font-bold text-sm">Score {m.matchup_score?.toFixed(3)}</div>
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 gap-3 mt-3 text-xs">
+                  <div className="bg-zinc-800/60 rounded-lg p-2 text-center">
+                    <div className="text-zinc-500 mb-0.5">Batter xSLG</div>
+                    <div className="text-purple-300 font-bold text-sm">{m.batter_xslg}</div>
+                  </div>
+                  <div className="bg-zinc-800/60 rounded-lg p-2 text-center">
+                    <div className="text-zinc-500 mb-0.5">Batter Barrel%</div>
+                    <div className="text-orange-300 font-bold text-sm">{m.batter_barrel}%</div>
+                  </div>
+                  <div className="bg-zinc-800/60 rounded-lg p-2 text-center">
+                    <div className="text-zinc-500 mb-0.5">P Barrel Allowed</div>
+                    <div className={`font-bold text-sm ${m.pitcher_barrel_against >= 12 ? 'text-red-400' : m.pitcher_barrel_against >= 8 ? 'text-orange-400' : 'text-zinc-300'}`}>{m.pitcher_barrel_against}%</div>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3 mt-2 text-xs">
+                  <div>
+                    <div className="text-zinc-500 mb-1">Batter Power</div>
+                    <PowerBar val={m.batter_power} color="orange" />
+                  </div>
+                  <div>
+                    <div className="text-zinc-500 mb-1">Pitcher Vuln</div>
+                    <PowerBar val={m.pitcher_vuln} color="red" />
+                  </div>
+                </div>
+                {m.batter_bat_speed > 0 && <div className="mt-2 text-xs text-zinc-500">Bat speed: <span className="text-sky-300">{m.batter_bat_speed} mph</span> · P EV against: <span className="text-zinc-300">{m.pitcher_ev_against} mph</span></div>}
+              </div>
+            ))}
+            {(!data.meatball || data.meatball.length === 0) && <div className="text-zinc-500 text-sm text-center py-8">No strong meatball matchups found</div>}
+          </div>
+        </div>
+      )}
+
+      {/* BLAST ALERTS */}
+      {activeTab === 'blast' && (
+        <div>
+          <div className="text-xs text-zinc-500 mb-3">High barrel/blast rate batters vs HR-prone pitchers — 🚨 = Danger Combo (high barrel + high pitcher HR/9)</div>
+          <div className="space-y-2">
+            {(data.blast || []).map((b, i) => (
+              <div key={i} className={`rounded-xl border p-4 ${b.danger_combo ? 'bg-red-500/8 border-red-500/30' : 'bg-zinc-900/50 border-zinc-800'}`}>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {b.danger_combo && <span className="text-red-400 text-xs font-bold bg-red-500/15 border border-red-500/30 px-2 py-0.5 rounded-full">🚨 DANGER COMBO</span>}
+                      <span className="font-semibold text-white">{b.batter}</span>
+                      <span className="text-xs text-zinc-500">{b.batter_team} #{b.order}</span>
+                      <span className="text-base"><FireRating n={b.fire_rating} /></span>
+                    </div>
+                    <div className="text-xs text-zinc-400 mt-0.5">vs <span className="text-zinc-300">{b.pitcher}</span></div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <div className={`text-lg font-black ${b.hr_probability >= 30 ? 'text-red-400' : b.hr_probability >= 20 ? 'text-orange-400' : 'text-yellow-400'}`}>{b.hr_probability}%</div>
+                    <div className="text-xs text-zinc-500">HR Prob</div>
+                  </div>
+                </div>
+                <div className="grid grid-cols-4 gap-2 mt-3 text-xs">
+                  <div className="bg-zinc-800/60 rounded-lg p-2 text-center">
+                    <div className="text-zinc-500 mb-0.5">Barrel%</div>
+                    <div className={`font-bold ${b.barrel_pct >= 15 ? 'text-red-400' : b.barrel_pct >= 10 ? 'text-orange-400' : 'text-yellow-400'}`}>{b.barrel_pct}%</div>
+                  </div>
+                  <div className="bg-zinc-800/60 rounded-lg p-2 text-center">
+                    <div className="text-zinc-500 mb-0.5">Blast%</div>
+                    <div className="text-orange-300 font-bold">{b.blast_pct}%</div>
+                  </div>
+                  <div className="bg-zinc-800/60 rounded-lg p-2 text-center">
+                    <div className="text-zinc-500 mb-0.5">P HR/9</div>
+                    <div className={`font-bold ${b.pitcher_hr9 >= 1.5 ? 'text-red-400' : b.pitcher_hr9 >= 1.2 ? 'text-orange-400' : 'text-zinc-300'}`}>{b.pitcher_hr9}</div>
+                  </div>
+                  <div className="bg-zinc-800/60 rounded-lg p-2 text-center">
+                    <div className="text-zinc-500 mb-0.5">Fair Odds</div>
+                    <div className={`font-bold font-mono ${b.fair_odds?.startsWith('+') ? 'text-emerald-400' : 'text-zinc-300'}`}>{b.fair_odds}</div>
+                  </div>
+                </div>
+                <div className="mt-2 flex gap-4 text-xs text-zinc-500">
+                  <span>Park HR PF: <span className={b.park_hr_pf >= 1.1 ? 'text-orange-300' : 'text-zinc-400'}>{b.park_hr_pf?.toFixed(2)}</span></span>
+                  <span>EV50: <span className="text-sky-300">{b.ev50 > 0 ? b.ev50 : '—'}</span></span>
+                  {b.park_name && <span className="text-zinc-600">{b.park_name}</span>}
+                </div>
+              </div>
+            ))}
+            {(!data.blast || data.blast.length === 0) && <div className="text-zinc-500 text-sm text-center py-8">No blast alerts for today's slate</div>}
+          </div>
+        </div>
+      )}
+
+      {/* BAT SPEED */}
+      {activeTab === 'speed' && (
+        <div>
+          <div className="text-xs text-zinc-500 mb-3">Fastest bats on today's slate (avg bat speed mph, min 20 competitive swings)</div>
+          <div className="space-y-2">
+            {(data.speed || []).map((s, i) => (
+              <div key={i} className="bg-zinc-900/50 border border-zinc-800 rounded-xl px-4 py-3 flex items-center gap-4">
+                <div className="text-zinc-600 font-mono text-sm w-5 shrink-0">{i + 1}</div>
+                <div className="flex-1">
+                  <div className="font-medium text-white">{s.batter} <span className="text-xs text-zinc-500">{s.batter_team}</span></div>
+                  <div className="text-xs text-zinc-500 mt-0.5">vs {s.pitcher}</div>
+                </div>
+                <div className="text-right shrink-0 space-y-1">
+                  <div className={`text-lg font-black ${s.avg_bat_speed >= 76 ? 'text-sky-400' : s.avg_bat_speed >= 73 ? 'text-blue-400' : 'text-zinc-300'}`}>{s.avg_bat_speed} <span className="text-xs font-normal text-zinc-500">mph</span></div>
+                  <div className="flex gap-3 text-xs text-zinc-500 justify-end">
+                    <span>Blast: <span className="text-orange-300">{s.blast_pct}%</span></span>
+                    <span>Hard: <span className="text-emerald-300">{s.hard_swing_rate?.toFixed(1)}%</span></span>
+                  </div>
+                </div>
+              </div>
+            ))}
+            {(!data.speed || data.speed.length === 0) && <div className="text-zinc-500 text-sm text-center py-8">No bat speed data available</div>}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main Baseball Analysis Component ─────────────────────────────────────────
 
 export default function BaseballAnalysis() {
@@ -921,11 +1235,16 @@ export default function BaseballAnalysis() {
       <div className="flex gap-2 mb-6 overflow-x-auto pb-1">
         {[
           { key: 'games', label: 'Today\'s Games' },
+          { key: 'statcast', label: '🔬 Statcast' },
           { key: 'matchup', label: 'Matchup Lookup' },
           ...(selectedGame ? [{ key: 'analysis', label: `${selectedGame.away?.team_abbr} @ ${selectedGame.home?.team_abbr}` }] : []),
         ].map(tab => (
           <button key={tab.key} onClick={() => setView(tab.key)}
-            className={`px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap ${view === tab.key ? 'bg-blue-600 text-white' : 'bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white'}`}>
+            className={`px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap ${
+              view === tab.key
+                ? tab.key === 'statcast' ? 'bg-orange-600 text-white' : 'bg-blue-600 text-white'
+                : 'bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white'
+            }`}>
             {tab.label}
           </button>
         ))}
@@ -949,6 +1268,17 @@ export default function BaseballAnalysis() {
               {games.map(g => <GameCard key={g.game_pk} game={g} onSelect={loadAnalysis} />)}
             </div>
           )}
+        </div>
+      )}
+
+      {/* ── Statcast View ── */}
+      {view === 'statcast' && (
+        <div>
+          <div className="mb-5">
+            <h2 className="text-lg font-bold text-white">Statcast Advanced</h2>
+            <p className="text-xs text-zinc-500 mt-1">Barrel%, xSLG, bat speed, blast rates and HR probability models powered by Baseball Savant</p>
+          </div>
+          <SlateAdvancedPanel />
         </div>
       )}
 
@@ -993,14 +1323,15 @@ export default function BaseballAnalysis() {
               </div>
 
               {/* Analysis tabs */}
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
                 {[
-                  { key: 'breakdown', label: 'Full Breakdown' },
-                  { key: 'props', label: '★ Prop Sheet' },
+                  { key: 'breakdown', label: 'Full Breakdown', color: 'blue' },
+                  { key: 'props', label: '★ Prop Sheet', color: 'purple' },
+                  { key: 'hrtable', label: '🔥 HR Table', color: 'orange' },
                 ].map(t => (
                   <button key={t.key} onClick={() => setAnalysisTab(t.key)}
                     className={`px-4 py-2 rounded-xl text-sm font-medium ${analysisTab === t.key
-                      ? t.key === 'props' ? 'bg-purple-600 text-white' : 'bg-blue-600 text-white'
+                      ? t.color === 'purple' ? 'bg-purple-600 text-white' : t.color === 'orange' ? 'bg-orange-600 text-white' : 'bg-blue-600 text-white'
                       : 'bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white'}`}>
                     {t.label}
                   </button>
@@ -1034,6 +1365,7 @@ export default function BaseballAnalysis() {
               )}
 
               {analysisTab === 'props' && <PropSheetPanel gamePk={analysis.game_pk} />}
+              {analysisTab === 'hrtable' && <HRMatchupTable gamePk={analysis.game_pk} />}
             </div>
           )}
         </div>

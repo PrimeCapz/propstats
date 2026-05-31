@@ -40,6 +40,19 @@ from odds_engine import (
     build_prop_sheet,
     get_game_odds_by_espn_id,
     get_espn_game_map,
+    get_meatball_matchups,
+    get_blast_alerts,
+    get_bat_speed_surges,
+    build_hr_matchup_table,
+    calc_hr_probability,
+    calc_batter_power,
+    calc_pitcher_vulnerability,
+    calc_context_score,
+)
+from baseball_engine import (
+    get_batter_savant,
+    get_pitcher_savant,
+    get_today_savant_leaderboards,
 )
 
 app = FastAPI(title="PropStats API", version="3.0.0")
@@ -578,3 +591,107 @@ def games_with_odds(date: str = Query(None)):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
+
+# ── Advanced Statcast Routes ──────────────────────────────────────────────────
+
+@app.get("/baseball/statcast/batter/{batter_id}")
+def batter_statcast(batter_id: int, season: int = Query(None)):
+    """Barrel%, xSLG, exit velo, bat speed, blast rate for a batter."""
+    return {"batter_id": batter_id, "statcast": get_batter_savant(batter_id, season)}
+
+
+@app.get("/baseball/statcast/pitcher/{pitcher_id}")
+def pitcher_statcast(pitcher_id: int, season: int = Query(None)):
+    """Hard contact / barrel% allowed for a pitcher."""
+    return {"pitcher_id": pitcher_id, "statcast": get_pitcher_savant(pitcher_id, season)}
+
+
+@app.get("/baseball/today/meatball-matchups")
+def meatball_matchups(date: str = Query(None)):
+    """Top xSLG matchups: power hitters vs hard-contact pitchers."""
+    games = get_today_games(date)
+    analyses = []
+    for g in games:
+        a = get_full_game_analysis(g["game_pk"])
+        if "error" not in a:
+            analyses.append(a)
+    matchups = get_meatball_matchups(analyses)
+    return {"matchups": matchups, "count": len(matchups)}
+
+
+@app.get("/baseball/today/blast-alerts")
+def blast_alerts_today(date: str = Query(None)):
+    """Batters with high barrel/blast rates facing HR-prone pitchers."""
+    games = get_today_games(date)
+    analyses = []
+    for g in games:
+        a = get_full_game_analysis(g["game_pk"])
+        if "error" not in a:
+            analyses.append(a)
+    alerts = get_blast_alerts(analyses)
+    return {"alerts": alerts, "count": len(alerts)}
+
+
+@app.get("/baseball/today/bat-speed")
+def bat_speed_today(date: str = Query(None)):
+    """Fastest bats on today's slate."""
+    games = get_today_games(date)
+    analyses = []
+    for g in games:
+        a = get_full_game_analysis(g["game_pk"])
+        if "error" not in a:
+            analyses.append(a)
+    surges = get_bat_speed_surges(analyses)
+    return {"surges": surges, "count": len(surges)}
+
+
+@app.get("/baseball/game/{game_pk}/hr-table")
+def game_hr_table(game_pk: int):
+    """Full HR matchup probability table for one game (like the screenshot grid)."""
+    analysis = get_full_game_analysis(game_pk)
+    if "error" in analysis:
+        raise HTTPException(status_code=404, detail=analysis["error"])
+    table = build_hr_matchup_table(analysis)
+    return {
+        "game_pk": game_pk,
+        "away": analysis.get("away_team", {}),
+        "home": analysis.get("home_team", {}),
+        "venue": analysis.get("venue", {}),
+        "weather": analysis.get("weather", {}),
+        "park_factors": analysis.get("park_factors", {}),
+        "table": table,
+    }
+
+
+@app.get("/baseball/today/hr-table")
+def today_hr_table(date: str = Query(None)):
+    """Full HR matchup table across all today's games."""
+    import time as _t
+    games = get_today_games(date)
+    all_rows = []
+    game_summaries = []
+    for g in games:
+        a = get_full_game_analysis(g["game_pk"])
+        if "error" in a:
+            continue
+        rows = build_hr_matchup_table(a)
+        game_summaries.append({
+            "game_pk": g["game_pk"],
+            "away": g["away"]["team_name"],
+            "home": g["home"]["team_name"],
+            "status": g["status"],
+            "row_count": len(rows),
+        })
+        for r in rows:
+            r["game_pk"] = g["game_pk"]
+            r["away_team"] = g["away"]["team_name"]
+            r["home_team"] = g["home"]["team_name"]
+        all_rows.extend(rows)
+        _t.sleep(0.2)
+    all_rows.sort(key=lambda x: x["hr_prob_pct"], reverse=True)
+    return {
+        "rows": all_rows[:100],
+        "games": game_summaries,
+        "total": len(all_rows),
+    }

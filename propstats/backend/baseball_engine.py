@@ -1090,3 +1090,165 @@ def _overall_matchup_edge(away_stats, home_stats, away_lineup, home_lineup, park
         "estimated_total": total_runs_estimate,
         "over_under_lean": "Over" if weather_score >= 1.0 and park_hr >= 1.05 else "Under" if weather_score <= -1.0 and park_hr <= 0.95 else "Neutral",
     }
+
+
+# ── Statcast / Baseball Savant Data Layer ─────────────────────────────────────
+
+SAVANT_BATTING_URL  = "https://baseballsavant.mlb.com/leaderboard/statcast?type=batter&year={year}&position=&team=&min=10&csv=true"
+SAVANT_PITCHING_URL = "https://baseballsavant.mlb.com/leaderboard/statcast?type=pitcher&year={year}&position=&team=&min=1&csv=true"
+SAVANT_XSTATS_URL   = "https://baseballsavant.mlb.com/leaderboard/expected_statistics?type=batter&year={year}&position=&team=&min=10&csv=true"
+SAVANT_BAT_TRACK_URL = "https://baseballsavant.mlb.com/leaderboard/bat-tracking?type=batter&year={year}&min=10&csv=true"
+
+_savant_batting:   dict = {}
+_savant_pitching:  dict = {}
+_savant_xstats:    dict = {}
+_savant_bat_track: dict = {}
+
+
+def _fetch_savant_csv(url: str) -> list:
+    import csv, io
+    headers = {"User-Agent": "Mozilla/5.0 PropStats/1.0"}
+    try:
+        r = requests.get(url, headers=headers, timeout=20)
+        r.raise_for_status()
+        text = r.text.lstrip('﻿')
+        reader = csv.DictReader(io.StringIO(text))
+        return [row for row in reader]
+    except Exception:
+        return []
+
+
+def _safe_float(val, default=0.0):
+    try:
+        return float(val) if val not in (None, '', 'null') else default
+    except (ValueError, TypeError):
+        return default
+
+
+def load_savant_batting(season: int = None) -> dict:
+    global _savant_batting
+    if not season:
+        season = datetime.now().year
+    if season in _savant_batting:
+        return _savant_batting[season]
+    rows = _fetch_savant_csv(SAVANT_BATTING_URL.format(year=season))
+    result = {}
+    for row in rows:
+        pid = row.get("player_id", "").strip()
+        if pid:
+            result[pid] = {
+                "barrel_pct":   _safe_float(row.get("brl_percent")),
+                "barrel_pa":    _safe_float(row.get("brl_pa")),
+                "hard_hit_pct": _safe_float(row.get("ev95percent")),
+                "exit_velo":    _safe_float(row.get("avg_hit_speed")),
+                "ev50":         _safe_float(row.get("ev50")),
+                "sweet_spot":   _safe_float(row.get("anglesweetspotpercent")),
+                "max_ev":       _safe_float(row.get("max_hit_speed")),
+                "avg_distance": _safe_float(row.get("avg_distance")),
+                "avg_hr_dist":  _safe_float(row.get("avg_hr_distance")),
+            }
+    if result:
+        _savant_batting[season] = result
+    return result
+
+
+def load_savant_pitching(season: int = None) -> dict:
+    global _savant_pitching
+    if not season:
+        season = datetime.now().year
+    if season in _savant_pitching:
+        return _savant_pitching[season]
+    rows = _fetch_savant_csv(SAVANT_PITCHING_URL.format(year=season))
+    result = {}
+    for row in rows:
+        pid = row.get("player_id", "").strip()
+        if pid:
+            result[pid] = {
+                "barrel_pct_against":   _safe_float(row.get("brl_percent")),
+                "hard_hit_pct_against": _safe_float(row.get("ev95percent")),
+                "exit_velo_against":    _safe_float(row.get("avg_hit_speed")),
+                "ev50_against":         _safe_float(row.get("ev50")),
+                "sweet_spot_against":   _safe_float(row.get("anglesweetspotpercent")),
+            }
+    if result:
+        _savant_pitching[season] = result
+    return result
+
+
+def load_savant_xstats(season: int = None) -> dict:
+    global _savant_xstats
+    if not season:
+        season = datetime.now().year
+    if season in _savant_xstats:
+        return _savant_xstats[season]
+    rows = _fetch_savant_csv(SAVANT_XSTATS_URL.format(year=season))
+    result = {}
+    for row in rows:
+        pid = row.get("player_id", "").strip()
+        if pid:
+            result[pid] = {
+                "xba":    _safe_float(row.get("est_ba")),
+                "xslg":   _safe_float(row.get("est_slg")),
+                "xwoba":  _safe_float(row.get("est_woba")),
+                "ba":     _safe_float(row.get("ba")),
+                "slg":    _safe_float(row.get("slg")),
+                "woba":   _safe_float(row.get("woba")),
+            }
+    if result:
+        _savant_xstats[season] = result
+    return result
+
+
+def load_bat_tracking(season: int = None) -> dict:
+    global _savant_bat_track
+    if not season:
+        season = datetime.now().year
+    if season in _savant_bat_track:
+        return _savant_bat_track[season]
+    rows = _fetch_savant_csv(SAVANT_BAT_TRACK_URL.format(year=season))
+    result = {}
+    for row in rows:
+        pid = str(row.get("id", "")).strip()
+        if pid:
+            result[pid] = {
+                "avg_bat_speed":     _safe_float(row.get("avg_bat_speed")),
+                "hard_swing_rate":   _safe_float(row.get("hard_swing_rate")),
+                "blast_per_swing":   _safe_float(row.get("blast_per_swing")),
+                "blast_per_contact": _safe_float(row.get("blast_per_bat_contact")),
+                "squared_up_swing":  _safe_float(row.get("squared_up_per_swing")),
+                "swing_length":      _safe_float(row.get("swing_length")),
+                "swings":            _safe_float(row.get("swings_competitive")),
+            }
+    if result:
+        _savant_bat_track[season] = result
+    return result
+
+
+def get_batter_savant(player_id: int, season: int = None) -> dict:
+    """Combined Statcast + xStats + bat tracking for a single batter."""
+    if not season:
+        season = datetime.now().year
+    pid = str(player_id)
+    batting  = load_savant_batting(season).get(pid, {})
+    xstats   = load_savant_xstats(season).get(pid, {})
+    bat_track = load_bat_tracking(season).get(pid, {})
+    return {**batting, **xstats, **bat_track}
+
+
+def get_pitcher_savant(player_id: int, season: int = None) -> dict:
+    """Statcast metrics from pitcher perspective (what batters do against them)."""
+    if not season:
+        season = datetime.now().year
+    return load_savant_pitching(season).get(str(player_id), {})
+
+
+def get_today_savant_leaderboards(season: int = None) -> dict:
+    """Pre-load all Savant leaderboards for today's analysis (call once at startup)."""
+    if not season:
+        season = datetime.now().year
+    return {
+        "batting":     load_savant_batting(season),
+        "pitching":    load_savant_pitching(season),
+        "xstats":      load_savant_xstats(season),
+        "bat_tracking": load_bat_tracking(season),
+    }
