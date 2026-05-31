@@ -11,6 +11,7 @@ from typing import Optional
 import time
 
 MLB_API = "https://statsapi.mlb.com/api/v1"
+MLB_API_V1_1 = "https://statsapi.mlb.com/api/v1.1"
 SAVANT_API = "https://baseballsavant.mlb.com"
 WEATHER_API = "https://api.open-meteo.com/v1/forecast"
 
@@ -27,7 +28,7 @@ VENUE_COORDS = {
     17:   ("Comerica Park", 42.3390, -83.0485),
     7:    ("Kauffman Stadium", 39.0516, -94.4803),
     32:   ("American Family Field", 43.0280, -87.9712),
-    3:    ("Target Field", 44.9817, -93.2781),
+    27:   ("Target Field", 44.9817, -93.2781),
     1:    ("Yankee Stadium", 40.8296, -73.9262),
     3289: ("Citi Field", 40.7571, -73.8458),
     2681: ("Citizens Bank Park", 39.9056, -75.1665),
@@ -46,8 +47,7 @@ VENUE_COORDS = {
     680:  ("T-Mobile Park", 47.5914, -122.3325),
     4169: ("loanDepot park", 25.7781, -80.2197),
     12:   ("Tropicana Field", 27.7683, -82.6534),
-    14:   ("Rogers Centre", 43.6414, -79.3894),
-    27:   ("Target Field", 44.9817, -93.2781),
+    14536: ("Rogers Centre", 43.6414, -79.3894),
 }
 
 PARK_FACTORS = {
@@ -828,7 +828,7 @@ def search_mlb_players(query: str, player_type: str = "all") -> list:
 
 def get_full_game_analysis(game_pk: int) -> dict:
     """Master function — full breakdown of a game."""
-    game_data = _get(f"{MLB_API}/game/{game_pk}/feed/live")
+    game_data = _get(f"{MLB_API_V1_1}/game/{game_pk}/feed/live")
     if not game_data:
         return {"error": "Game not found"}
 
