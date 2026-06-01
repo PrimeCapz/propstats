@@ -602,6 +602,47 @@ def get_game_lineups(game_pk: int) -> dict:
     }
 
 
+def get_projected_lineup(team_id: int, season: int = None, exclude_date: str = None) -> list:
+    """Fetch team's most recent completed game lineup as a projected proxy."""
+    if not season:
+        season = datetime.now().year
+    end_date = exclude_date or date.today().strftime("%Y-%m-%d")
+    data = _get(f"{MLB_API}/schedule", {
+        "teamId": team_id,
+        "startDate": f"{season}-03-01",
+        "endDate": end_date,
+        "sportId": 1,
+        "gameType": "R",
+    })
+    if not data:
+        return []
+
+    recent_pk = None
+    team_side = "away"
+    for date_entry in sorted(data.get("dates", []), key=lambda x: x.get("date", ""), reverse=True):
+        for g in date_entry.get("games", []):
+            if g.get("status", {}).get("detailedState") == "Final":
+                recent_pk = g.get("gamePk")
+                away_id = g.get("teams", {}).get("away", {}).get("team", {}).get("id")
+                team_side = "away" if away_id == team_id else "home"
+                break
+        if recent_pk:
+            break
+
+    if not recent_pk:
+        return []
+
+    bs = _get(f"{MLB_API}/game/{recent_pk}/boxscore")
+    if not bs:
+        return []
+
+    team_data = bs.get("teams", {}).get(team_side, {})
+    lineup = _extract_lineup(team_data)
+    for p in lineup:
+        p["projected"] = True
+    return lineup
+
+
 def get_weather_for_venue(venue_id: int, game_date: str, game_time: str = None) -> dict:
     """Get weather forecast for a venue using Open-Meteo API."""
     venue_info = None
@@ -872,6 +913,16 @@ def get_full_game_analysis(game_pk: int) -> dict:
     away_lineup = _extract_lineup(box_teams.get("away", {}))
     home_lineup = _extract_lineup(box_teams.get("home", {}))
 
+    away_team_id = away_team.get("id")
+    home_team_id = home_team.get("id")
+    lineup_status = "confirmed"
+    if not away_lineup and away_team_id:
+        away_lineup = get_projected_lineup(away_team_id, season, game_date)
+        lineup_status = "projected"
+    if not home_lineup and home_team_id:
+        home_lineup = get_projected_lineup(home_team_id, season, game_date)
+        lineup_status = "projected"
+
     weather = get_weather_for_venue(venue_id, game_date, game_time)
     if weather_info:
         weather["mlb_reported"] = {
@@ -950,7 +1001,7 @@ def get_full_game_analysis(game_pk: int) -> dict:
         "lineups": {
             "away": away_lineup,
             "home": home_lineup,
-            "status": "confirmed" if away_lineup else "probable",
+            "status": lineup_status,
         },
         "matchups": {
             "away_batters_vs_home_pitcher": away_vs_home_pitcher,
