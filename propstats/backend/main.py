@@ -48,6 +48,8 @@ from odds_engine import (
     calc_batter_power,
     calc_pitcher_vulnerability,
     calc_context_score,
+    get_value_hr_picks,
+    get_handedness_edge,
 )
 from baseball_engine import (
     get_batter_savant,
@@ -631,6 +633,27 @@ def blast_alerts_today(date: str = Query(None)):
             analyses.append(a)
     alerts = get_blast_alerts(analyses)
     return {"alerts": alerts, "count": len(alerts)}
+
+
+@app.get("/baseball/today/value-hr")
+def value_hr_picks_today(
+    date: str = Query(None),
+    min_prob: float = Query(12.0, description="Min HR% to surface (default 12)"),
+    max_prob: float = Query(21.0, description="Max HR% to surface (default 21)"),
+):
+    """
+    Sleeper / value-tier HR bats: 12-21% probability range.
+    These are the Bleday-type picks the top-10 leaderboard misses.
+    Includes platoon edge flag and calibrated fair odds.
+    """
+    games = get_today_games(date)
+    analyses = []
+    for g in games:
+        a = get_full_game_analysis(g["game_pk"])
+        if "error" not in a:
+            analyses.append(a)
+    picks = get_value_hr_picks(analyses, min_prob / 100, max_prob / 100)
+    return {"value_hr_picks": picks, "count": len(picks)}
 
 
 @app.get("/baseball/today/bat-speed")

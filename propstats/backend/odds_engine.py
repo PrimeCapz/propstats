@@ -729,29 +729,145 @@ def calc_context_score(park: dict, weather: dict, grade: str) -> float:
 
 def calc_hr_probability(batter_stats: dict, batter_savant: dict,
                         pitcher_stats: dict, pitcher_savant: dict,
-                        park: dict, weather: dict) -> float:
-    """Estimate single-game HR probability (0.0–1.0)."""
+                        park: dict, weather: dict,
+                        handedness_edge: float = 1.0) -> float:
+    """
+    Estimate single-game HR probability (0.0–1.0).
+
+    Calibration target: elite power bat in optimal matchup ~20-22%, league
+    avg batter vs league avg pitcher ~5-7%.  Previous model inflated to 49%+
+    due to uncapped barrel_adj compounding.
+
+    handedness_edge: caller passes a multiplier (e.g. 1.08 for platoon
+    advantage, 0.93 for disadvantage) from the batter/pitcher splits.
+    """
     s     = batter_stats.get("stats", {})
     pa    = max(s.get("pa", 0) or 1, 1)
     hr    = s.get("hr", 0) or 0
     base_rate = hr / pa
 
     park_adj    = park.get("hr", 1.0)
-    weather_adj = 1.0 + (weather.get("impact", {}).get("score", 0) if weather.get("available") else 0) * 0.04
+    weather_adj = 1.0 + (weather.get("impact", {}).get("score", 0) if weather.get("available") else 0) * 0.03
     p_hr9       = float((pitcher_stats or {}).get("stats", {}).get("hr9", "1.2") or "1.2")
     league_hr9  = 1.20
-    pitcher_adj = p_hr9 / league_hr9
+    # Soft-cap pitcher adjustment so outliers (2.0 HR/9) don't dominate
+    pitcher_adj = min(p_hr9 / league_hr9, 1.8)
 
     barrel_batter  = batter_savant.get("barrel_pct", 8.0) or 8.0
     barrel_pitcher = pitcher_savant.get("barrel_pct_against", 8.0) or 8.0
-    barrel_adj = (barrel_batter / 8.0) * (barrel_pitcher / 8.0)
-    barrel_adj = min(barrel_adj, 3.0)
+    # Separate batter/pitcher barrel signals — combine additively, not multiplicatively
+    barrel_batter_adj  = barrel_batter / 8.0       # 1.0 = league avg
+    barrel_pitcher_adj = barrel_pitcher / 8.0      # 1.0 = league avg
+    barrel_adj = (barrel_batter_adj ** 0.35) * (barrel_pitcher_adj ** 0.25)
+    barrel_adj = min(barrel_adj, 2.0)              # was 3.0 — tighter cap
 
-    daily_hr_rate = base_rate * park_adj * weather_adj * pitcher_adj * (barrel_adj ** 0.4)
+    daily_hr_rate = base_rate * park_adj * weather_adj * pitcher_adj * barrel_adj * handedness_edge
 
-    avg_ab = 3.8
-    prob = 1.0 - (1.0 - daily_hr_rate) ** avg_ab
-    return round(min(max(prob, 0.001), 0.60), 4)
+    # 3.3 PA per game (more realistic average including pitcher's spot & short games)
+    avg_pa = 3.3
+    prob = 1.0 - (1.0 - daily_hr_rate) ** avg_pa
+
+    # Calibration floor/ceiling: realistic range is 1%–25%
+    return round(min(max(prob, 0.01), 0.25), 4)
+
+
+def get_handedness_edge(batter_hand: str, pitcher_hand: str) -> float:
+    """
+    Return a platoon multiplier for HR probability.
+    Platoon splits on HR: LHB vs RHP and RHB vs LHP produce ~8-12% more HRs.
+    Same-hand matchups are slightly suppressive.
+    """
+    b = (batter_hand or "R").upper()
+    p = (pitcher_hand or "R").upper()
+    if b == "B":          # switch hitter — always gets favorable side
+        return 1.06
+    if b != p:            # platoon advantage
+        return 1.09
+    return 0.94           # same-hand — slight suppression
+
+
+def get_value_hr_picks(game_analyses: list, min_prob: float = 0.12, max_prob: float = 0.21) -> list:
+    """
+    Surface 'sleeper' HR bats in the 12-21% probability band — the Bleday tier.
+    These are mid-power batters (barrel 8-14%) facing HR-prone pitchers that
+    the model under-surfaces because they don't dominate any single metric.
+    Ordered by (prob - implied_prob) to find the best value.
+    """
+    from baseball_engine import get_batter_savant, get_pitcher_savant, get_batter_season_stats
+    results = []
+    seen = set()
+
+    for analysis in game_analyses:
+        if "error" in analysis:
+            continue
+        pitchers = analysis.get("pitchers", {})
+        park     = analysis.get("park_factors", {})
+        weather  = analysis.get("weather", {})
+        matchups = analysis.get("matchups", {})
+        season   = analysis.get("season", datetime.now().year)
+        away_t   = analysis.get("away_team", {})
+        home_t   = analysis.get("home_team", {})
+
+        for batter_list, pitcher_side, batter_team in [
+            (matchups.get("away_batters_vs_home_pitcher", []), "home", away_t.get("name", "")),
+            (matchups.get("home_batters_vs_away_pitcher", []), "away", home_t.get("name", "")),
+        ]:
+            pitcher_info  = pitchers.get(pitcher_side, {})
+            pitcher_stats = pitcher_info.get("stats", {})
+            pitcher_id    = pitcher_info.get("info", {}).get("id")
+            pitcher_name  = pitcher_stats.get("name", "Unknown")
+            p_hr9 = float((pitcher_stats.get("stats", {}) or {}).get("hr9", "1.2") or "1.2")
+            if not pitcher_id:
+                continue
+
+            p_savant = get_pitcher_savant(pitcher_id, season)
+            p_hand   = pitcher_info.get("info", {}).get("pitchHand", {}).get("code", "R")
+
+            for entry in batter_list[:9]:
+                batter     = entry.get("batter", {})
+                batter_id  = batter.get("player_id")
+                batter_name = batter.get("name", "Unknown")
+                b_hand = batter.get("batSide", {}).get("code", "R") if isinstance(batter.get("batSide"), dict) else "R"
+
+                if not batter_id or (batter_id, pitcher_id) in seen:
+                    continue
+                seen.add((batter_id, pitcher_id))
+
+                b_savant = get_batter_savant(batter_id, season)
+                b_stats  = get_batter_season_stats(batter_id, season)
+                b_barrel = b_savant.get("barrel_pct", 0) or 0
+
+                # Value tier: not dominant but real power
+                if b_barrel < 7.0:
+                    continue
+
+                hand_edge = get_handedness_edge(b_hand, p_hand)
+                hr_prob = calc_hr_probability(b_stats, b_savant, pitcher_stats, p_savant, park, weather, hand_edge)
+
+                if not (min_prob <= hr_prob <= max_prob):
+                    continue
+
+                # Implied prob from +300 default (most mid-tier HR props are +250 to +400)
+                fair_odds = prob_to_american(hr_prob)
+
+                results.append({
+                    "batter":        batter_name,
+                    "batter_team":   batter_team,
+                    "batter_hand":   b_hand,
+                    "pitcher":       pitcher_name,
+                    "pitcher_hand":  p_hand,
+                    "platoon_edge":  "YES" if (b_hand != p_hand or b_hand == "B") else "no",
+                    "hr_prob_pct":   round(hr_prob * 100, 1),
+                    "fair_odds":     fair_odds,
+                    "barrel_pct":    round(b_barrel, 1),
+                    "pitcher_hr9":   round(p_hr9, 2),
+                    "park_hr_pf":    park.get("hr", 1.0),
+                    "order":         batter.get("order", 0),
+                    "park_name":     analysis.get("venue", {}).get("name", ""),
+                })
+
+    results.sort(key=lambda x: x["hr_prob_pct"], reverse=True)
+    return results[:15]
 
 
 def calc_ev(hr_prob: float, hr_odds: int) -> float:
@@ -916,11 +1032,14 @@ def get_blast_alerts(game_analyses: list) -> list:
                 b_power  = calc_batter_power(b_savant)
                 b_ev50   = b_savant.get("ev50", 0)
 
-                # Only surface real blast threats
-                if b_barrel < 8.0 and b_blast < 12.0:
+                # Surface blast threats — OR logic so mid-barrel/high-blast bats aren't filtered
+                if b_barrel < 7.0 and b_blast < 10.0:
                     continue
 
-                hr_prob  = calc_hr_probability(b_stats, b_savant, pitcher_stats, p_savant, park, weather)
+                b_hand   = batter.get("batSide", {}).get("code", "R") if isinstance(batter.get("batSide"), dict) else "R"
+                p_hand   = pitcher_info.get("info", {}).get("pitchHand", {}).get("code", "R")
+                hand_edge = get_handedness_edge(b_hand, p_hand)
+                hr_prob  = calc_hr_probability(b_stats, b_savant, pitcher_stats, p_savant, park, weather, hand_edge)
                 fair_odds = prob_to_american(hr_prob)
                 context   = calc_context_score(park, weather, entry.get("matchup_grade", {}).get("grade", "C"))
 
@@ -945,9 +1064,13 @@ def get_blast_alerts(game_analyses: list) -> list:
                     "danger_combo":   danger_combo,
                     "park_hr_pf":     park.get("hr", 1.0),
                     "park_name":      analysis.get("venue", {}).get("name", ""),
+                    "platoon_edge":   "YES" if (b_hand != p_hand or b_hand == "B") else "no",
+                    "batter_hand":    b_hand,
+                    "pitcher_hand":   p_hand,
                 })
 
-    results.sort(key=lambda x: (x["danger_combo"], x["barrel_pct"] + x["pitcher_hr9"]), reverse=True)
+    # Primary: calibrated HR probability; secondary: danger_combo flag
+    results.sort(key=lambda x: (x["hr_probability"], x["danger_combo"]), reverse=True)
     return results[:20]
 
 
