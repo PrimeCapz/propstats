@@ -767,6 +767,12 @@ def calc_hr_probability(batter_stats: dict, batter_savant: dict,
     avg_pa = 3.3
     prob = 1.0 - (1.0 - daily_hr_rate) ** avg_pa
 
+    # Suppress confidence for tiny samples — regression to mean
+    if pa < 30:
+        prob = prob * 0.55 + 0.06 * 0.45  # blend toward 6% mean
+    elif pa < 80:
+        prob = prob * 0.80 + 0.06 * 0.20
+
     # Calibration floor/ceiling: realistic range is 1%–25%
     return round(min(max(prob, 0.01), 0.25), 4)
 
