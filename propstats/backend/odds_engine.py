@@ -639,7 +639,16 @@ def build_prop_sheet(game_analysis: dict) -> dict:
 # ── Advanced Statcast Scoring Models ──────────────────────────────────────────
 
 def calc_batter_power(savant: dict) -> float:
-    """0.0–1.0 composite batter power score from Statcast metrics."""
+    """
+    0.0–1.0 composite power score from Statcast.
+
+    Weight rationale (from predictive studies):
+      - EV50: most stable season-to-season predictor of HR output (35%)
+      - Barrel%: direct batted-ball quality, highly HR-correlated (30%)
+      - Hard-hit%: broader contact quality (20%)
+      - xSLG: expected slugging from EV/LA distribution (15%)
+    Blast% removed — too correlated with barrel% to add independent signal.
+    """
     score = 0.0
     weight = 0.0
 
@@ -647,33 +656,27 @@ def calc_batter_power(savant: dict) -> float:
     hard   = savant.get("hard_hit_pct", 0) or 0
     ev50   = savant.get("ev50", 0) or 0
     xslg   = savant.get("xslg", 0) or 0
-    blast  = (savant.get("blast_per_swing", 0) or 0) * 100
-    sweet  = savant.get("sweet_spot", 0) or 0
 
-    # Barrel% (league avg ~8%) — weight 30%
+    # EV50 (league median ~88 mph; elite ~95+) — weight 35%
+    if ev50 > 0:
+        # Normalize: 80 mph = 0.0, 100 mph = 1.0
+        score  += min(max(ev50 - 80, 0) / 20.0, 1.0) * 0.35
+        weight += 0.35
+
+    # Barrel% (league avg ~8%; elite ~18%+) — weight 30%
     if barrel > 0:
-        score  += min(barrel / 20.0, 1.0) * 0.30
+        score  += min(barrel / 18.0, 1.0) * 0.30
         weight += 0.30
 
-    # Hard hit% (league avg ~37%) — weight 25%
+    # Hard-hit% (league avg ~37%; elite ~55%+) — weight 20%
     if hard > 0:
-        score  += min(hard / 65.0, 1.0) * 0.25
-        weight += 0.25
-
-    # EV50 (50th pct exit velo, avg ~88 mph) — weight 20%
-    if ev50 > 0:
-        score  += min(max(ev50 - 80, 0) / 20.0, 1.0) * 0.20
+        score  += min(hard / 60.0, 1.0) * 0.20
         weight += 0.20
 
-    # xSLG (league avg ~.430) — weight 15%
+    # xSLG (league avg ~.430; elite ~.650+) — weight 15%
     if xslg > 0:
-        score  += min(xslg / 0.80, 1.0) * 0.15
+        score  += min(xslg / 0.750, 1.0) * 0.15
         weight += 0.15
-
-    # Blast% per swing (league avg ~12%) — weight 10%
-    if blast > 0:
-        score  += min(blast / 25.0, 1.0) * 0.10
-        weight += 0.10
 
     return round(score / weight, 3) if weight > 0 else 0.0
 
@@ -727,69 +730,126 @@ def calc_context_score(park: dict, weather: dict, grade: str) -> float:
     return round(min(max(score, 0.0), 1.0), 3)
 
 
+
+# ── HR Model constants (2024-25 Statcast population) ─────────────────────────
+_LEAGUE_BARREL_PCT    = 8.0    # league avg barrel% of batted balls
+_LEAGUE_HR_PER_BARREL = 0.40   # ~40% of barrels become HRs
+_LEAGUE_BIP_PER_PA    = 0.72   # balls-in-play per PA (excl. K, BB, HBP)
+_LEAGUE_HR_RATE       = 0.033  # HR per PA (~33/1000 PA league wide)
+_LEAGUE_GAME_PROB     = 0.062  # P(HR in one game) for avg batter vs avg pitcher
+_LEAGUE_HR9           = 1.20   # league avg HR allowed per 9 IP
+_AVG_PA_PER_GAME      = 3.3    # average plate appearances per game
+
 def calc_hr_probability(batter_stats: dict, batter_savant: dict,
                         pitcher_stats: dict, pitcher_savant: dict,
                         park: dict, weather: dict,
                         handedness_edge: float = 1.0) -> float:
     """
-    Estimate single-game HR probability (0.0–1.0).
+    Component-based HR probability model v2.
 
-    Calibration target: elite power bat in optimal matchup ~20-22%, league
-    avg batter vs league avg pitcher ~5-7%.  Previous model inflated to 49%+
-    due to uncapped barrel_adj compounding.
+    Batter component: blends raw HR/PA (useful when sample is large) with a
+    Statcast barrel-rate expected HR rate (stable predictor for small samples).
+    Hard-hit% and EV50 apply soft adjustments.
 
-    handedness_edge: caller passes a multiplier (e.g. 1.08 for platoon
-    advantage, 0.93 for disadvantage) from the batter/pitcher splits.
+    Pitcher component: blends raw HR/9 with barrel%-against-derived xHR/9,
+    weighted by estimated batters faced (more IP = trust raw HR/9 more).
+
+    Bayesian regression: final probability regresses toward league-average
+    game probability (6.2%) based on batter's PA. Eliminates the old
+    step-function 30/80 PA threshold.
+
+    Calibration targets:
+      - League avg batter vs league avg pitcher, neutral park: ~6-7%
+      - Elite power bat (Schwarber tier) in hitter's park: ~18-22%
+      - Slap hitter vs elite pitcher in pitcher's park: ~2-3%
     """
-    s     = batter_stats.get("stats", {})
-    pa    = max(s.get("pa", 0) or 1, 1)
-    hr    = s.get("hr", 0) or 0
-    base_rate = hr / pa
+    s   = batter_stats.get("stats", {})
+    pa  = max(s.get("pa", 0) or 1, 1)
+    hr  = s.get("hr", 0) or 0
+    raw_hr_rate = hr / pa
 
+    # ── Batter: Statcast-calibrated expected HR rate ──────────────────────────
+    barrel_pct   = batter_savant.get("barrel_pct",   _LEAGUE_BARREL_PCT) or _LEAGUE_BARREL_PCT
+    hard_hit_pct = batter_savant.get("hard_hit_pct", 37.0) or 37.0
+    ev50         = batter_savant.get("ev50", 88.0) or 88.0
+    xslg         = batter_savant.get("xslg", 0.430) or 0.430
+
+    # Barrel→xHR: barrel_pct is % of batted balls; convert to per-PA
+    barrel_per_pa    = (barrel_pct / 100) * _LEAGUE_BIP_PER_PA
+    xhr_from_barrel  = barrel_per_pa * _LEAGUE_HR_PER_BARREL  # ~0.023 at league avg
+
+    # Hard-hit% soft adjustment (centered on league avg 37%)
+    hard_adj = (hard_hit_pct / 37.0) ** 0.20  # low exponent — secondary signal
+
+    # EV50 adjustment: each 4 mph above 88 ≈ +5% xHR rate
+    ev_adj = 1.0 + max(-0.15, min(0.20, (ev50 - 88.0) / 4.0 * 0.05))
+
+    # Blend raw HR/PA with barrel xHR based on sample size
+    # At 350 PA: 55% raw, 45% barrel xHR. At 100 PA: 29% raw, 71% barrel xHR.
+    raw_weight = min(pa / 350, 0.55)
+    batter_xhr = (raw_weight * raw_hr_rate + (1 - raw_weight) * xhr_from_barrel)
+    batter_xhr *= hard_adj * ev_adj
+
+    # ── Pitcher: blended HR/9 using barrel% against for sample correction ─────
+    p_stats = (pitcher_stats or {}).get("stats", {})
+    p_hr9   = float(p_stats.get("hr9", "1.20") or "1.20")
+
+    # Estimate batters faced from innings pitched for sample regression
+    try:
+        ip_raw = str(p_stats.get("inningsPitched", p_stats.get("ip", "0")) or "0")
+        parts  = ip_raw.split(".")
+        ip_dec = int(parts[0]) + (int(parts[1]) if len(parts) > 1 else 0) / 3.0
+    except Exception:
+        ip_dec = 0.0
+    est_bf = max(ip_dec * 4.3, 0)
+
+    p_barrel_against = pitcher_savant.get("barrel_pct_against", _LEAGUE_BARREL_PCT) or _LEAGUE_BARREL_PCT
+    # Barrel%-against → expected HR/9 (normalized: 8% barrel = league-avg 1.20 HR/9)
+    p_xhr9_barrel = (p_barrel_against / _LEAGUE_BARREL_PCT) * _LEAGUE_HR9
+
+    # Blend raw HR/9 with barrel-expected (trust raw more as sample grows)
+    p_bf_weight = min(est_bf / 250, 0.60)
+    p_xhr9      = p_bf_weight * p_hr9 + (1 - p_bf_weight) * p_xhr9_barrel
+    pitcher_adj = max(0.40, min(2.00, p_xhr9 / _LEAGUE_HR9))
+
+    # ── Context adjustments ───────────────────────────────────────────────────
     park_adj    = park.get("hr", 1.0)
-    weather_adj = 1.0 + (weather.get("impact", {}).get("score", 0) if weather.get("available") else 0) * 0.03
-    p_hr9       = float((pitcher_stats or {}).get("stats", {}).get("hr9", "1.2") or "1.2")
-    league_hr9  = 1.20
-    # Soft-cap pitcher adjustment so outliers (2.0 HR/9) don't dominate
-    pitcher_adj = min(p_hr9 / league_hr9, 1.8)
+    w_score     = weather.get("impact", {}).get("score", 0) if weather.get("available") else 0
+    weather_adj = 1.0 + w_score * 0.025   # per unit of weather score; soft
 
-    barrel_batter  = batter_savant.get("barrel_pct", 8.0) or 8.0
-    barrel_pitcher = pitcher_savant.get("barrel_pct_against", 8.0) or 8.0
-    # Separate batter/pitcher barrel signals — combine additively, not multiplicatively
-    barrel_batter_adj  = barrel_batter / 8.0       # 1.0 = league avg
-    barrel_pitcher_adj = barrel_pitcher / 8.0      # 1.0 = league avg
-    barrel_adj = (barrel_batter_adj ** 0.35) * (barrel_pitcher_adj ** 0.25)
-    barrel_adj = min(barrel_adj, 2.0)              # was 3.0 — tighter cap
+    # ── Per-PA rate → per-game probability ───────────────────────────────────
+    daily_rate = batter_xhr * pitcher_adj * park_adj * weather_adj * handedness_edge
 
-    daily_hr_rate = base_rate * park_adj * weather_adj * pitcher_adj * barrel_adj * handedness_edge
+    # Binomial: P(≥1 HR in 3.3 PA)
+    prob_raw = 1.0 - (1.0 - daily_rate) ** _AVG_PA_PER_GAME
 
-    # 3.3 PA per game (more realistic average including pitcher's spot & short games)
-    avg_pa = 3.3
-    prob = 1.0 - (1.0 - daily_hr_rate) ** avg_pa
+    # Bayesian regression toward league game probability
+    # At 250 PA: full confidence. At 50 PA: 20% weight on own rate.
+    confidence = min(pa / 250, 1.0)
+    prob = confidence * prob_raw + (1 - confidence) * _LEAGUE_GAME_PROB
 
-    # Suppress confidence for tiny samples — regression to mean
-    if pa < 30:
-        prob = prob * 0.55 + 0.06 * 0.45  # blend toward 6% mean
-    elif pa < 80:
-        prob = prob * 0.80 + 0.06 * 0.20
-
-    # Calibration floor/ceiling: realistic range is 1%–25%
-    return round(min(max(prob, 0.01), 0.25), 4)
+    return round(min(max(prob, 0.015), 0.25), 4)
 
 
 def get_handedness_edge(batter_hand: str, pitcher_hand: str) -> float:
     """
-    Return a platoon multiplier for HR probability.
-    Platoon splits on HR: LHB vs RHP and RHB vs LHP produce ~8-12% more HRs.
-    Same-hand matchups are slightly suppressive.
+    Platoon multiplier for HR probability.
+
+    Empirical platoon splits on HRs (Statcast 2019-24 population):
+      LHB vs RHP: +11% HR rate vs same-handed matchup
+      RHB vs LHP: +9% HR rate vs same-handed matchup
+      Same hand:  -7% (pitchers attack same-handed hitters more effectively)
+      Switch hitter: +5% (always gets platoon side, but often less extreme power)
     """
     b = (batter_hand or "R").upper()
     p = (pitcher_hand or "R").upper()
-    if b == "B":          # switch hitter — always gets favorable side
-        return 1.06
-    if b != p:            # platoon advantage
-        return 1.09
-    return 0.94           # same-hand — slight suppression
+    if b == "B":
+        return 1.05       # switch hitter: modest platoon boost
+    if b == "L" and p == "R":
+        return 1.11       # LHB vs RHP: strongest platoon split in baseball
+    if b == "R" and p == "L":
+        return 1.09       # RHB vs LHP: strong platoon advantage
+    return 0.93           # same-hand: pitchers have approach advantage
 
 
 def get_value_hr_picks(game_analyses: list, min_prob: float = 0.12, max_prob: float = 0.21) -> list:

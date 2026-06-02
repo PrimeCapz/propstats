@@ -1,14 +1,16 @@
 """
 Matchup Machine Engine
 Pulls pitch-by-pitch Statcast data from Baseball Savant and generates:
-  - Pitcher arsenal breakdown (pitch mix, velo, whiff%, CSW%, wOBA)
+  - Pitcher arsenal breakdown (pitch mix, velo, whiff%, CSW%, wOBA, HR rate)
   - Strike-zone heatmaps (per pitch type, frequency + result overlays)
   - Batter hot/cold zone charts (wOBA by zone vs RHP/LHP)
   - Full pitcher-vs-batter matchup card PNG
+  - Grade algorithm: usage-weighted, league-normalized wOBA advantage
 """
 
 import io
 import time
+import threading
 import requests
 import numpy as np
 import pandas as pd
@@ -69,20 +71,49 @@ PITCH_ABBR = {
     "Split-Finger":"FS","Forkball":"FO","Knuckleball":"KN","Slurve":"SV",
 }
 
+# ── League averages by pitch type (2024-25 Statcast population) ───────────────
+# Used to normalize batter performance relative to league, not raw numbers.
+LEAGUE_WOBA = {
+    "FF": 0.373, "SI": 0.347, "FC": 0.332, "SL": 0.295, "ST": 0.282,
+    "CU": 0.293, "KC": 0.288, "CH": 0.313, "FS": 0.278, "SV": 0.301,
+    "FO": 0.278, "KN": 0.330,
+}
+LEAGUE_WOBA_DEFAULT = 0.320
+
+LEAGUE_WHIFF = {
+    "FF": 21.0, "SI": 17.5, "FC": 23.0, "SL": 33.0, "ST": 39.0,
+    "CU": 31.5, "KC": 34.0, "CH": 29.5, "FS": 36.0, "SV": 31.0,
+    "FO": 35.0, "KN": 20.0,
+}
+LEAGUE_WHIFF_DEFAULT = 25.0
+
+LEAGUE_CSW_DEFAULT = 26.5  # called strike + whiff / total pitches
+
+# ── Statcast response cache (TTL=4h, thread-safe) ─────────────────────────────
+_SC_CACHE: dict = {}
+_SC_LOCK  = threading.Lock()
+_SC_TTL   = timedelta(hours=4)
+
 
 # ── Data Fetching ──────────────────────────────────────────────────────────────
 
 def _fetch_statcast(player_id: int, player_type: str, season: int,
                     date_from: str = None, date_to: str = None) -> pd.DataFrame:
     """
-    Pull pitch-by-pitch Statcast data.
+    Pull pitch-by-pitch Statcast data with 4-hour in-process cache.
     player_type: "pitcher" or "batter"
-    date_from/date_to: "YYYY-MM-DD" — defaults to full current season
     """
     if not date_from:
         date_from = f"{season}-03-01"
     if not date_to:
         date_to = date.today().strftime("%Y-%m-%d")
+
+    cache_key = (player_id, player_type, season, date_from)
+    with _SC_LOCK:
+        if cache_key in _SC_CACHE:
+            df, ts = _SC_CACHE[cache_key]
+            if datetime.now() - ts < _SC_TTL:
+                return df
 
     param_key = "pitchers_lookup[]" if player_type == "pitcher" else "batters_lookup[]"
     params = {
@@ -98,22 +129,25 @@ def _fetch_statcast(player_id: int, player_type: str, season: int,
         "game_date_lt": date_to,
     }
     try:
-        r = requests.get(SAVANT, params=params, headers=HEADERS, timeout=25)
+        r = requests.get(SAVANT, params=params, headers=HEADERS, timeout=30)
         r.raise_for_status()
         if not r.text.strip() or r.text.strip().startswith("No results"):
-            return pd.DataFrame()
-        df = pd.read_csv(io.StringIO(r.text))
-        df.columns = df.columns.str.strip()
-        # Numeric coercion
-        for col in ["plate_x","plate_z","release_speed","release_spin_rate",
-                    "launch_speed","launch_angle","woba_value","bat_speed",
-                    "pfx_x","pfx_z","zone","spin_axis"]:
-            if col in df.columns:
-                df[col] = pd.to_numeric(df[col], errors="coerce")
-        return df
+            df = pd.DataFrame()
+        else:
+            df = pd.read_csv(io.StringIO(r.text))
+            df.columns = df.columns.str.strip()
+            for col in ["plate_x","plate_z","release_speed","release_spin_rate",
+                        "launch_speed","launch_angle","woba_value","woba_denom",
+                        "bat_speed","pfx_x","pfx_z","zone","spin_axis","delta_run_exp"]:
+                if col in df.columns:
+                    df[col] = pd.to_numeric(df[col], errors="coerce")
     except Exception as e:
         print(f"Statcast fetch error ({player_type} {player_id}): {e}")
-        return pd.DataFrame()
+        df = pd.DataFrame()
+
+    with _SC_LOCK:
+        _SC_CACHE[cache_key] = (df, datetime.now())
+    return df
 
 
 def get_pitcher_statcast(pitcher_id: int, season: int = None,
@@ -132,11 +166,26 @@ def get_batter_statcast(batter_id: int, season: int = None,
 
 # ── Arsenal Analysis ──────────────────────────────────────────────────────────
 
+def _stuff_grade(whiff_pct: float, csw_pct: float, woba: float | None,
+                 pitch_type: str) -> str:
+    """Single-letter stuff grade for a pitch based on whiff, CSW, and wOBA allowed."""
+    league_whiff = LEAGUE_WHIFF.get(pitch_type, LEAGUE_WHIFF_DEFAULT)
+    league_woba  = LEAGUE_WOBA.get(pitch_type, LEAGUE_WOBA_DEFAULT)
+    whiff_above  = whiff_pct - league_whiff   # positive = better than avg
+    woba_above   = (woba or league_woba) - league_woba  # negative = better than avg
+    score = whiff_above / 5.0 - woba_above / 0.030
+    if score >= 2.5:   return "A+"
+    if score >= 1.2:   return "A"
+    if score >= 0.3:   return "B"
+    if score >= -0.5:  return "C"
+    if score >= -1.5:  return "D"
+    return "F"
+
+
 def calc_arsenal(df: pd.DataFrame) -> list:
     """
-    Returns list of dicts, one per pitch type, sorted by usage%.
-    Includes: pitch_type, pitch_name, count, pct, velo, spin,
-              whiff_pct, csw_pct, zone_pct, ba, woba, pfx_x, pfx_z
+    Returns list of dicts per pitch type, sorted by usage%.
+    Adds: hr_rate, stuff_grade, plus_minus_woba (vs league avg).
     """
     if df.empty:
         return []
@@ -149,7 +198,9 @@ def calc_arsenal(df: pd.DataFrame) -> list:
             continue
         count = len(grp)
         pct   = count / total * 100
-        name  = grp["pitch_name"].mode().iloc[0] if "pitch_name" in grp.columns and not grp["pitch_name"].isna().all() else pt
+        name  = (grp["pitch_name"].mode().iloc[0]
+                 if "pitch_name" in grp.columns and not grp["pitch_name"].isna().all()
+                 else pt)
 
         velos = grp["release_speed"].dropna()
         velo  = float(velos.mean()) if len(velos) else 0
@@ -157,7 +208,6 @@ def calc_arsenal(df: pd.DataFrame) -> list:
         spins = grp["release_spin_rate"].dropna()
         spin  = float(spins.mean()) if len(spins) else 0
 
-        # Whiff = swinging_strike / all swings
         swings      = grp[grp["description"].isin(["swinging_strike","foul","hit_into_play",
                                                      "foul_tip","swinging_strike_blocked","foul_bunt"])]
         whiff_count = grp[grp["description"].isin(["swinging_strike","swinging_strike_blocked","foul_tip"])]
@@ -165,37 +215,43 @@ def calc_arsenal(df: pd.DataFrame) -> list:
         whiff_pct   = len(whiff_count) / len(swings) * 100 if len(swings) else 0
         csw_pct     = (len(whiff_count) + len(called_str)) / count * 100 if count else 0
 
-        in_zone = grp[grp["type"].isin(["S","X"])]
+        in_zone  = grp[grp["type"].isin(["S","X"])]
         zone_pct = len(in_zone) / count * 100 if count else 0
 
-        # BA against (in-play)
-        in_play = grp[grp["type"] == "X"]
-        hits    = in_play[in_play["events"].isin(["single","double","triple","home_run"])]
-        ba      = len(hits) / len(in_play) if len(in_play) > 0 else None
+        in_play  = grp[grp["type"] == "X"]
+        hits     = in_play[in_play["events"].isin(["single","double","triple","home_run"])]
+        hrs_hit  = in_play[in_play["events"] == "home_run"]
+        ba       = len(hits) / len(in_play) if len(in_play) > 0 else None
+        hr_rate  = len(hrs_hit) / len(in_play) if len(in_play) > 0 else None
 
-        woba_vals = grp["woba_value"].dropna()
+        woba_vals  = grp["woba_value"].dropna()
         woba_denom = grp["woba_denom"].dropna() if "woba_denom" in grp.columns else pd.Series()
-        woba = float(woba_vals.sum() / len(woba_denom)) if len(woba_denom) > 0 else None
+        woba       = float(woba_vals.sum() / len(woba_denom)) if len(woba_denom) > 0 else None
 
-        # Movement (pfx in inches)
         pfx_x = float(grp["pfx_x"].dropna().mean() * 12) if "pfx_x" in grp.columns else 0
         pfx_z = float(grp["pfx_z"].dropna().mean() * 12) if "pfx_z" in grp.columns else 0
 
+        league_w = LEAGUE_WOBA.get(str(pt), LEAGUE_WOBA_DEFAULT)
+        woba_pm  = round((woba - league_w), 3) if woba is not None else None
+
         results.append({
-            "pitch_type":  str(pt),
-            "pitch_name":  str(name),
-            "count":       int(count),
-            "pct":         round(pct, 1),
-            "velo":        round(velo, 1),
-            "spin":        int(spin),
-            "whiff_pct":   round(whiff_pct, 1),
-            "csw_pct":     round(csw_pct, 1),
-            "zone_pct":    round(zone_pct, 1),
-            "ba":          round(ba, 3) if ba is not None else None,
-            "woba":        round(woba, 3) if woba is not None else None,
-            "pfx_x":       round(pfx_x, 1),
-            "pfx_z":       round(pfx_z, 1),
-            "color":       PITCH_COLORS.get(str(pt), "#94a3b8"),
+            "pitch_type":   str(pt),
+            "pitch_name":   str(name),
+            "count":        int(count),
+            "pct":          round(pct, 1),
+            "velo":         round(velo, 1),
+            "spin":         int(spin),
+            "whiff_pct":    round(whiff_pct, 1),
+            "csw_pct":      round(csw_pct, 1),
+            "zone_pct":     round(zone_pct, 1),
+            "ba":           round(ba, 3) if ba is not None else None,
+            "woba":         round(woba, 3) if woba is not None else None,
+            "woba_vs_avg":  woba_pm,        # negative = better than avg (pitcher perspective)
+            "hr_rate":      round(hr_rate, 3) if hr_rate is not None else None,
+            "pfx_x":        round(pfx_x, 1),
+            "pfx_z":        round(pfx_z, 1),
+            "stuff_grade":  _stuff_grade(whiff_pct, csw_pct, woba, str(pt)),
+            "color":        PITCH_COLORS.get(str(pt), "#94a3b8"),
         })
 
     return sorted(results, key=lambda x: -x["count"])
@@ -238,48 +294,71 @@ def calc_pitcher_summary(df: pd.DataFrame, arsenal: list) -> dict:
 
 def calc_batter_vs_pitch_types(batter_df: pd.DataFrame, arsenal: list) -> list:
     """
-    For each pitch type the pitcher throws, show batter's performance against it
-    using batter's own statcast history.
+    For each pitch type the pitcher throws, compute batter's performance:
+    - wOBA, BA, whiff%, chase%, in-zone contact%
+    - woba_vs_avg: batter's wOBA minus league avg for that pitch type
+    - small_sample: True when PA < 20 (results are noisy)
     """
     if batter_df.empty or not arsenal:
         return []
     results = []
     for a in arsenal:
-        pt = a["pitch_type"]
+        pt  = a["pitch_type"]
         grp = batter_df[batter_df["pitch_type"] == pt]
         if grp.empty:
             results.append({
                 "pitch_type": pt, "pitch_name": a["pitch_name"],
-                "pa": 0, "ba": None, "woba": None,
-                "whiff_pct": None, "chase_pct": None,
-                "color": a["color"], "pct": a["pct"],
+                "pa": 0, "ba": None, "woba": None, "woba_vs_avg": None,
+                "whiff_pct": None, "chase_pct": None, "iz_contact_pct": None,
+                "small_sample": True, "color": a["color"], "pct": a["pct"],
             })
             continue
 
-        swings     = grp[grp["description"].isin(["swinging_strike","foul","hit_into_play",
-                                                    "foul_tip","swinging_strike_blocked","foul_bunt"])]
-        whiffs     = grp[grp["description"].isin(["swinging_strike","swinging_strike_blocked"])]
-        out_zone   = grp[~grp["zone"].isin([1,2,3,4,5,6,7,8,9])]
-        chases     = out_zone[out_zone["description"].isin(["swinging_strike","foul","hit_into_play",
-                                                              "foul_tip","swinging_strike_blocked"])]
-        in_play    = grp[grp["type"] == "X"]
-        hits       = in_play[in_play["events"].isin(["single","double","triple","home_run"])]
+        total_pa = len(grp)
+        swings   = grp[grp["description"].isin(["swinging_strike","foul","hit_into_play",
+                                                 "foul_tip","swinging_strike_blocked","foul_bunt"])]
+        whiffs   = grp[grp["description"].isin(["swinging_strike","swinging_strike_blocked","foul_tip"])]
 
-        ba_val     = len(hits) / len(in_play) if len(in_play) else None
+        # Chase: out-of-zone swings / out-of-zone pitches
+        out_zone = grp[~grp["zone"].isin([1,2,3,4,5,6,7,8,9])]
+        chases   = out_zone[out_zone["description"].isin(["swinging_strike","foul","hit_into_play",
+                                                           "foul_tip","swinging_strike_blocked"])]
+
+        # In-zone contact: swings on zone 1-9 that made contact
+        in_zone  = grp[grp["zone"].isin([1,2,3,4,5,6,7,8,9])]
+        iz_swing = in_zone[in_zone["description"].isin(["swinging_strike","foul","hit_into_play",
+                                                         "foul_tip","swinging_strike_blocked","foul_bunt"])]
+        iz_contact = iz_swing[iz_swing["description"].isin(["foul","hit_into_play","foul_bunt","foul_tip"])]
+
+        in_play  = grp[grp["type"] == "X"]
+        hits     = in_play[in_play["events"].isin(["single","double","triple","home_run"])]
+        hrs      = in_play[in_play["events"] == "home_run"]
+
+        ba_val   = len(hits) / len(in_play) if len(in_play) else None
+        hr_rate  = len(hrs) / len(in_play)  if len(in_play) else None
+
         woba_vals  = grp["woba_value"].dropna()
-        woba_denom = grp["woba_denom"].dropna() if "woba_denom" in grp.columns else pd.Series()
+        woba_denom = (grp["woba_denom"].dropna()
+                      if "woba_denom" in grp.columns else pd.Series())
         woba_val   = float(woba_vals.sum() / len(woba_denom)) if len(woba_denom) > 0 else None
 
+        league_w   = LEAGUE_WOBA.get(pt, LEAGUE_WOBA_DEFAULT)
+        woba_pm    = round(woba_val - league_w, 3) if woba_val is not None else None
+
         results.append({
-            "pitch_type":  pt,
-            "pitch_name":  a["pitch_name"],
-            "pa":          int(len(grp)),
-            "ba":          round(ba_val, 3) if ba_val is not None else None,
-            "woba":        round(woba_val, 3) if woba_val is not None else None,
-            "whiff_pct":   round(len(whiffs)/len(swings)*100, 1) if len(swings) else None,
-            "chase_pct":   round(len(chases)/len(out_zone)*100, 1) if len(out_zone) else None,
-            "color":       a["color"],
-            "pct":         a["pct"],
+            "pitch_type":    pt,
+            "pitch_name":    a["pitch_name"],
+            "pa":            total_pa,
+            "ba":            round(ba_val, 3)  if ba_val   is not None else None,
+            "hr_rate":       round(hr_rate, 3) if hr_rate  is not None else None,
+            "woba":          round(woba_val, 3) if woba_val is not None else None,
+            "woba_vs_avg":   woba_pm,       # positive = batter beats league avg on this pitch
+            "whiff_pct":     round(len(whiffs)/len(swings)*100, 1)    if len(swings)  else None,
+            "chase_pct":     round(len(chases)/len(out_zone)*100, 1)  if len(out_zone) else None,
+            "iz_contact_pct":round(len(iz_contact)/len(iz_swing)*100,1) if len(iz_swing) else None,
+            "small_sample":  total_pa < 20,
+            "color":         a["color"],
+            "pct":           a["pct"],
         })
     return results
 
@@ -622,52 +701,100 @@ def generate_matchup_summary_png(pitcher_name: str, batter_name: str,
 
 def grade_matchup(arsenal: list, b_vs_pt: list, pitcher_summary: dict) -> tuple[str, str]:
     """
-    Returns (grade, edge_note) for batter vs this pitcher.
-    Grade is from the batter's perspective (A+ = great for batter, F = pitcher dominates).
+    Usage-weighted, league-normalized matchup grade (batter perspective).
+
+    Core idea: for each pitch the pitcher throws, measure how much the batter's
+    wOBA vs that pitch deviates from league average, weighted by pitcher's usage
+    of that pitch and confidence based on sample size.
+
+    pitcher CSW vs league avg shifts the baseline (elite K pitcher starts at a
+    deficit for the batter regardless of pitch-type matchup).
+
+    Returns (grade, edge_note):
+      A+ = strong batter advantage, F = pitcher dominates.
     """
-    score = 0
-    notes = []
+    if not arsenal:
+        return ("C", "Insufficient Statcast data")
 
-    # Pitcher's overall whiff/CSW
-    p_whiff = pitcher_summary.get("whiff_pct", 0)
-    p_csw   = pitcher_summary.get("csw_pct", 0)
-    if p_whiff >= 30:
-        score -= 2; notes.append(f"Elite whiff rate ({p_whiff:.0f}%)")
-    elif p_whiff >= 22:
-        score -= 1; notes.append(f"Good whiff rate ({p_whiff:.0f}%)")
-    elif p_whiff <= 15:
-        score += 2; notes.append(f"Low whiff rate ({p_whiff:.0f}%) — contact pitcher")
+    b_lookup     = {b["pitch_type"]: b for b in b_vs_pt}
+    total_usage  = sum(a["pct"] for a in arsenal) or 1.0
 
-    # Batter's wOBA vs primary pitches
-    for b in b_vs_pt[:3]:  # top 3 by usage
-        if b["woba"] is not None and b["pa"] >= 10:
-            if b["woba"] >= 0.380:
-                score += 2; notes.append(f"Batter crushes {b['pitch_name']} (wOBA {b['woba']:.3f})")
-            elif b["woba"] >= 0.320:
-                score += 1; notes.append(f"Batter hits {b['pitch_name']} well")
-            elif b["woba"] <= 0.220:
-                score -= 2; notes.append(f"Batter struggles vs {b['pitch_name']}")
-            elif b["woba"] <= 0.280:
-                score -= 1
+    weighted_score  = 0.0
+    covered_weight  = 0.0
+    best_pitch_name = None
+    best_delta      = -99.0
+    worst_pitch_name= None
+    worst_delta     =  99.0
 
-        if b["whiff_pct"] is not None and b["pa"] >= 10:
-            if b["whiff_pct"] >= 38:
-                score -= 2; notes.append(f"High whiff vs {b['pitch_name']} ({b['whiff_pct']:.0f}%)")
-            elif b["whiff_pct"] <= 12:
-                score += 1
-
-    # Pitcher's wOBA against per arsenal
     for a in arsenal:
-        if a["woba"] is not None:
-            if a["woba"] >= 0.380:
-                score += 1; notes.append(f"{a['pitch_name']} is hittable (wOBA {a['woba']:.3f})")
-            elif a["woba"] <= 0.220:
-                score -= 1
+        pt           = a["pitch_type"]
+        usage_w      = a["pct"] / total_usage      # 0→1, sums to 1
+        b            = b_lookup.get(pt, {})
+        b_woba       = b.get("woba")
+        b_pa         = b.get("pa", 0)
+        b_whiff      = b.get("whiff_pct")
+        league_woba  = LEAGUE_WOBA.get(pt, LEAGUE_WOBA_DEFAULT)
+        league_whiff = LEAGUE_WHIFF.get(pt, LEAGUE_WHIFF_DEFAULT)
 
-    grade_map = {5:"A+",4:"A",3:"A-",2:"B+",1:"B",0:"C",-1:"C",-2:"D",-3:"F",-4:"F"}
-    grade = grade_map.get(max(-4, min(5, score)), "C")
-    note  = notes[0] if notes else "Neutral matchup"
-    return grade, note
+        if b_woba is not None and b_pa >= 5:
+            confidence = min(b_pa / 25.0, 1.0)   # full confidence at 25 PA
+            woba_delta = b_woba - league_woba
+            # Scale: ±0.050 wOBA = ±1 unit.  Cap at ±3 to avoid outliers dominating.
+            units = max(-3.0, min(3.0, woba_delta / 0.050))
+            weighted_score += usage_w * confidence * units
+            covered_weight += usage_w * confidence
+
+            if woba_delta > best_delta:
+                best_delta = woba_delta
+                best_pitch_name = a["pitch_name"]
+            if woba_delta < worst_delta:
+                worst_delta = woba_delta
+                worst_pitch_name = a["pitch_name"]
+
+            # Bonus/penalty from whiff rate vs this pitch
+            if b_whiff is not None and b_pa >= 10:
+                whiff_delta = b_whiff - league_whiff
+                # high batter whiff = pitcher edge
+                weighted_score -= usage_w * confidence * max(-1.5, min(1.5, whiff_delta / 8.0))
+        else:
+            covered_weight += usage_w * 0.05   # tiny credit so coverage doesn't stay 0
+
+    # Pitcher's overall CSW vs league (26.5%) — shifts baseline regardless of matchup
+    p_csw     = pitcher_summary.get("csw_pct", LEAGUE_CSW_DEFAULT)
+    csw_delta = p_csw - LEAGUE_CSW_DEFAULT
+    csw_adj   = max(-0.8, min(0.8, -csw_delta / 5.0))  # high CSW = pitcher edge
+    final_score = weighted_score + csw_adj
+
+    # Build edge note
+    notes = []
+    if best_pitch_name and best_delta > 0.025:
+        notes.append(f"Batter hits {best_pitch_name} well")
+    if worst_pitch_name and worst_delta < -0.025:
+        pct_str = ""
+        for a in arsenal:
+            if a["pitch_name"] == worst_pitch_name:
+                b_d = b_lookup.get(a["pitch_type"], {})
+                wh  = b_d.get("whiff_pct")
+                pct_str = f" ({wh:.0f}% K)" if wh else ""
+                break
+        notes.append(f"Primary weakness: {worst_pitch_name}{pct_str}")
+    if p_csw >= 31:
+        notes.append(f"Elite pitcher CSW ({p_csw:.0f}%)")
+    elif p_csw <= 22:
+        notes.append(f"Contact-allowing pitcher (CSW {p_csw:.0f}%)")
+
+    # Grade map: continuous score → letter grade
+    if   final_score >= 1.8:  grade = "A+"
+    elif final_score >= 1.1:  grade = "A"
+    elif final_score >= 0.5:  grade = "A-"
+    elif final_score >= 0.15: grade = "B+"
+    elif final_score >= -0.1: grade = "B"
+    elif final_score >= -0.4: grade = "C"
+    elif final_score >= -0.9: grade = "D"
+    else:                     grade = "F"
+
+    edge_note = " · ".join(notes[:2]) if notes else "Neutral matchup"
+    return grade, edge_note
 
 
 # ── Master Matchup Function ───────────────────────────────────────────────────

@@ -1046,35 +1046,57 @@ def _team_record(team_data: dict) -> str:
 
 
 def _grade_matchup(career_stats: dict, batter: dict) -> dict:
-    if not career_stats or career_stats.get("pa", 0) < 3:
-        season_ops = float(batter.get("ops", ".750") or ".750")
-        if season_ops >= 0.900:
-            return {"grade": "A", "label": "Elite Bat", "color": "emerald"}
-        elif season_ops >= 0.800:
-            return {"grade": "B", "label": "Good Bat", "color": "green"}
-        elif season_ops >= 0.700:
-            return {"grade": "C", "label": "Average", "color": "yellow"}
+    """
+    Grade batter vs this specific pitcher from H2H history.
+    When H2H PA < 5, falls back to season OPS+ context.
+
+    OPS thresholds are intentionally higher for the H2H grade because
+    career OPS vs a specific pitcher (even a dominant one) regresses heavily
+    toward the batter's true talent — small sample noise is brutal.
+    We Bayesian-shrink: blend H2H OPS with season OPS based on PA.
+    """
+    season_ops  = float(batter.get("ops",  ".700") or ".700")
+    season_avg  = float(batter.get("avg",  ".240") or ".240")
+    h2h_pa = (career_stats or {}).get("pa", 0)
+
+    if not career_stats or h2h_pa < 5:
+        # No meaningful H2H — grade on season OPS
+        if season_ops >= 0.920:
+            return {"grade": "A",  "label": "Elite Season OPS",  "color": "emerald"}
+        elif season_ops >= 0.830:
+            return {"grade": "B+", "label": "Strong Hitter",      "color": "green"}
+        elif season_ops >= 0.750:
+            return {"grade": "B",  "label": "Above Avg",          "color": "green"}
+        elif season_ops >= 0.680:
+            return {"grade": "C",  "label": "Average",            "color": "yellow"}
+        elif season_ops >= 0.580:
+            return {"grade": "D",  "label": "Below Avg",          "color": "orange"}
         else:
-            return {"grade": "D", "label": "Weak Bat", "color": "red"}
+            return {"grade": "F",  "label": "Struggling",         "color": "red"}
 
     try:
-        ops = float(career_stats.get("ops", ".000") or ".000")
-        avg = float(career_stats.get("avg", ".000") or ".000")
-        pa = career_stats.get("pa", 0)
+        h2h_ops = float(career_stats.get("ops", ".700") or ".700")
+        h2h_avg = float(career_stats.get("avg", ".240") or ".240")
 
-        if ops >= 1.000 or avg >= 0.400:
+        # Bayesian shrinkage: blend H2H with season based on sample
+        # Full trust at 40+ PA; ~50% shrink at 10 PA
+        blend = min(h2h_pa / 40.0, 1.0)
+        adj_ops = blend * h2h_ops + (1 - blend) * season_ops
+        adj_avg = blend * h2h_avg + (1 - blend) * season_avg
+
+        if adj_ops >= 1.050 or adj_avg >= 0.400:
             return {"grade": "A+", "label": "Crushes This Pitcher", "color": "emerald"}
-        elif ops >= 0.850 or avg >= 0.320:
-            return {"grade": "A", "label": "Strong History", "color": "emerald"}
-        elif ops >= 0.750 or avg >= 0.270:
-            return {"grade": "B", "label": "Favorable", "color": "green"}
-        elif ops >= 0.650 or avg >= 0.230:
-            return {"grade": "C", "label": "Even", "color": "yellow"}
-        elif ops >= 0.500 or avg >= 0.180:
-            return {"grade": "D", "label": "Struggles", "color": "orange"}
+        elif adj_ops >= 0.880 or adj_avg >= 0.310:
+            return {"grade": "A",  "label": "Strong vs Pitcher",    "color": "emerald"}
+        elif adj_ops >= 0.780 or adj_avg >= 0.270:
+            return {"grade": "B",  "label": "Favorable History",    "color": "green"}
+        elif adj_ops >= 0.680 or adj_avg >= 0.230:
+            return {"grade": "C",  "label": "Even Matchup",         "color": "yellow"}
+        elif adj_ops >= 0.550 or adj_avg >= 0.180:
+            return {"grade": "D",  "label": "Pitcher Has Edge",     "color": "orange"}
         else:
-            return {"grade": "F", "label": "Dominated", "color": "red"}
-    except:
+            return {"grade": "F",  "label": "Pitcher Dominates",    "color": "red"}
+    except Exception:
         return {"grade": "?", "label": "Limited Data", "color": "zinc"}
 
 
