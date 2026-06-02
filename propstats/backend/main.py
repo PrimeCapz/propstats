@@ -718,3 +718,158 @@ def today_hr_table(date: str = Query(None)):
         "games": game_summaries,
         "total": len(all_rows),
     }
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# MATCHUP MACHINE — Statcast pitch-by-pitch analysis
+# ═══════════════════════════════════════════════════════════════════════════════
+
+from matchup_engine import (
+    build_matchup,
+    get_pitcher_statcast,
+    get_batter_statcast,
+    calc_arsenal,
+    calc_pitcher_summary,
+    calc_batter_vs_pitch_types,
+    grade_matchup,
+    generate_pitcher_zone_png,
+    generate_batter_zone_png,
+    generate_matchup_summary_png,
+)
+from fastapi.responses import Response
+
+
+@app.get("/baseball/pitcher/{pitcher_id}/arsenal")
+def pitcher_arsenal(pitcher_id: int, season: int = Query(None), days_back: int = Query(60)):
+    """
+    Pitch arsenal breakdown from Statcast:
+    usage%, velocity, whiff%, CSW%, wOBA against, movement per pitch type.
+    """
+    df      = get_pitcher_statcast(pitcher_id, season, days_back)
+    arsenal = calc_arsenal(df)
+    summary = calc_pitcher_summary(df, arsenal)
+    if not arsenal:
+        raise HTTPException(status_code=404, detail="No Statcast data found for this pitcher")
+    return {"pitcher_id": pitcher_id, "arsenal": arsenal, "summary": summary,
+            "pitches_sampled": len(df)}
+
+
+@app.get("/baseball/pitcher/{pitcher_id}/zone-heatmap")
+def pitcher_zone_heatmap(
+    pitcher_id: int,
+    season: int = Query(None),
+    days_back: int = Query(60),
+    batter_hand: str = Query("R", description="R or L — filter by batter handedness"),
+):
+    """
+    Returns a PNG heatmap showing pitch locations per pitch type vs RHB or LHB.
+    Render as <img src='/baseball/pitcher/{id}/zone-heatmap?batter_hand=R' />.
+    """
+    df      = get_pitcher_statcast(pitcher_id, season, days_back)
+    arsenal = calc_arsenal(df)
+    png     = generate_pitcher_zone_png(df, arsenal, batter_hand)
+    return Response(content=png, media_type="image/png")
+
+
+@app.get("/baseball/batter/{batter_id}/hot-zones")
+def batter_hot_zones(
+    batter_id: int,
+    season: int = Query(None),
+    days_back: int = Query(60),
+    pitcher_hand: str = Query("R", description="R or L — which side to show"),
+):
+    """
+    Returns a PNG of the batter's wOBA by strike zone location vs RHP or LHP.
+    """
+    df  = get_batter_statcast(batter_id, season, days_back)
+    png = generate_batter_zone_png(df, pitcher_hand)
+    return Response(content=png, media_type="image/png")
+
+
+@app.get("/baseball/matchup/{pitcher_id}/{batter_id}")
+def pitcher_batter_matchup(
+    pitcher_id: int,
+    batter_id: int,
+    season: int = Query(None),
+    days_back: int = Query(60),
+):
+    """
+    Full pitcher vs batter matchup analysis:
+    - Pitcher arsenal (whiff%, CSW%, velo, movement)
+    - Batter performance vs each pitch type (wOBA, whiff%, chase%)
+    - Head-to-head history (if any)
+    - Matchup grade A+ → F (from batter's perspective)
+    """
+    data = build_matchup(pitcher_id, batter_id, season, days_back)
+    return data
+
+
+@app.get("/baseball/matchup/{pitcher_id}/{batter_id}/card")
+def matchup_card_png(
+    pitcher_id: int,
+    batter_id: int,
+    pitcher_name: str = Query("Pitcher"),
+    batter_name: str = Query("Batter"),
+    season: int = Query(None),
+    days_back: int = Query(60),
+):
+    """
+    Returns a PNG summary card: pitch mix bar chart + batter vs arsenal table + grade.
+    """
+    data = build_matchup(pitcher_id, batter_id, season, days_back)
+    png  = generate_matchup_summary_png(
+        pitcher_name, batter_name,
+        data["arsenal"], data["batter_vs_pitch"],
+        data["pitcher_summary"],
+        data["grade"], data["edge_note"],
+    )
+    return Response(content=png, media_type="image/png")
+
+
+@app.get("/baseball/game/{game_pk}/matchup-machine")
+def game_matchup_machine(game_pk: int):
+    """
+    For a given game, returns pitcher IDs + projected lineup batter IDs
+    so the frontend can drive the Matchup Machine without extra lookups.
+    """
+    analysis = get_full_game_analysis(game_pk)
+    if "error" in analysis:
+        raise HTTPException(status_code=404, detail=analysis["error"])
+
+    pitchers  = analysis.get("pitchers", {})
+    matchups  = analysis.get("matchups", {})
+
+    def pitcher_meta(side):
+        p = pitchers.get(side, {})
+        return {
+            "id":   p.get("info", {}).get("id"),
+            "name": p.get("info", {}).get("fullName", "TBD"),
+            "hand": p.get("info", {}).get("pitchHand", {}).get("code", "R"),
+            "era":  p.get("stats", {}).get("era", "?"),
+            "hr9":  p.get("stats", {}).get("hr9", "?"),
+        }
+
+    def batter_list(key):
+        return [
+            {
+                "id":    b.get("batter", {}).get("player_id"),
+                "name":  b.get("batter", {}).get("name", "?"),
+                "hand":  b.get("batter", {}).get("batSide", {}).get("code", "R")
+                         if isinstance(b.get("batter", {}).get("batSide"), dict) else "R",
+                "order": b.get("batter", {}).get("order", 0),
+                "grade": b.get("matchup_grade", {}).get("grade", "C"),
+            }
+            for b in matchups.get(key, [])[:9]
+        ]
+
+    return {
+        "game_pk":       game_pk,
+        "away_team":     analysis.get("away_team", {}),
+        "home_team":     analysis.get("home_team", {}),
+        "away_pitcher":  pitcher_meta("away"),
+        "home_pitcher":  pitcher_meta("home"),
+        "away_batters":  batter_list("away_batters_vs_home_pitcher"),
+        "home_batters":  batter_list("home_batters_vs_away_pitcher"),
+        "lineup_status": analysis.get("lineups", {}).get("status", "projected"),
+    }
+

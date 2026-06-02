@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import BaseballAnalysis from './BaseballAnalysis';
+import MatchupMachine from './MatchupMachine';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
@@ -163,13 +164,16 @@ export default function App() {
           <div className="flex gap-1 bg-zinc-900 p-1 rounded-xl">
             <button onClick={() => setMode('nba')} className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${mode === 'nba' ? 'bg-emerald-600 text-white' : 'text-zinc-400 hover:text-white'}`}>NBA Props</button>
             <button onClick={() => setMode('baseball')} className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${mode === 'baseball' ? 'bg-blue-600 text-white' : 'text-zinc-400 hover:text-white'}`}>⚾ Baseball</button>
+            <button onClick={() => setMode('matchup')} className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${mode === 'matchup' ? 'bg-violet-600 text-white' : 'text-zinc-400 hover:text-white'}`}>🎯 Matchup</button>
           </div>
           {mode === 'nba' && <button onClick={() => setShowSearch(true)} className="ml-auto px-4 py-2 bg-zinc-800 hover:bg-zinc-700 rounded-xl text-sm">🔍 Search</button>}
         </div>
       </header>
       {showSearch && <PlayerSearch onSelect={p => { setPlayer(p); setShowSearch(false); setLine(COMMON_LINES[stat]?.[1] || 19.5); }} onClose={() => setShowSearch(false)} />}
       <main className="max-w-6xl mx-auto px-4 py-6">
-        {mode === 'baseball' ? (
+        {mode === 'matchup' ? (
+          <MatchupMachine />
+        ) : mode === 'baseball' ? (
           <BaseballAnalysis />
         ) : !player ? (
           <div className="text-center py-20">
