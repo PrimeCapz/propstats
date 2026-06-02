@@ -841,12 +841,14 @@ def game_matchup_machine(game_pk: int):
 
     def pitcher_meta(side):
         p = pitchers.get(side, {})
+        info = p.get("info", {})
+        stats = p.get("stats", {})
         return {
-            "id":   p.get("info", {}).get("id"),
-            "name": p.get("info", {}).get("fullName", "TBD"),
-            "hand": p.get("info", {}).get("pitchHand", {}).get("code", "R"),
-            "era":  p.get("stats", {}).get("era", "?"),
-            "hr9":  p.get("stats", {}).get("hr9", "?"),
+            "id":   info.get("id"),
+            "name": info.get("name") or stats.get("name") or "TBD",
+            "hand": stats.get("throws", "R"),
+            "era":  stats.get("era", "?"),
+            "hr9":  stats.get("hr9", "?"),
         }
 
     def batter_list(key):

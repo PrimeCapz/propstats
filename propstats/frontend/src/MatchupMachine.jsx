@@ -337,10 +337,10 @@ export default function MatchupMachine() {
 
   // Fetch today's games
   useEffect(() => {
-    fetch(`${API}/baseball/today/games`)
+    fetch(`${API}/baseball/games`)
       .then(r => r.json())
       .then(data => {
-        const g = data.games || data || [];
+        const g = Array.isArray(data) ? data : (data.games || []);
         setGames(g);
         if (g.length) setSelectedPk(g[0].game_pk);
       })
