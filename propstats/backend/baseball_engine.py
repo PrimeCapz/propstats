@@ -353,7 +353,7 @@ def get_batter_season_stats(batter_id: int, season: int = None) -> dict:
     if not season:
         season = datetime.now().year
     data = _get(f"{MLB_API}/people/{batter_id}", {
-        "hydrate": f"stats(group=[hitting],type=[season,seasonAdvanced],season={season})"
+        "hydrate": f"stats(group=[hitting],type=[season,seasonAdvanced,homeAndAway,expectedStatistics],season={season})"
     })
     if not data:
         return {}
@@ -363,15 +363,49 @@ def get_batter_season_stats(batter_id: int, season: int = None) -> dict:
 
     basic = {}
     advanced = {}
+    home_stat = {}
+    away_stat = {}
+    xstats = {}
     for s in stats_list:
-        splits = s.get("splits", [{}])
+        stype = s.get("type", {}).get("displayName", "")
+        splits = s.get("splits", [])
         if not splits:
             continue
-        stat_data = splits[0].get("stat", {})
-        if s.get("type", {}).get("displayName") == "season":
-            basic = stat_data
-        elif s.get("type", {}).get("displayName") == "seasonAdvanced":
-            advanced = stat_data
+        if stype == "season":
+            basic = splits[0].get("stat", {})
+        elif stype == "seasonAdvanced":
+            advanced = splits[0].get("stat", {})
+        elif stype == "homeAndAway":
+            for sp in splits:
+                if sp.get("isHome"):
+                    home_stat = sp.get("stat", {})
+                else:
+                    away_stat = sp.get("stat", {})
+        elif stype == "expectedStatistics":
+            xstats = splits[0].get("stat", {})
+
+    # Compute LD% / GB% / FB% from seasonAdvanced batted-ball counts
+    bip = advanced.get("ballsInPlay", 0) or 0
+    line_hits = advanced.get("lineHits", 0) or 0
+    line_outs = advanced.get("lineOuts", 0) or 0
+    ground_hits = advanced.get("groundHits", 0) or 0
+    ground_outs = advanced.get("groundOuts", 0) or 0
+    fly_hits = advanced.get("flyHits", 0) or 0
+    fly_outs = advanced.get("flyOuts", 0) or 0
+    ld_pct = round((line_hits + line_outs) / bip * 100, 1) if bip > 0 else 0.0
+    gb_pct = round((ground_hits + ground_outs) / bip * 100, 1) if bip > 0 else 0.0
+    fb_pct = round((fly_hits + fly_outs) / bip * 100, 1) if bip > 0 else 0.0
+
+    # Whiff rate from seasonAdvanced
+    total_swings = advanced.get("totalSwings", 0) or 0
+    swing_misses = advanced.get("swingAndMisses", 0) or 0
+    whiff_rate = round(swing_misses / total_swings * 100, 1) if total_swings > 0 else 0.0
+
+    def _ops(stat):
+        try:
+            return float(stat.get("ops", "0") or "0")
+        except Exception:
+            return 0.0
 
     return {
         "name": person.get("fullName", ""),
@@ -409,8 +443,52 @@ def get_batter_season_stats(batter_id: int, season: int = None) -> dict:
             "barrel_pct": advanced.get("barrelBatted", "-"),
             "exit_velocity": advanced.get("avgHitSpeed", "-"),
             "launch_angle": advanced.get("avgHitAngle", "-"),
+            # Tier 1: batted-ball profile
+            "ld_pct": ld_pct,
+            "gb_pct": gb_pct,
+            "fb_pct": fb_pct,
+            "whiff_rate": whiff_rate,
+            "balls_in_play": bip,
+            "line_hits": line_hits,
+            "line_outs": line_outs,
+            # Tier 1: xStats
+            "xba": xstats.get("avg", ""),
+            "xslg": xstats.get("slg", ""),
+            "xwoba": xstats.get("woba", ""),
+            # Tier 2: home/away splits
+            "home_avg": home_stat.get("avg", ""),
+            "home_ops": _ops(home_stat),
+            "home_pa": home_stat.get("plateAppearances", 0),
+            "away_avg": away_stat.get("avg", ""),
+            "away_ops": _ops(away_stat),
+            "away_pa": away_stat.get("plateAppearances", 0),
         }
     }
+
+
+def get_team_bullpen_stats(team_id: int, season: int = None) -> dict:
+    """Tier 2: Fetch team bullpen ERA/WHIP for late-inning scoring context."""
+    if not season:
+        season = datetime.now().year
+    data = _get(f"{MLB_API}/teams/{team_id}/stats", {
+        "stats": "season",
+        "group": "pitching",
+        "season": season,
+        "sportId": 1,
+    })
+    if not data:
+        return {"era": 4.50, "whip": 1.30}
+    for entry in data.get("stats", []):
+        for split in entry.get("splits", []):
+            stat = split.get("stat", {})
+            try:
+                return {
+                    "era": float(stat.get("era", "4.50") or "4.50"),
+                    "whip": float(stat.get("whip", "1.30") or "1.30"),
+                }
+            except Exception:
+                pass
+    return {"era": 4.50, "whip": 1.30}
 
 
 def get_batter_splits(batter_id: int, season: int = None) -> dict:

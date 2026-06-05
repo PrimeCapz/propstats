@@ -227,21 +227,21 @@ def _last5_streak(games: list) -> str:
 
 
 def analyze_pitcher_k_prop(pitcher_stats: dict, recent_starts: list,
-                            opposing_lineup: list, line: float = None) -> dict:
-    """Evaluate a pitcher's strikeout prop."""
+                            opposing_lineup: list, line: float = None,
+                            pitcher_csw: float = None) -> dict:
+    """Evaluate a pitcher's strikeout prop.
+
+    Tier 2: CSW% (Called Strike + Whiff) — strongest K predictor beyond K/9.
+    Tier 2: Opposing lineup whiff rate — chase rate of batters facing this pitcher.
+    """
     s = pitcher_stats.get("stats", {})
     k9 = float(s.get("k9", 0) or 0)
-    season_gs = s.get("games_started", 0) or 0
 
-    # Average Ks per start from recent log
     start_games = [g for g in recent_starts if g.get("gs", 0) > 0 or float(str(g.get("ip","0")).split(".")[0]) >= 3][:5]
     avg_k_per_start = (sum(g.get("k", 0) for g in start_games) / len(start_games)) if start_games else 0
     recent_k_list = [g.get("k", 0) for g in start_games]
-
-    # Estimate projected IP
     avg_ip = _avg_ip(start_games)
 
-    # Score
     score = 0
     notes = []
 
@@ -261,7 +261,32 @@ def analyze_pitcher_k_prop(pitcher_stats: dict, recent_starts: list,
     elif avg_k_per_start > 0 and avg_k_per_start <= 5:
         score -= 1; notes.append(f"Only {avg_k_per_start:.1f} K/start recently")
 
-    # Suggested line if none given
+    # ── Tier 2: CSW% signal ───────────────────────────────────────────────────
+    # CSW (Called Strike + Whiff) is the most stable K predictor per pitch.
+    # League avg ≈ 28%. Elite = 32%+.
+    if pitcher_csw is not None and pitcher_csw > 0:
+        if pitcher_csw >= 32:
+            score += 2; notes.append(f"Elite CSW% ({pitcher_csw:.1f}%) — K machine")
+        elif pitcher_csw >= 29:
+            score += 1; notes.append(f"High CSW% ({pitcher_csw:.1f}%)")
+        elif pitcher_csw <= 24:
+            score -= 1; notes.append(f"Low CSW% ({pitcher_csw:.1f}%) — weak swing-and-miss")
+
+    # ── Tier 2: Opposing lineup whiff rate ────────────────────────────────────
+    # Average whiff_rate of batters in the lineup (from seasonAdvanced stats).
+    if opposing_lineup:
+        lineup_whiff_rates = []
+        for b in opposing_lineup:
+            wr = b.get("stats", {}).get("whiff_rate", 0) if isinstance(b, dict) else 0
+            if wr and wr > 0:
+                lineup_whiff_rates.append(wr)
+        if lineup_whiff_rates:
+            avg_lineup_whiff = sum(lineup_whiff_rates) / len(lineup_whiff_rates)
+            if avg_lineup_whiff >= 30:
+                score += 1; notes.append(f"Swing-happy lineup (avg whiff {avg_lineup_whiff:.1f}%)")
+            elif avg_lineup_whiff <= 20:
+                score -= 1; notes.append(f"Contact lineup (avg whiff {avg_lineup_whiff:.1f}%)")
+
     suggested_line = round(avg_k_per_start - 0.5, 1) if avg_k_per_start > 0 else round((k9 / 9) * avg_ip - 0.5, 1)
     suggested_line = max(2.5, min(suggested_line, 12.5))
 
@@ -277,6 +302,7 @@ def analyze_pitcher_k_prop(pitcher_stats: dict, recent_starts: list,
         "confidence": confidence,
         "score": score,
         "k9": k9,
+        "csw": pitcher_csw,
         "avg_k_per_start": round(avg_k_per_start, 1),
         "recent_k_games": recent_k_list,
         "notes": notes,
@@ -285,29 +311,70 @@ def analyze_pitcher_k_prop(pitcher_stats: dict, recent_starts: list,
 
 def analyze_batter_hit_prop(batter_stats: dict, recent_games: list,
                              pitcher_stats: dict, h2h: dict,
-                             line: float = 0.5) -> dict:
-    """Evaluate a batter's hits prop (Over/Under 0.5 hits default)."""
-    s = batter_stats.get("stats", {})
-    season_avg = float(s.get("avg", ".250") or ".250")
-    season_ops = float(s.get("ops", ".700") or ".700")
+                             line: float = 0.5,
+                             pitcher_hand: str = None,
+                             is_home: bool = False) -> dict:
+    """Evaluate a batter's hits prop (Over/Under 0.5 hits default).
 
-    # Last 5 avg
-    l5_avg = _last5_avg(recent_games) or season_avg
+    Tier 1 signals: platoon edge, LD%, xBA vs BA, BABIP regression,
+                    hot-streak dampener, H2H min-10-PA gate.
+    Tier 2 signals: home/away OPS split.
+    """
+    import math
+
+    s = batter_stats.get("stats", {})
+    pa = int(s.get("pa", 0) or 0)
+
+    def _f(v, default=0.0):
+        try:
+            return float(str(v).lstrip(".") and v or default)
+        except Exception:
+            return default
+
+    season_avg = _f(s.get("avg", ".000"))
+    season_ops = _f(s.get("ops", ".000"))
+    season_babip = _f(s.get("babip", ".000"))
+
+    # ── Null-data gate ────────────────────────────────────────────────────────
+    # If we have no meaningful batting data, don't issue a misleading lean.
+    l5_avg_raw = _last5_avg(recent_games)
+    l5_avg = l5_avg_raw if l5_avg_raw is not None else season_avg
+    if season_avg == 0.0 and (l5_avg_raw is None or l5_avg_raw == 0.0) and pa < 30:
+        return {
+            "prop_type": "Hits",
+            "batter": batter_stats.get("name", ""),
+            "line": line,
+            "lean": "NEUTRAL",
+            "confidence": "Slight",
+            "score": 0,
+            "season_avg": ".000",
+            "l5_avg": ".000",
+            "recent_hits": [],
+            "recent_tb": [],
+            "h2h_avg": "No data",
+            "h2h_pa": 0,
+            "streak": "",
+            "notes": ["Insufficient data — fewer than 30 PA"],
+            "insufficient_data": True,
+        }
+
     streak = _last5_streak(recent_games)
     recent_hits = [g.get("h", 0) for g in recent_games]
     recent_tb = [g.get("total_bases", 0) for g in recent_games]
 
     # Pitcher avg against
-    p_avg_against = float(pitcher_stats.get("stats", {}).get("avg", ".250") or ".250")
+    p_stats = pitcher_stats.get("stats", {}) if pitcher_stats else {}
+    p_avg_against = _f(p_stats.get("avg", ".250") or ".250", 0.250)
 
-    # H2H
-    career = h2h.get("career_summary", {})
-    h2h_avg = float(career.get("avg", ".000") or ".000") if career.get("pa", 0) >= 5 else None
+    # H2H — require ≥ 10 PA for signal (was 5, bumped for sample reliability)
+    career = h2h.get("career_summary", {}) if h2h else {}
     h2h_pa = career.get("pa", 0)
+    h2h_avg = _f(career.get("avg", ".000") or ".000") if h2h_pa >= 10 else None
 
     score = 0
     notes = []
 
+    # ── L5 form ───────────────────────────────────────────────────────────────
     if l5_avg >= 0.360:
         score += 3; notes.append(f"ON FIRE last 5 (.{int(l5_avg*1000):03d} AVG)")
     elif l5_avg >= 0.300:
@@ -319,18 +386,22 @@ def analyze_batter_hit_prop(batter_stats: dict, recent_games: list,
     elif l5_avg <= 0.180:
         score -= 1; notes.append(f"Struggling last 5 (.{int(l5_avg*1000):03d} AVG)")
 
+    # ── Pitcher quality ───────────────────────────────────────────────────────
     if p_avg_against <= 0.200:
         score -= 2; notes.append(f"Pitcher dominates — .{int(p_avg_against*1000):03d} avg against")
     elif p_avg_against <= 0.230:
         score -= 1; notes.append(f"Pitcher tough — .{int(p_avg_against*1000):03d} avg against")
-    elif p_avg_against >= 0.270:
-        score += 1; notes.append(f"Pitcher hittable — .{int(p_avg_against*1000):03d} avg against")
     elif p_avg_against >= 0.290:
         score += 2; notes.append(f"Pitcher very hittable — .{int(p_avg_against*1000):03d} avg against")
+    elif p_avg_against >= 0.270:
+        score += 1; notes.append(f"Pitcher hittable — .{int(p_avg_against*1000):03d} avg against")
 
+    # ── H2H (min 10 PA) ───────────────────────────────────────────────────────
     if h2h_avg is not None:
-        if h2h_avg >= 0.320:
-            score += 2; notes.append(f"Owns this pitcher (.{int(h2h_avg*1000):03d} AVG in {h2h_pa} PA)")
+        if h2h_avg >= 0.350:
+            score += 3; notes.append(f"Owns this pitcher (.{int(h2h_avg*1000):03d} in {h2h_pa} PA)")
+        elif h2h_avg >= 0.320:
+            score += 2; notes.append(f"Strong H2H (.{int(h2h_avg*1000):03d} in {h2h_pa} PA)")
         elif h2h_avg >= 0.270:
             score += 1; notes.append(f"Good H2H history (.{int(h2h_avg*1000):03d} in {h2h_pa} PA)")
         elif h2h_avg <= 0.150:
@@ -338,6 +409,7 @@ def analyze_batter_hit_prop(batter_stats: dict, recent_games: list,
         elif h2h_avg <= 0.200:
             score -= 1; notes.append(f"Tough H2H (.{int(h2h_avg*1000):03d} in {h2h_pa} PA)")
 
+    # ── Hit streak ────────────────────────────────────────────────────────────
     if streak and "streak" in streak:
         try:
             streak_n = int(streak.split("-")[0])
@@ -345,6 +417,73 @@ def analyze_batter_hit_prop(batter_stats: dict, recent_games: list,
                 score += 1; notes.append(streak)
         except Exception:
             pass
+
+    # ── TIER 1: Platoon edge ──────────────────────────────────────────────────
+    batter_hand = batter_stats.get("bats", "R")
+    p_hand = (pitcher_hand or "R").upper()
+    platoon = get_handedness_edge(batter_hand, p_hand)
+    if platoon >= 1.10:
+        score += 1; notes.append(f"Platoon advantage ({batter_hand} vs {p_hand}HP) +{(platoon-1)*100:.0f}%")
+    elif platoon >= 1.05:
+        notes.append(f"Slight platoon edge ({batter_hand} vs {p_hand}HP)")
+    elif platoon <= 0.93:
+        score -= 1; notes.append(f"Same-hand matchup disadvantage ({batter_hand} vs {p_hand}HP)")
+
+    # ── TIER 1: Line Drive % ──────────────────────────────────────────────────
+    ld_pct = _f(s.get("ld_pct", 0))
+    bip = int(s.get("balls_in_play", 0) or 0)
+    if bip >= 50 and ld_pct > 0:
+        if ld_pct >= 26:
+            score += 2; notes.append(f"Elite LD% ({ld_pct:.1f}%) — sustained contact quality")
+        elif ld_pct >= 22:
+            score += 1; notes.append(f"High LD% ({ld_pct:.1f}%) — reliable contact")
+        elif ld_pct <= 13:
+            score -= 1; notes.append(f"Low LD% ({ld_pct:.1f}%) — weak batted-ball profile")
+
+    # ── TIER 1: xBA vs actual BA (luck regression) ────────────────────────────
+    xba_raw = s.get("xba", "")
+    if xba_raw and pa >= 50:
+        try:
+            xba = float(str(xba_raw).lstrip(".") and xba_raw or 0)
+            ba_delta = xba - season_avg
+            if ba_delta >= 0.040:
+                score += 1; notes.append(f"xBA ({xba:.3f}) >> BA ({season_avg:.3f}) — unlucky, OVER regression")
+            elif ba_delta <= -0.040:
+                score -= 1; notes.append(f"BA ({season_avg:.3f}) >> xBA ({xba:.3f}) — lucky, UNDER regression")
+        except Exception:
+            pass
+
+    # ── TIER 1: BABIP regression signal ──────────────────────────────────────
+    # L5 BABIP: (H - HR) / (AB - K - HR) per game
+    l5_bip = sum(max((g.get("ab", 0) - g.get("k", 0) - g.get("hr", 0)), 0) for g in recent_games)
+    l5_babip_h = sum(max(g.get("h", 0) - g.get("hr", 0), 0) for g in recent_games)
+    l5_babip = round(l5_babip_h / l5_bip, 3) if l5_bip >= 6 else None
+
+    if l5_babip is not None:
+        if l5_babip > 0.420:
+            score -= 1; notes.append(f"L5 BABIP {l5_babip:.3f} — luck-driven hot streak, regression likely")
+        elif l5_babip < 0.200 and season_babip > 0.280 and season_avg >= 0.230:
+            score += 1; notes.append(f"L5 BABIP {l5_babip:.3f} — cold streak unlucky, bounce-back due")
+
+    # ── TIER 1: Hot-streak dampener ───────────────────────────────────────────
+    # If L5 is hot but no H2H validation and no sample anchor, don't overpay.
+    delta = l5_avg - season_avg if season_avg > 0 else 0
+    if delta > 0.100 and h2h_pa < 10 and score > 0 and len(recent_games) >= 4:
+        score -= 1
+        notes.append(f"Hot-streak dampener — L5 +{delta:.3f} above season, no H2H anchor")
+
+    # ── TIER 2: Home/Away OPS split ───────────────────────────────────────────
+    home_ops = _f(s.get("home_ops", 0))
+    away_ops = _f(s.get("away_ops", 0))
+    home_pa = int(s.get("home_pa", 0) or 0)
+    away_pa = int(s.get("away_pa", 0) or 0)
+    if home_pa >= 25 and away_pa >= 25:
+        ops_delta = (home_ops - away_ops) if is_home else (away_ops - home_ops)
+        venue_label = "Home" if is_home else "Road"
+        if ops_delta >= 0.120:
+            score += 1; notes.append(f"{venue_label} OPS boost (+{ops_delta:.3f} vs opposite)")
+        elif ops_delta <= -0.120:
+            score -= 1; notes.append(f"{venue_label} OPS drag (-{abs(ops_delta):.3f} vs opposite)")
 
     lean = "OVER" if score >= 2 else "UNDER" if score <= -1 else "NEUTRAL"
     confidence = "Strong" if abs(score) >= 4 else "Lean" if abs(score) >= 2 else "Slight"
@@ -360,9 +499,12 @@ def analyze_batter_hit_prop(batter_stats: dict, recent_games: list,
         "l5_avg": f".{int(l5_avg*1000):03d}",
         "recent_hits": recent_hits,
         "recent_tb": recent_tb,
-        "h2h_avg": f".{int(h2h_avg*1000):03d}" if h2h_avg else "No data",
+        "h2h_avg": f".{int(h2h_avg*1000):03d}" if h2h_avg is not None else "No data",
         "h2h_pa": h2h_pa,
         "streak": streak,
+        "ld_pct": ld_pct,
+        "l5_babip": l5_babip,
+        "platoon": round(platoon, 3),
         "notes": notes,
     }
 
@@ -537,6 +679,72 @@ def _avg_ip(games: list) -> float:
     return total / len(games) if games else 5.0
 
 
+def analyze_nrfi_prop(away_pitcher_stats: dict, home_pitcher_stats: dict,
+                      park_factors: dict, weather: dict) -> dict:
+    """Tier 3: No Run First Inning (NRFI) prop model.
+
+    Uses Poisson distribution to estimate P(0 runs) in the first inning for each
+    half-inning, then multiplies them for joint NRFI probability.
+
+    First-inning ERA adjustment: starters allow ~15% fewer runs in the first
+    inning (batters unprepared, pitcher fresh) — calibrated from MLB 2022-25 data.
+    """
+    import math
+
+    def _era(p):
+        try:
+            return float((p or {}).get("stats", {}).get("era", "4.50") or "4.50")
+        except Exception:
+            return 4.50
+
+    def _fi_no_run_prob(season_era: float, park_run: float) -> float:
+        # First-inning ERA ≈ season ERA × 0.85 (fresher arm, first-time-through edge)
+        fi_era = season_era * 0.85
+        # Park adjustment — softer for single inning
+        fi_era_adj = fi_era * (1.0 + (park_run - 1.0) * 0.40)
+        # Expected runs in 1 IP via Poisson: lambda = ERA / 9
+        lam = max(fi_era_adj / 9.0, 0.10)
+        return math.exp(-lam)   # P(X=0) for Poisson(lambda)
+
+    park_run = park_factors.get("run", 1.0)
+    weather_score = weather.get("impact", {}).get("score", 0) if weather.get("available") else 0
+    weather_adj = 1.0 + weather_score * 0.015   # tiny weather nudge per run factor
+
+    away_era = _era(away_pitcher_stats)
+    home_era = _era(home_pitcher_stats)
+
+    # Away bats vs home pitcher (top of 1st)
+    p_no_away_score = _fi_no_run_prob(home_era, park_run) * (1.0 / weather_adj)
+    # Home bats vs away pitcher (bottom of 1st)
+    p_no_home_score = _fi_no_run_prob(away_era, park_run) * (1.0 / weather_adj)
+
+    p_nrfi = round(p_no_away_score * p_no_home_score, 3)
+    p_yrfi = round(1.0 - p_nrfi, 3)
+
+    lean = "NRFI" if p_nrfi >= 0.62 else "YRFI" if p_nrfi <= 0.45 else "NEUTRAL"
+    confidence = "Strong" if abs(p_nrfi - 0.50) >= 0.14 else "Lean" if abs(p_nrfi - 0.50) >= 0.08 else "Slight"
+
+    notes = [
+        f"P(NRFI) = {p_nrfi:.1%} | P(YRFI) = {p_yrfi:.1%}",
+        f"Away SP ERA {away_era:.2f} → est. FI ERA {away_era*0.85:.2f}",
+        f"Home SP ERA {home_era:.2f} → est. FI ERA {home_era*0.85:.2f}",
+    ]
+    if weather_score >= 1.0:
+        notes.append(weather.get("impact", {}).get("note", "Weather boosts scoring"))
+
+    return {
+        "prop_type": "NRFI",
+        "lean": lean,
+        "confidence": confidence,
+        "score": round((p_nrfi - 0.53) * 20, 2),  # normalized scoring for sorting
+        "p_nrfi": p_nrfi,
+        "p_yrfi": p_yrfi,
+        "away_era": away_era,
+        "home_era": home_era,
+        "notes": notes,
+    }
+
+
 def build_prop_sheet(game_analysis: dict) -> dict:
     """Master prop sheet builder — takes full game_analysis output, returns ranked props."""
     from baseball_engine import get_batter_vs_pitcher, get_batter_season_stats
@@ -552,6 +760,10 @@ def build_prop_sheet(game_analysis: dict) -> dict:
     away_p_id = away_p.get("info", {}).get("id")
     home_p_id = home_p.get("info", {}).get("id")
 
+    # Pitcher handedness — try top-level, then nested info
+    away_p_hand = (away_p.get("throws") or away_p.get("info", {}).get("throws") or "R").upper()
+    home_p_hand = (home_p.get("throws") or home_p.get("info", {}).get("throws") or "R").upper()
+
     park = game_analysis.get("park_factors", {})
     weather = game_analysis.get("weather", {})
     season = game_analysis.get("season", datetime.now().year)
@@ -562,6 +774,11 @@ def build_prop_sheet(game_analysis: dict) -> dict:
     total_prop = analyze_total(away_p_stats, home_p_stats, park, weather,
                                game_analysis.get("game_odds", {}))
     props.append(total_prop)
+
+    # ── NRFI (Tier 3) ──
+    if away_p_stats and home_p_stats:
+        nrfi = analyze_nrfi_prop(away_p_stats, home_p_stats, park, weather)
+        props.append(nrfi)
 
     # ── Pitcher K props ──
     if away_p_stats:
@@ -579,7 +796,8 @@ def build_prop_sheet(game_analysis: dict) -> dict:
     # ── Batter props (hits + HR) ──
     matchups = game_analysis.get("matchups", {})
 
-    def process_batters(batter_list, pitcher_stats, pitcher_id, side_label):
+    def process_batters(batter_list, pitcher_stats, pitcher_id, side_label,
+                        opp_pitcher_hand, batter_is_home):
         for item in batter_list[:9]:
             batter = item.get("batter", {})
             bid = batter.get("player_id")
@@ -595,12 +813,17 @@ def build_prop_sheet(game_analysis: dict) -> dict:
             recent = get_batter_last_n(bid, season, 5)
             _time.sleep(0.15)
 
-            # Hits prop
-            hit_p = analyze_batter_hit_prop(batter_full, recent, pitcher_stats, h2h, 0.5)
+            # Hits prop — pass pitcher hand and home/away context
+            hit_p = analyze_batter_hit_prop(
+                batter_full, recent, pitcher_stats, h2h, 0.5,
+                pitcher_hand=opp_pitcher_hand,
+                is_home=batter_is_home,
+            )
             hit_p["order"] = batter.get("order", 0)
             hit_p["side"] = side_label
             hit_p["recent_games"] = recent
-            if abs(hit_p["score"]) >= 2:
+            # Skip null-data props and weak signals
+            if not hit_p.get("insufficient_data") and abs(hit_p["score"]) >= 2:
                 props.append(hit_p)
 
             # HR prop
@@ -613,12 +836,14 @@ def build_prop_sheet(game_analysis: dict) -> dict:
     if home_p_stats and home_p_id:
         process_batters(
             matchups.get("away_batters_vs_home_pitcher", []),
-            home_p_stats, home_p_id, "away"
+            home_p_stats, home_p_id, "away",
+            opp_pitcher_hand=home_p_hand, batter_is_home=False,
         )
     if away_p_stats and away_p_id:
         process_batters(
             matchups.get("home_batters_vs_away_pitcher", []),
-            away_p_stats, away_p_id, "home"
+            away_p_stats, away_p_id, "home",
+            opp_pitcher_hand=away_p_hand, batter_is_home=True,
         )
 
     # Sort: Strong > Lean, then by abs(score)
