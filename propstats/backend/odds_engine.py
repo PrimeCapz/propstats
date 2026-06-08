@@ -233,39 +233,81 @@ def analyze_pitcher_k_prop(pitcher_stats: dict, recent_starts: list,
                             pitcher_csw: float = None) -> dict:
     """Evaluate a pitcher's strikeout prop.
 
-    Tier 2: CSW% (Called Strike + Whiff) — strongest K predictor beyond K/9.
-    Tier 2: Opposing lineup whiff rate — chase rate of batters facing this pitcher.
+    Primary: avg Ks per recent start (more predictive than K/9 game-to-game).
+    Gate 1: < 3 qualifying starts → NEUTRAL (insufficient sample).
+    Gate 2: ERA > 5.0 → blocks K OVER (pitcher gets knocked out early).
+    Variance filter: K range >= 6 across recent starts → NEUTRAL (too inconsistent).
+    Tier 2: K/9 supporting signal, CSW%, opposing lineup whiff rate.
     """
     s = pitcher_stats.get("stats", {})
     k9 = float(s.get("k9", 0) or 0)
+
+    try:
+        era = float(s.get("era", "4.50") or "4.50")
+    except Exception:
+        era = 4.50
 
     start_games = [g for g in recent_starts if g.get("gs", 0) > 0 or float(str(g.get("ip","0")).split(".")[0]) >= 3][:5]
     avg_k_per_start = (sum(g.get("k", 0) for g in start_games) / len(start_games)) if start_games else 0
     recent_k_list = [g.get("k", 0) for g in start_games]
     avg_ip = _avg_ip(start_games)
 
+    # ── Gate: insufficient starts ─────────────────────────────────────────────
+    if len(start_games) < 3:
+        suggested = round((k9 / 9) * avg_ip - 0.5, 1) if k9 > 0 else 4.5
+        return {
+            "prop_type": "Strikeouts",
+            "pitcher": pitcher_stats.get("name", ""),
+            "suggested_line": max(2.5, min(suggested, 12.5)),
+            "line": line or max(2.5, min(suggested, 12.5)),
+            "lean": "NEUTRAL",
+            "confidence": "Slight",
+            "score": 0,
+            "k9": k9,
+            "csw": pitcher_csw,
+            "avg_k_per_start": round(avg_k_per_start, 1),
+            "recent_k_games": recent_k_list,
+            "notes": ["Fewer than 3 qualifying starts — skipping K prop"],
+        }
+
     score = 0
     notes = []
+    force_neutral = False
 
-    if k9 >= 11:
-        score += 3; notes.append(f"Elite K/9 ({k9:.1f})")
-    elif k9 >= 9.5:
-        score += 2; notes.append(f"High K/9 ({k9:.1f})")
-    elif k9 >= 8.0:
-        score += 1; notes.append(f"Solid K/9 ({k9:.1f})")
-    elif k9 <= 6.5:
-        score -= 2; notes.append(f"Low K/9 ({k9:.1f}) — contact pitcher")
+    # ── Variance filter: high K inconsistency → NEUTRAL ──────────────────────
+    if len(recent_k_list) >= 3:
+        k_range = max(recent_k_list) - min(recent_k_list)
+        if k_range >= 6:
+            force_neutral = True
+            notes.append(f"High K variance (range {k_range}, games: {recent_k_list}) — calling NEUTRAL")
 
+    # ── ERA gate: high ERA blocks K OVER ─────────────────────────────────────
+    if era > 5.0:
+        score -= 2; notes.append(f"High ERA ({era:.2f}) — gets hit early, limits K ceiling")
+    elif era > 4.50:
+        score -= 1; notes.append(f"Elevated ERA ({era:.2f}) — early exit risk")
+
+    # ── PRIMARY: Avg K per recent start ──────────────────────────────────────
     if avg_k_per_start >= 9:
-        score += 2; notes.append(f"Avg {avg_k_per_start:.1f} K/start recently")
-    elif avg_k_per_start >= 7:
+        score += 3; notes.append(f"Dominant: avg {avg_k_per_start:.1f} K/start recently")
+    elif avg_k_per_start >= 7.5:
+        score += 2; notes.append(f"Strong: avg {avg_k_per_start:.1f} K/start recently")
+    elif avg_k_per_start >= 6.0:
         score += 1; notes.append(f"Avg {avg_k_per_start:.1f} K/start recently")
-    elif avg_k_per_start > 0 and avg_k_per_start <= 5:
-        score -= 1; notes.append(f"Only {avg_k_per_start:.1f} K/start recently")
+    elif avg_k_per_start <= 4.5:
+        score -= 2; notes.append(f"Low: only {avg_k_per_start:.1f} K/start recently")
+    elif avg_k_per_start <= 5.5:
+        score -= 1; notes.append(f"Below-avg {avg_k_per_start:.1f} K/start recently")
+
+    # ── SECONDARY: K/9 supporting signal ─────────────────────────────────────
+    if k9 >= 11:
+        score += 2; notes.append(f"Elite K/9 ({k9:.1f})")
+    elif k9 >= 9.5:
+        score += 1; notes.append(f"High K/9 ({k9:.1f})")
+    elif k9 <= 6.5:
+        score -= 1; notes.append(f"Low K/9 ({k9:.1f}) — contact pitcher")
 
     # ── Tier 2: CSW% signal ───────────────────────────────────────────────────
-    # CSW (Called Strike + Whiff) is the most stable K predictor per pitch.
-    # League avg ≈ 28%. Elite = 32%+.
     if pitcher_csw is not None and pitcher_csw > 0:
         if pitcher_csw >= 32:
             score += 2; notes.append(f"Elite CSW% ({pitcher_csw:.1f}%) — K machine")
@@ -275,7 +317,6 @@ def analyze_pitcher_k_prop(pitcher_stats: dict, recent_starts: list,
             score -= 1; notes.append(f"Low CSW% ({pitcher_csw:.1f}%) — weak swing-and-miss")
 
     # ── Tier 2: Opposing lineup whiff rate ────────────────────────────────────
-    # Average whiff_rate of batters in the lineup (from seasonAdvanced stats).
     if opposing_lineup:
         lineup_whiff_rates = []
         for b in opposing_lineup:
@@ -292,8 +333,11 @@ def analyze_pitcher_k_prop(pitcher_stats: dict, recent_starts: list,
     suggested_line = round(avg_k_per_start - 0.5, 1) if avg_k_per_start > 0 else round((k9 / 9) * avg_ip - 0.5, 1)
     suggested_line = max(2.5, min(suggested_line, 12.5))
 
-    label = "OVER" if score >= 2 else "UNDER" if score <= -1 else "NEUTRAL"
-    confidence = "Strong" if abs(score) >= 3 else "Lean" if abs(score) >= 2 else "Slight"
+    if force_neutral:
+        label = "NEUTRAL"
+    else:
+        label = "OVER" if score >= 3 else "UNDER" if score <= -2 else "NEUTRAL"
+    confidence = "Strong" if abs(score) >= 4 else "Lean" if abs(score) >= 2 else "Slight"
 
     return {
         "prop_type": "Strikeouts",
@@ -304,6 +348,7 @@ def analyze_pitcher_k_prop(pitcher_stats: dict, recent_starts: list,
         "confidence": confidence,
         "score": score,
         "k9": k9,
+        "era": era,
         "csw": pitcher_csw,
         "avg_k_per_start": round(avg_k_per_start, 1),
         "recent_k_games": recent_k_list,
@@ -388,7 +433,7 @@ def analyze_batter_hit_prop(batter_stats: dict, recent_games: list,
     elif l5_avg <= 0.180:
         score -= 1; notes.append(f"Struggling last 5 (.{int(l5_avg*1000):03d} AVG)")
 
-    # ── Pitcher quality ───────────────────────────────────────────────────────
+    # ── Pitcher quality (avg against) ────────────────────────────────────────
     if p_avg_against <= 0.200:
         score -= 2; notes.append(f"Pitcher dominates — .{int(p_avg_against*1000):03d} avg against")
     elif p_avg_against <= 0.230:
@@ -397,6 +442,18 @@ def analyze_batter_hit_prop(batter_stats: dict, recent_games: list,
         score += 2; notes.append(f"Pitcher very hittable — .{int(p_avg_against*1000):03d} avg against")
     elif p_avg_against >= 0.270:
         score += 1; notes.append(f"Pitcher hittable — .{int(p_avg_against*1000):03d} avg against")
+
+    # ── Dominant pitcher ERA gate ─────────────────────────────────────────────
+    # Applied after avg-against so both signals can stack or offset each other.
+    p_era_raw = p_stats.get("era", "4.50")
+    try:
+        p_era = float(p_era_raw or "4.50")
+    except Exception:
+        p_era = 4.50
+    if p_era <= 1.80:
+        score -= 3; notes.append(f"Elite ace on mound (ERA {p_era:.2f}) — hit OVER suppressed")
+    elif p_era <= 2.50:
+        score -= 2; notes.append(f"Dominant starter (ERA {p_era:.2f}) — hit OVER penalized")
 
     # ── H2H (min 10 PA) ───────────────────────────────────────────────────────
     if h2h_avg is not None:
@@ -487,7 +544,7 @@ def analyze_batter_hit_prop(batter_stats: dict, recent_games: list,
         elif ops_delta <= -0.120:
             score -= 1; notes.append(f"{venue_label} OPS drag (-{abs(ops_delta):.3f} vs opposite)")
 
-    lean = "OVER" if score >= 2 else "UNDER" if score <= -1 else "NEUTRAL"
+    lean = "OVER" if score >= 5 else "UNDER" if score <= -1 else "NEUTRAL"
     confidence = "Strong" if abs(score) >= 4 else "Lean" if abs(score) >= 2 else "Slight"
 
     return {
