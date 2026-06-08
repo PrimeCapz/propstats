@@ -552,9 +552,9 @@ def baseball_game_odds(game_pk: int, away: str = Query(...), home: str = Query(.
 
 
 @app.get("/baseball/game/{game_pk}/prop-sheet")
-def baseball_prop_sheet(game_pk: int):
+def baseball_prop_sheet(game_pk: int, as_of_date: str = Query(None, description="YYYY-MM-DD — use stats frozen to this date for backtesting")):
     """Full ranked prop sheet: K props, hit props, HR props, totals with lines & lean."""
-    analysis = get_full_game_analysis(game_pk)
+    analysis = get_full_game_analysis(game_pk, as_of_date)
     if "error" in analysis:
         raise HTTPException(status_code=404, detail=analysis["error"])
 
@@ -566,7 +566,7 @@ def baseball_prop_sheet(game_pk: int):
     if espn_id:
         analysis["game_odds"] = get_game_odds_by_espn_id(espn_id)
 
-    return build_prop_sheet(analysis)
+    return build_prop_sheet(analysis, as_of_date)
 
 
 @app.get("/baseball/batter/{batter_id}/last5")

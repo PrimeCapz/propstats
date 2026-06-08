@@ -111,17 +111,19 @@ def get_all_game_odds(game_date: str = None) -> dict:
 
 # ── Batter recent game log ────────────────────────────────────────────────────
 
-def get_batter_last_n(batter_id: int, season: int = None, n: int = 5) -> list:
+def get_batter_last_n(batter_id: int, season: int = None, n: int = 5, as_of_date: str = None) -> list:
     """Last n games for a batter — AB, H, HR, RBI, BB, K, result."""
     if not season:
         season = datetime.now().year
 
+    params = {"stats": "gameLog", "group": "hitting", "season": season, "sportId": 1}
+    if as_of_date:
+        params["endDate"] = as_of_date
+
     data = None
     try:
         r = requests.get(f"{MLB_API}/people/{batter_id}/stats",
-                         params={"stats": "gameLog", "group": "hitting",
-                                 "season": season, "sportId": 1},
-                         headers=HEADERS, timeout=10)
+                         params=params, headers=HEADERS, timeout=10)
         r.raise_for_status()
         data = r.json()
     except Exception:
@@ -745,7 +747,7 @@ def analyze_nrfi_prop(away_pitcher_stats: dict, home_pitcher_stats: dict,
     }
 
 
-def build_prop_sheet(game_analysis: dict) -> dict:
+def build_prop_sheet(game_analysis: dict, as_of_date: str = None) -> dict:
     """Master prop sheet builder — takes full game_analysis output, returns ranked props."""
     from baseball_engine import get_batter_vs_pitcher, get_batter_season_stats
     import time as _time
@@ -805,12 +807,12 @@ def build_prop_sheet(game_analysis: dict) -> dict:
                 continue
             h2h = item.get("h2h", {})
 
-            batter_full = get_batter_season_stats(bid, season)
+            batter_full = get_batter_season_stats(bid, season, as_of_date)
             if not batter_full:
                 _time.sleep(0.1)
                 continue
 
-            recent = get_batter_last_n(bid, season, 5)
+            recent = get_batter_last_n(bid, season, 5, as_of_date)
             _time.sleep(0.15)
 
             # Hits prop — pass pitcher hand and home/away context

@@ -160,11 +160,12 @@ def get_today_games(game_date: str = None) -> list:
     return games
 
 
-def get_pitcher_season_stats(pitcher_id: int, season: int = None) -> dict:
+def get_pitcher_season_stats(pitcher_id: int, season: int = None, as_of_date: str = None) -> dict:
     if not season:
         season = datetime.now().year
+    date_clause = f",endDate={as_of_date}" if as_of_date else ""
     data = _get(f"{MLB_API}/people/{pitcher_id}", {
-        "hydrate": f"stats(group=[pitching],type=[season,seasonAdvanced],season={season})"
+        "hydrate": f"stats(group=[pitching],type=[season,seasonAdvanced],season={season}{date_clause})"
     })
     if not data:
         return {}
@@ -257,15 +258,13 @@ def get_pitcher_splits(pitcher_id: int, season: int = None) -> dict:
     return splits
 
 
-def get_pitcher_recent_starts(pitcher_id: int, season: int = None, limit: int = 7) -> list:
+def get_pitcher_recent_starts(pitcher_id: int, season: int = None, limit: int = 7, as_of_date: str = None) -> list:
     if not season:
         season = datetime.now().year
-    data = _get(f"{MLB_API}/people/{pitcher_id}/stats", {
-        "stats": "gameLog",
-        "group": "pitching",
-        "season": season,
-        "sportId": 1,
-    })
+    params = {"stats": "gameLog", "group": "pitching", "season": season, "sportId": 1}
+    if as_of_date:
+        params["endDate"] = as_of_date
+    data = _get(f"{MLB_API}/people/{pitcher_id}/stats", params)
     if not data:
         return []
 
@@ -349,11 +348,12 @@ def get_pitch_arsenal(pitcher_id: int, season: int = None) -> list:
     return sorted(arsenal, key=lambda x: x["usage_pct"], reverse=True)
 
 
-def get_batter_season_stats(batter_id: int, season: int = None) -> dict:
+def get_batter_season_stats(batter_id: int, season: int = None, as_of_date: str = None) -> dict:
     if not season:
         season = datetime.now().year
+    date_clause = f",endDate={as_of_date}" if as_of_date else ""
     data = _get(f"{MLB_API}/people/{batter_id}", {
-        "hydrate": f"stats(group=[hitting],type=[season,seasonAdvanced,homeAndAway,expectedStatistics],season={season})"
+        "hydrate": f"stats(group=[hitting],type=[season,seasonAdvanced,homeAndAway,expectedStatistics],season={season}{date_clause})"
     })
     if not data:
         return {}
@@ -945,7 +945,7 @@ def search_mlb_players(query: str, player_type: str = "all") -> list:
     return results
 
 
-def get_full_game_analysis(game_pk: int) -> dict:
+def get_full_game_analysis(game_pk: int, as_of_date: str = None) -> dict:
     """Master function — full breakdown of a game."""
     game_data = _get(f"{MLB_API_V1_1}/game/{game_pk}/feed/live")
     if not game_data:
@@ -974,8 +974,8 @@ def get_full_game_analysis(game_pk: int) -> dict:
 
     season = datetime.now().year
 
-    away_pitcher_stats = get_pitcher_season_stats(away_pitcher_id, season) if away_pitcher_id else {}
-    home_pitcher_stats = get_pitcher_season_stats(home_pitcher_id, season) if home_pitcher_id else {}
+    away_pitcher_stats = get_pitcher_season_stats(away_pitcher_id, season, as_of_date) if away_pitcher_id else {}
+    home_pitcher_stats = get_pitcher_season_stats(home_pitcher_id, season, as_of_date) if home_pitcher_id else {}
 
     away_pitcher_arsenal = get_pitch_arsenal(away_pitcher_id, season) if away_pitcher_id else []
     home_pitcher_arsenal = get_pitch_arsenal(home_pitcher_id, season) if home_pitcher_id else []
@@ -983,8 +983,8 @@ def get_full_game_analysis(game_pk: int) -> dict:
     away_pitcher_splits = get_pitcher_splits(away_pitcher_id, season) if away_pitcher_id else {}
     home_pitcher_splits = get_pitcher_splits(home_pitcher_id, season) if home_pitcher_id else {}
 
-    away_pitcher_recent = get_pitcher_recent_starts(away_pitcher_id, season, 5) if away_pitcher_id else []
-    home_pitcher_recent = get_pitcher_recent_starts(home_pitcher_id, season, 5) if home_pitcher_id else []
+    away_pitcher_recent = get_pitcher_recent_starts(away_pitcher_id, season, 5, as_of_date) if away_pitcher_id else []
+    home_pitcher_recent = get_pitcher_recent_starts(home_pitcher_id, season, 5, as_of_date) if home_pitcher_id else []
 
     boxscore = _get(f"{MLB_API}/game/{game_pk}/boxscore") or {}
     box_teams = boxscore.get("teams", {})
