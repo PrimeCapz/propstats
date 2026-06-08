@@ -840,16 +840,21 @@ def build_prop_sheet(game_analysis: dict, as_of_date: str = None) -> dict:
         props.append(nrfi)
 
     # ── Pitcher K props ──
+    # away pitcher faces home lineup; home pitcher faces away lineup
     if away_p_stats:
         kp = analyze_pitcher_k_prop(away_p_stats, away_p_recent,
                                     game_analysis.get("lineups", {}).get("home", []))
         kp["side"] = "away"
+        kp["pitcher_team"] = game_analysis.get("away_team", {}).get("abbr", "")
+        kp["faces_lineup"] = game_analysis.get("home_team", {}).get("abbr", "")
         props.append(kp)
 
     if home_p_stats:
         kp = analyze_pitcher_k_prop(home_p_stats, home_p_recent,
                                     game_analysis.get("lineups", {}).get("away", []))
         kp["side"] = "home"
+        kp["pitcher_team"] = game_analysis.get("home_team", {}).get("abbr", "")
+        kp["faces_lineup"] = game_analysis.get("away_team", {}).get("abbr", "")
         props.append(kp)
 
     # ── Batter props (hits + HR) ──
@@ -857,6 +862,9 @@ def build_prop_sheet(game_analysis: dict, as_of_date: str = None) -> dict:
 
     def process_batters(batter_list, pitcher_stats, pitcher_id, side_label,
                         opp_pitcher_hand, batter_is_home):
+        # side_label = team side of the BATTER ("home"/"away"), NOT which pitcher they face.
+        # Home batters face the away pitcher; away batters face the home pitcher.
+        opp_name = pitcher_stats.get("name", "") if pitcher_stats else ""
         for item in batter_list[:9]:
             batter = item.get("batter", {})
             bid = batter.get("player_id")
@@ -879,7 +887,10 @@ def build_prop_sheet(game_analysis: dict, as_of_date: str = None) -> dict:
                 is_home=batter_is_home,
             )
             hit_p["order"] = batter.get("order", 0)
-            hit_p["side"] = side_label
+            hit_p["batter_side"] = side_label          # which team the batter plays for
+            hit_p["side"] = side_label                  # kept for backwards compat
+            hit_p["opposing_pitcher"] = opp_name        # the pitcher this batter actually faces
+            hit_p["opposing_pitcher_id"] = pitcher_id
             hit_p["recent_games"] = recent
             # Skip null-data props and weak signals
             if not hit_p.get("insufficient_data") and abs(hit_p["score"]) >= 2:
@@ -888,7 +899,10 @@ def build_prop_sheet(game_analysis: dict, as_of_date: str = None) -> dict:
             # HR prop
             hr_p = analyze_batter_hr_prop(batter_full, recent, pitcher_stats, h2h, park, weather, 0.5)
             hr_p["order"] = batter.get("order", 0)
+            hr_p["batter_side"] = side_label
             hr_p["side"] = side_label
+            hr_p["opposing_pitcher"] = opp_name
+            hr_p["opposing_pitcher_id"] = pitcher_id
             if abs(hr_p["score"]) >= 2:
                 props.append(hr_p)
 
