@@ -892,8 +892,10 @@ def build_prop_sheet(game_analysis: dict, as_of_date: str = None) -> dict:
             hit_p["opposing_pitcher"] = opp_name        # the pitcher this batter actually faces
             hit_p["opposing_pitcher_id"] = pitcher_id
             hit_p["recent_games"] = recent
-            # Skip null-data props and weak signals
-            if not hit_p.get("insufficient_data") and abs(hit_p["score"]) >= 2:
+            # Include all actionable props: any OVER/UNDER call, or high-signal neutrals
+            if not hit_p.get("insufficient_data") and (
+                hit_p.get("lean") in ("OVER", "UNDER") or abs(hit_p["score"]) >= 2
+            ):
                 props.append(hit_p)
 
             # HR prop
