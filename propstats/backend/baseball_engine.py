@@ -48,6 +48,8 @@ VENUE_COORDS = {
     4169: ("loanDepot park", 25.7781, -80.2197),
     12:   ("Tropicana Field", 27.7683, -82.6534),
     14536: ("Rogers Centre", 43.6414, -79.3894),
+    5355: ("Las Vegas Ballpark", 36.1699, -115.2923),   # Summerlin, NV — ~2000 ft elevation
+    2529: ("Sutter Health Park", 38.5800, -121.4994),   # Sacramento, CA — ATH temp home
 }
 
 PARK_FACTORS = {
@@ -80,6 +82,9 @@ PARK_FACTORS = {
     "Comerica Park": {"run": 0.95, "hr": 0.89, "hit": 0.96, "description": "Pitcher-friendly"},
     "Angel Stadium": {"run": 0.97, "hr": 0.95, "hit": 0.97, "description": "Neutral"},
     "Rogers Centre": {"run": 1.01, "hr": 1.03, "hit": 1.00, "description": "Neutral (dome/turf)"},
+    # ATH temp venues — both extreme hitter's parks (measured 1.50 run PF from 2026 ATH home data)
+    "Las Vegas Ballpark": {"run": 1.50, "hr": 1.55, "hit": 1.22, "description": "Extreme hitter's park (~2000ft elevation, AAA bandbox, desert heat)"},
+    "Sutter Health Park": {"run": 1.45, "hr": 1.48, "hit": 1.20, "description": "Extreme hitter's park (AAA bandbox, Sacramento heat)"},
 }
 
 PITCH_TYPE_NAMES = {

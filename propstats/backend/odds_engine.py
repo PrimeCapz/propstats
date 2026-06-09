@@ -360,7 +360,8 @@ def analyze_batter_hit_prop(batter_stats: dict, recent_games: list,
                              pitcher_stats: dict, h2h: dict,
                              line: float = 0.5,
                              pitcher_hand: str = None,
-                             is_home: bool = False) -> dict:
+                             is_home: bool = False,
+                             park_factors: dict = None) -> dict:
     """Evaluate a batter's hits prop (Over/Under 0.5 hits default).
 
     Tier 1 signals: platoon edge, LD%, xBA vs BA, BABIP regression,
@@ -543,6 +544,21 @@ def analyze_batter_hit_prop(batter_stats: dict, recent_games: list,
             score += 1; notes.append(f"{venue_label} OPS boost (+{ops_delta:.3f} vs opposite)")
         elif ops_delta <= -0.120:
             score -= 1; notes.append(f"{venue_label} OPS drag (-{abs(ops_delta):.3f} vs opposite)")
+
+    # ── Park factor (hit) ─────────────────────────────────────────────────────
+    pf = park_factors or {}
+    park_hit = pf.get("hit", 1.0)
+    park_run = pf.get("run", 1.0)
+    if park_hit >= 1.20 or park_run >= 1.40:
+        score += 3; notes.append(f"Extreme hitter's park (Hit PF {park_hit:.2f} / Run PF {park_run:.2f}) — UNDERs suppressed")
+    elif park_hit >= 1.10 or park_run >= 1.20:
+        score += 2; notes.append(f"Strong hitter's park (Hit PF {park_hit:.2f} / Run PF {park_run:.2f})")
+    elif park_hit >= 1.05 or park_run >= 1.10:
+        score += 1; notes.append(f"Hitter-friendly park (Hit PF {park_hit:.2f})")
+    elif park_hit <= 0.85 or park_run <= 0.85:
+        score -= 1; notes.append(f"Pitcher-friendly park (Hit PF {park_hit:.2f} / Run PF {park_run:.2f})")
+    elif park_hit <= 0.78 or park_run <= 0.78:
+        score -= 2; notes.append(f"Strong pitcher's park (Hit PF {park_hit:.2f} / Run PF {park_run:.2f})")
 
     lean = "OVER" if score >= 5 else "UNDER" if score <= -1 else "NEUTRAL"
     confidence = "Strong" if abs(score) >= 4 else "Lean" if abs(score) >= 2 else "Slight"
@@ -880,11 +896,12 @@ def build_prop_sheet(game_analysis: dict, as_of_date: str = None) -> dict:
             recent = get_batter_last_n(bid, season, 5, as_of_date)
             _time.sleep(0.15)
 
-            # Hits prop — pass pitcher hand and home/away context
+            # Hits prop — pass pitcher hand, home/away context, and park factors
             hit_p = analyze_batter_hit_prop(
                 batter_full, recent, pitcher_stats, h2h, 0.5,
                 pitcher_hand=opp_pitcher_hand,
                 is_home=batter_is_home,
+                park_factors=park,
             )
             hit_p["order"] = batter.get("order", 0)
             hit_p["batter_side"] = side_label          # which team the batter plays for
