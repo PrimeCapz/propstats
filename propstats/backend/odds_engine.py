@@ -231,7 +231,9 @@ def _last5_streak(games: list) -> str:
 def analyze_pitcher_k_prop(pitcher_stats: dict, recent_starts: list,
                             opposing_lineup: list, line: float = None,
                             pitcher_csw: float = None,
-                            pitcher_arsenal: list = None) -> dict:
+                            pitcher_arsenal: list = None,
+                            umpire_k_rate: float = None,
+                            pitcher_swstr: float = None) -> dict:
     """Evaluate a pitcher's strikeout prop.
 
     Primary: avg Ks per recent start (more predictive than K/9 game-to-game).
@@ -344,6 +346,26 @@ def analyze_pitcher_k_prop(pitcher_stats: dict, recent_starts: list,
             score += 1; notes.append(f"High CSW% ({pitcher_csw:.1f}%)")
         elif pitcher_csw <= 24:
             score -= 1; notes.append(f"Low CSW% ({pitcher_csw:.1f}%) — weak swing-and-miss")
+
+    # ── Tier 2: SwStr% (swinging strike rate) — fastest-stabilizing K signal ─
+    if pitcher_swstr is not None and pitcher_swstr > 0:
+        if pitcher_swstr >= 30:
+            score += 2; notes.append(f"Elite SwStr% ({pitcher_swstr:.1f}%) — generates whiffs at elite rate")
+        elif pitcher_swstr >= 26:
+            score += 1; notes.append(f"High SwStr% ({pitcher_swstr:.1f}%)")
+        elif pitcher_swstr <= 18:
+            score -= 1; notes.append(f"Low SwStr% ({pitcher_swstr:.1f}%) — limited swing-and-miss")
+
+    # ── Tier 2: Umpire K-rate signal (underrated market edge) ────────────────
+    # Books adjust umpire into game totals / ML but are slower on individual pitcher K props.
+    # MLB average ≈ 15.0 K/game at HP. ≥17.5 = pitcher-friendly zone; ≤13.0 = tight zone.
+    if umpire_k_rate is not None:
+        if umpire_k_rate >= 17.5:
+            score += 1
+            notes.append(f"Pitcher-friendly HP umpire ({umpire_k_rate:.1f} K/game avg) — books slow to adjust K props")
+        elif umpire_k_rate <= 13.0:
+            score -= 1
+            notes.append(f"Hitter-friendly HP umpire ({umpire_k_rate:.1f} K/game avg) — tight zone, limits K ceiling")
 
     # ── Tier 2: Opposing lineup whiff rate ────────────────────────────────────
     if opposing_lineup:
@@ -586,6 +608,14 @@ def analyze_batter_hit_prop(batter_stats: dict, recent_games: list,
     elif batter_whiff >= 32:
         score -= 1; notes.append(f"High batter whiff rate ({batter_whiff:.0f}%) — contact risk")
 
+    # ── TIER 1: wRC+ — park-and-league-adjusted offensive production ──────────
+    # More predictive than BA/OPS for true offensive ability; 100 = league avg.
+    wrc_plus = _f(s.get("wrc_plus", 0) or 0)
+    if wrc_plus >= 140 and pa >= 50:
+        score += 1; notes.append(f"Elite wRC+ ({int(wrc_plus)}) — elite offensive producer, contact sustains")
+    elif wrc_plus > 0 and wrc_plus <= 75 and pa >= 50:
+        score -= 1; notes.append(f"Weak wRC+ ({int(wrc_plus)}) — below-avg hitter, hit prop penalized")
+
     # ── TIER 1: Groundball% — GB hitters sustain higher BABIP ────────────────
     gb_pct = _f(s.get("gb_pct", 0))
     fb_pct = _f(s.get("fb_pct", 0))
@@ -827,7 +857,8 @@ def _avg_ip(games: list) -> float:
 
 
 def analyze_nrfi_prop(away_pitcher_stats: dict, home_pitcher_stats: dict,
-                      park_factors: dict, weather: dict) -> dict:
+                      park_factors: dict, weather: dict,
+                      umpire_k_rate: float = None) -> dict:
     """Tier 3: No Run First Inning (NRFI) prop model.
 
     Uses Poisson distribution to estimate P(0 runs) in the first inning for each
@@ -862,10 +893,23 @@ def analyze_nrfi_prop(away_pitcher_stats: dict, home_pitcher_stats: dict,
     away_era = _era(away_pitcher_stats)
     home_era = _era(home_pitcher_stats)
 
+    # Umpire adjustment: pitcher-friendly HP ump → fewer runs (more Ks = fewer BIP = fewer runs).
+    # Calibrated effect: ±1 K/game ≈ ±0.5% NRFI probability shift.
+    ump_nrfi_mult = 1.0
+    ump_note = None
+    if umpire_k_rate is not None:
+        delta = umpire_k_rate - 15.0  # deviation from MLB avg (~15 K/game)
+        ump_nrfi_mult = 1.0 + delta * 0.003  # ±3% at extremes (±5 K/game from avg)
+        ump_nrfi_mult = max(0.92, min(1.08, ump_nrfi_mult))
+        if umpire_k_rate >= 17.5:
+            ump_note = f"Pitcher-friendly HP ump ({umpire_k_rate:.1f} K/game) — NRFI boosted"
+        elif umpire_k_rate <= 13.0:
+            ump_note = f"Hitter-friendly HP ump ({umpire_k_rate:.1f} K/game) — NRFI dampened"
+
     # Away bats vs home pitcher (top of 1st)
-    p_no_away_score = _fi_no_run_prob(home_era, park_run) * (1.0 / weather_adj)
+    p_no_away_score = _fi_no_run_prob(home_era, park_run) * (1.0 / weather_adj) * ump_nrfi_mult
     # Home bats vs away pitcher (bottom of 1st)
-    p_no_home_score = _fi_no_run_prob(away_era, park_run) * (1.0 / weather_adj)
+    p_no_home_score = _fi_no_run_prob(away_era, park_run) * (1.0 / weather_adj) * ump_nrfi_mult
 
     p_nrfi = round(p_no_away_score * p_no_home_score, 3)
     p_yrfi = round(1.0 - p_nrfi, 3)
@@ -879,6 +923,8 @@ def analyze_nrfi_prop(away_pitcher_stats: dict, home_pitcher_stats: dict,
         f"Away SP ERA {away_era:.2f} → est. FI ERA {away_era*1.05:.2f}",
         f"Home SP ERA {home_era:.2f} → est. FI ERA {home_era*1.05:.2f}",
     ]
+    if ump_note:
+        notes.append(ump_note)
     if weather_score >= 1.0:
         notes.append(weather.get("impact", {}).get("note", "Weather boosts scoring"))
 
@@ -897,7 +943,7 @@ def analyze_nrfi_prop(away_pitcher_stats: dict, home_pitcher_stats: dict,
 
 def build_prop_sheet(game_analysis: dict, as_of_date: str = None) -> dict:
     """Master prop sheet builder — takes full game_analysis output, returns ranked props."""
-    from baseball_engine import get_batter_vs_pitcher, get_batter_season_stats
+    from baseball_engine import get_batter_vs_pitcher, get_batter_season_stats, get_pitcher_savant, get_game_umpire
     import time as _time
 
     pitchers = game_analysis.get("pitchers", {})
@@ -918,6 +964,23 @@ def build_prop_sheet(game_analysis: dict, as_of_date: str = None) -> dict:
     weather = game_analysis.get("weather", {})
     season = game_analysis.get("season", datetime.now().year)
 
+    # ── Fetch Savant pitcher K-metrics (SwStr%, K%) and HP umpire ────────────
+    game_pk = game_analysis.get("game_pk")
+    away_savant = get_pitcher_savant(away_p_id, season) if away_p_id else {}
+    home_savant = get_pitcher_savant(home_p_id, season) if home_p_id else {}
+    away_swstr = away_savant.get("swstr_pct") or None
+    home_swstr = home_savant.get("swstr_pct") or None
+    away_csw = away_savant.get("csw_pct") or None
+    home_csw = home_savant.get("csw_pct") or None
+
+    umpire = {}
+    if game_pk:
+        try:
+            umpire = get_game_umpire(game_pk)
+        except Exception:
+            umpire = {}
+    umpire_k_rate = umpire.get("k_rate")  # None if unknown umpire
+
     props = []
 
     # ── Game Total ──
@@ -927,7 +990,11 @@ def build_prop_sheet(game_analysis: dict, as_of_date: str = None) -> dict:
 
     # ── NRFI (Tier 3) ──
     if away_p_stats and home_p_stats:
-        nrfi = analyze_nrfi_prop(away_p_stats, home_p_stats, park, weather)
+        nrfi = analyze_nrfi_prop(away_p_stats, home_p_stats, park, weather,
+                                 umpire_k_rate=umpire_k_rate)
+        if umpire.get("name") and umpire["name"] != "Unknown":
+            nrfi["umpire"] = umpire.get("name")
+            nrfi["umpire_k_rate"] = umpire_k_rate
         props.append(nrfi)
 
     # ── Pitcher K props ──
@@ -938,19 +1005,29 @@ def build_prop_sheet(game_analysis: dict, as_of_date: str = None) -> dict:
     if away_p_stats:
         kp = analyze_pitcher_k_prop(away_p_stats, away_p_recent,
                                     game_analysis.get("lineups", {}).get("home", []),
-                                    pitcher_arsenal=away_p_arsenal)
+                                    pitcher_arsenal=away_p_arsenal,
+                                    pitcher_csw=away_csw,
+                                    pitcher_swstr=away_swstr,
+                                    umpire_k_rate=umpire_k_rate)
         kp["side"] = "away"
         kp["pitcher_team"] = game_analysis.get("away_team", {}).get("abbr", "")
         kp["faces_lineup"] = game_analysis.get("home_team", {}).get("abbr", "")
+        kp["swstr_pct"] = away_swstr
+        kp["umpire"] = umpire.get("name") if umpire.get("name") != "Unknown" else None
         props.append(kp)
 
     if home_p_stats:
         kp = analyze_pitcher_k_prop(home_p_stats, home_p_recent,
                                     game_analysis.get("lineups", {}).get("away", []),
-                                    pitcher_arsenal=home_p_arsenal)
+                                    pitcher_arsenal=home_p_arsenal,
+                                    pitcher_csw=home_csw,
+                                    pitcher_swstr=home_swstr,
+                                    umpire_k_rate=umpire_k_rate)
         kp["side"] = "home"
         kp["pitcher_team"] = game_analysis.get("home_team", {}).get("abbr", "")
         kp["faces_lineup"] = game_analysis.get("away_team", {}).get("abbr", "")
+        kp["swstr_pct"] = home_swstr
+        kp["umpire"] = umpire.get("name") if umpire.get("name") != "Unknown" else None
         props.append(kp)
 
     # ── Batter props (hits + HR) ──

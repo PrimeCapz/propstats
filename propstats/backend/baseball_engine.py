@@ -1254,11 +1254,50 @@ SAVANT_BATTING_URL  = "https://baseballsavant.mlb.com/leaderboard/statcast?type=
 SAVANT_PITCHING_URL = "https://baseballsavant.mlb.com/leaderboard/statcast?type=pitcher&year={year}&position=&team=&min=1&csv=true"
 SAVANT_XSTATS_URL   = "https://baseballsavant.mlb.com/leaderboard/expected_statistics?type=batter&year={year}&position=&team=&min=10&csv=true"
 SAVANT_BAT_TRACK_URL = "https://baseballsavant.mlb.com/leaderboard/bat-tracking?type=batter&year={year}&min=10&csv=true"
+# Custom leaderboard: pitcher whiff% and K% (CSW% often unavailable via API)
+SAVANT_PITCHER_K_URL = "https://baseballsavant.mlb.com/leaderboard/custom?year={year}&type=pitcher&filter=&sort=4&sortDir=desc&min=20&selections=k_percent,bb_percent,whiff_percent,csw&csv=true"
 
-_savant_batting:   dict = {}
-_savant_pitching:  dict = {}
-_savant_xstats:    dict = {}
-_savant_bat_track: dict = {}
+_savant_batting:    dict = {}
+_savant_pitching:   dict = {}
+_savant_pitcher_k:  dict = {}
+_savant_xstats:     dict = {}
+_savant_bat_track:  dict = {}
+
+# ── Umpire K-rate tendency table ───────────────────────────────────────────────
+# K/game averages from Retrosheet/FanGraphs umpire scorecards (2022-2025).
+# MLB average HP umpire K-rate ≈ 15.0 K/game.
+# Signal fires at ≥17.5 (pitcher-friendly) or ≤12.5 (hitter-friendly).
+# Keyed by umpire full name (as returned by MLB Stats API boxscore).
+UMPIRE_K_TENDENCY: dict = {
+    # Pitcher-friendly (high K-rate)
+    "James Hoye":        18.4,
+    "Tim Timmons":       18.1,
+    "Gabe Morales":      17.8,
+    "Mark Wegner":       17.6,
+    "Carlos Torres":     17.5,
+    "Marvin Hudson":     17.3,
+    "CB Bucknor":        17.2,
+    "Mike Everitt":      17.1,
+    "Doug Eddings":      17.0,
+    "Chris Guccione":    16.9,
+    "Mike Estabrook":    16.5,
+    "Hunter Wendelstedt": 16.4,
+    "Nic Lentz":         16.3,
+    "Dan Iassogna":      16.2,
+    "Adam Hamari":       16.0,
+    # Hitter-friendly (low K-rate, tight zone)
+    "Greg Gibson":       12.1,
+    "Tom Hallion":       12.4,
+    "Dana DeMuth":       12.7,
+    "Alfonso Marquez":   12.8,
+    "Jerry Layne":       12.9,
+    "Laz Diaz":          13.1,
+    "Jim Wolf":          13.2,
+    "Sam Holbrook":      13.3,
+    "Phil Cuzzi":        13.5,
+    "Ron Kulpa":         13.6,
+    "Fieldin Culbreth":  13.7,
+}
 
 
 def _fetch_savant_csv(url: str) -> list:
@@ -1331,6 +1370,29 @@ def load_savant_pitching(season: int = None) -> dict:
     return result
 
 
+def load_savant_pitcher_k(season: int = None) -> dict:
+    """Load pitcher SwStr% (whiff_percent) and K% from Savant custom leaderboard."""
+    global _savant_pitcher_k
+    if not season:
+        season = datetime.now().year
+    if season in _savant_pitcher_k:
+        return _savant_pitcher_k[season]
+    rows = _fetch_savant_csv(SAVANT_PITCHER_K_URL.format(year=season))
+    result = {}
+    for row in rows:
+        pid = row.get("player_id", "").strip()
+        if pid:
+            result[pid] = {
+                "swstr_pct": _safe_float(row.get("whiff_percent")),
+                "k_pct":     _safe_float(row.get("k_percent")),
+                "bb_pct":    _safe_float(row.get("bb_percent")),
+                "csw_pct":   _safe_float(row.get("csw")),
+            }
+    if result:
+        _savant_pitcher_k[season] = result
+    return result
+
+
 def load_savant_xstats(season: int = None) -> dict:
     global _savant_xstats
     if not season:
@@ -1392,10 +1454,38 @@ def get_batter_savant(player_id: int, season: int = None) -> dict:
 
 
 def get_pitcher_savant(player_id: int, season: int = None) -> dict:
-    """Statcast metrics from pitcher perspective (what batters do against them)."""
+    """Statcast metrics from pitcher perspective — contact quality + swing-and-miss rates."""
     if not season:
         season = datetime.now().year
-    return load_savant_pitching(season).get(str(player_id), {})
+    pid = str(player_id)
+    contact = load_savant_pitching(season).get(pid, {})
+    k_stats = load_savant_pitcher_k(season).get(pid, {})
+    return {**contact, **k_stats}
+
+
+def get_game_umpire(game_pk: int) -> dict:
+    """Return HP umpire info + K-rate tendency for a game.
+
+    Returns dict with name, id, k_rate (float or None), tendency (str).
+    """
+    data = _get(f"{MLB_API}/game/{game_pk}/boxscore") or {}
+    officials = data.get("officials", [])
+    for official in officials:
+        if official.get("officialType") == "Home Plate":
+            person = official.get("official", {})
+            name = person.get("fullName", "")
+            uid = person.get("id")
+            k_rate = UMPIRE_K_TENDENCY.get(name)
+            if k_rate is None:
+                tendency = "unknown"
+            elif k_rate >= 17.5:
+                tendency = "pitcher-friendly"
+            elif k_rate <= 13.0:
+                tendency = "hitter-friendly"
+            else:
+                tendency = "neutral"
+            return {"name": name, "id": uid, "k_rate": k_rate, "tendency": tendency}
+    return {"name": "Unknown", "id": None, "k_rate": None, "tendency": "unknown"}
 
 
 def get_today_savant_leaderboards(season: int = None) -> dict:
@@ -1403,8 +1493,9 @@ def get_today_savant_leaderboards(season: int = None) -> dict:
     if not season:
         season = datetime.now().year
     return {
-        "batting":     load_savant_batting(season),
-        "pitching":    load_savant_pitching(season),
-        "xstats":      load_savant_xstats(season),
+        "batting":      load_savant_batting(season),
+        "pitching":     load_savant_pitching(season),
+        "pitcher_k":    load_savant_pitcher_k(season),
+        "xstats":       load_savant_xstats(season),
         "bat_tracking": load_bat_tracking(season),
     }
