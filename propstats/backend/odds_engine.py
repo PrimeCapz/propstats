@@ -300,11 +300,34 @@ def analyze_pitcher_k_prop(pitcher_stats: dict, recent_starts: list,
         elif k_stdev >= 3.5 and clean_stdev < 3.5:
             notes.append(f"K variance normalizes when low-pitch outliers removed (clean stdev {clean_stdev:.1f})")
 
-    # ── ERA gate: high ERA blocks K OVER ─────────────────────────────────────
-    if era > 5.0:
-        score -= 2; notes.append(f"High ERA ({era:.2f}) — gets hit early, limits K ceiling")
-    elif era > 4.50:
-        score -= 1; notes.append(f"Elevated ERA ({era:.2f}) — early exit risk")
+    # ── Early exit gate: replaces ERA gate (ERA ≠ K rate; avg IP predicts exit risk) ──
+    # ERA penalized high-ERA pitchers like Singer/Lorenzen who still strikeout batters.
+    # avg_ip directly measures whether the pitcher will last long enough to accumulate Ks.
+    if avg_ip < 4.0:
+        force_neutral = True
+        notes.append(f"Avg IP {avg_ip:.1f} — too short for K prop reliability, calling NEUTRAL")
+    elif avg_ip < 5.0:
+        score -= 1
+        notes.append(f"Short avg IP ({avg_ip:.1f}) — early exit risk, K ceiling reduced")
+
+    # ── Computed FIP: note only, not scored (FIP uses Ks in formula — circular for K props) ──
+    # Still useful as a context note when FIP and ERA diverge significantly.
+    try:
+        ip_str = str(s.get("innings_pitched", "0.0") or "0.0")
+        ip_parts = ip_str.split(".")
+        ip_float = int(ip_parts[0]) + (int(ip_parts[1]) / 3 if len(ip_parts) > 1 else 0)
+        hr_s = int(s.get("home_runs", 0) or 0)
+        bb_s = int(s.get("walks", 0) or 0)
+        k_s  = int(s.get("strikeouts", 0) or 0)
+        fip_computed = round((13 * hr_s + 3 * bb_s - 2 * k_s) / ip_float + 3.10, 2) if ip_float >= 10 else None
+        if fip_computed and era > 0:
+            era_fip_gap = round(era - fip_computed, 2)
+            if era_fip_gap >= 1.20 and fip_computed <= 4.50:
+                notes.append(f"ERA ({era:.2f}) >> FIP ({fip_computed}) — ERA inflated by defense/luck, K ability intact")
+            elif era_fip_gap <= -1.00 and era <= 3.50:
+                notes.append(f"FIP ({fip_computed}) >> ERA ({era:.2f}) — ERA flatters, true K/BB profile weaker")
+    except Exception:
+        fip_computed = None
 
     # ── PRIMARY: Avg K per recent start ──────────────────────────────────────
     if avg_k_per_start >= 9:
@@ -878,8 +901,11 @@ def analyze_nrfi_prop(away_pitcher_stats: dict, home_pitcher_stats: dict,
     def _fi_no_run_prob(season_era: float, park_run: float) -> float:
         # First-inning ERA ≈ season ERA × 1.05 — top of lineup bats first, scoring
         # premium vs average innings (~12% higher run rate in inning 1 empirically).
-        # Previous 0.85 multiplier was incorrect (it was suppressing lambda → over-calling NRFI).
-        fi_era = season_era * 1.05
+        # ERA capped at 7.0: pitchers with 8-11 ERA get knocked around in innings 3-5,
+        # but often open cleanly in the 1st before the lineup adjusts. Extreme ERAs
+        # (10+ like today's Gusto / Lorenzen) were over-driving YRFI confidence.
+        effective_era = min(season_era, 7.0)
+        fi_era = effective_era * 1.05
         # Park adjustment — softer for single inning
         fi_era_adj = fi_era * (1.0 + (park_run - 1.0) * 0.40)
         # Expected runs in 1 IP via Poisson: lambda = ERA / 9
@@ -914,8 +940,10 @@ def analyze_nrfi_prop(away_pitcher_stats: dict, home_pitcher_stats: dict,
     p_nrfi = round(p_no_away_score * p_no_home_score, 3)
     p_yrfi = round(1.0 - p_nrfi, 3)
 
-    # Tightened thresholds — NRFI requires ≥65% confidence, YRFI ≤40%
-    lean = "NRFI" if p_nrfi >= 0.65 else "YRFI" if p_nrfi <= 0.40 else "NEUTRAL"
+    # YRFI tightened from ≤40% to ≤35%: June 10 showed TEX@KC (37%) and other
+    # marginal calls misfiring. Extreme-ERA pitchers also capped at 7.0 to prevent
+    # over-confident YRFI on single-bad-pitcher games (Gusto 10.80, Lorenzen 8.01 both missed).
+    lean = "NRFI" if p_nrfi >= 0.65 else "YRFI" if p_nrfi <= 0.35 else "NEUTRAL"
     confidence = "Strong" if abs(p_nrfi - 0.50) >= 0.14 else "Lean" if abs(p_nrfi - 0.50) >= 0.08 else "Slight"
 
     notes = [
