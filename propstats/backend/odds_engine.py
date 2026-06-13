@@ -143,6 +143,7 @@ def get_batter_last_n(batter_id: int, season: int = None, n: int = 5, as_of_date
                 "h": stat.get("hits", 0),
                 "hr": stat.get("homeRuns", 0),
                 "rbi": stat.get("rbi", 0),
+                "r": stat.get("runs", 0),
                 "bb": stat.get("baseOnBalls", 0),
                 "k": stat.get("strikeOuts", 0),
                 "avg": stat.get("avg", ".000"),
@@ -787,6 +788,276 @@ def analyze_batter_hr_prop(batter_stats: dict, recent_games: list,
     }
 
 
+def analyze_hrrbi_prop(batter_stats: dict, recent_games: list,
+                       pitcher_stats: dict, h2h: dict,
+                       park_factors: dict, weather: dict,
+                       line: float = 1.5) -> dict:
+    """
+    H + R + RBI combined prop — typical lines 1.5 / 2.5.
+    Signals: multi-hit rate, RBI pace, run-scoring rate, order position.
+    """
+    s    = batter_stats.get("stats", {})
+    pa   = s.get("pa", 0) or 1
+    gp   = max(pa / 3.9, 1)   # estimate games played from PA
+
+    hits_pg = s.get("hits", 0) / gp
+    r_pg    = s.get("runs", 0) / gp
+    rbi_pg  = s.get("rbi", 0) / gp
+    season_hrrbi_pg = hits_pg + r_pg + rbi_pg
+
+    # L5 H+R+RBI
+    l5_hrrbi = [g.get("h",0) + g.get("r",0) + g.get("rbi",0) for g in recent_games[:5]]
+    l5_avg   = sum(l5_hrrbi) / len(l5_hrrbi) if l5_hrrbi else 0
+    l5_over  = sum(1 for x in l5_hrrbi if x >= line)  # games clearing the line
+
+    # Pitcher walk rate inflates BB (indirect run scorer)
+    p_stats  = pitcher_stats.get("stats", {}) if pitcher_stats else {}
+    p_era    = float(p_stats.get("era", "4.50") or "4.50")
+    p_bb9    = float(p_stats.get("bb9", "3.0")  or "3.0")
+    p_hr9    = float(p_stats.get("hr9", "1.0")  or "1.0")
+    p_baa    = float(p_stats.get("avg", ".250") or ".250")
+
+    park_run = park_factors.get("run", 1.0)
+    park_hr  = park_factors.get("hr",  1.0)
+
+    # H2H RBI/R history
+    career   = (h2h or {}).get("career_summary", {})
+    h2h_pa   = career.get("pa", 0)
+    h2h_rbi  = career.get("rbi", 0)
+    h2h_conf = min(h2h_pa / 30.0, 1.0)
+
+    score  = 0
+    notes  = []
+
+    # 1. Season pace
+    if season_hrrbi_pg >= line + 1.0:
+        score += 2; notes.append(f"Season pace {season_hrrbi_pg:.2f} H+R+RBI/game — comfortably clears line")
+    elif season_hrrbi_pg >= line + 0.25:
+        score += 1; notes.append(f"Season pace {season_hrrbi_pg:.2f} H+R+RBI/game — above line")
+    elif season_hrrbi_pg < line - 0.5:
+        score -= 2; notes.append(f"Season pace {season_hrrbi_pg:.2f} H+R+RBI/game — below line")
+    elif season_hrrbi_pg < line - 0.1:
+        score -= 1; notes.append(f"Season pace {season_hrrbi_pg:.2f} H+R+RBI/game — borderline")
+
+    # 2. Recent form
+    if l5_avg >= line + 1.5:
+        score += 2; notes.append(f"Scorching L5: avg {l5_avg:.1f} H+R+RBI/game  {l5_hrrbi}")
+    elif l5_avg >= line + 0.5:
+        score += 1; notes.append(f"Hot L5: avg {l5_avg:.1f} H+R+RBI/game  {l5_hrrbi}")
+    elif l5_avg < line - 1.0:
+        score -= 2; notes.append(f"Ice cold L5: avg {l5_avg:.1f} H+R+RBI/game  {l5_hrrbi}")
+    elif l5_avg < line - 0.4:
+        score -= 1; notes.append(f"Cool L5: avg {l5_avg:.1f} H+R+RBI/game  {l5_hrrbi}")
+
+    # 3. Line-clearing consistency
+    if l5_over >= 4:
+        score += 1; notes.append(f"Cleared {line} H+R+RBI in {l5_over}/5 recent games")
+    elif l5_over <= 1 and len(l5_hrrbi) >= 4:
+        score -= 1; notes.append(f"Only cleared {line} H+R+RBI in {l5_over}/5 recent games")
+
+    # 4. Hittable pitcher
+    if p_era >= 5.00:
+        score += 1; notes.append(f"High-ERA pitcher ({p_era:.2f}) — run-scoring environment elevated")
+    elif p_era <= 2.80:
+        score -= 1; notes.append(f"Dominant starter (ERA {p_era:.2f}) — caps H+R+RBI ceiling")
+
+    if p_baa >= 0.275:
+        score += 1; notes.append(f"Pitcher allows high avg (.{int(p_baa*1000):03d} BAA) — baserunner traffic")
+
+    if p_bb9 >= 4.0:
+        score += 1; notes.append(f"Wild pitcher (BB/9={p_bb9:.1f}) — extra baserunners create R/RBI opportunities")
+
+    # 5. HR-prone pitcher / park boosts R+RBI
+    if p_hr9 >= 1.20 or park_hr >= 1.15:
+        score += 1; notes.append(f"HR-friendly matchup — HR carries 1H+1R+RBI in one swing")
+
+    # 6. Park run factor
+    if park_run >= 1.15:
+        score += 1; notes.append(f"Hitter's park (Run PF {park_run:.2f}) — inflates scoring environment")
+    elif park_run <= 0.88:
+        score -= 1; notes.append(f"Pitcher's park (Run PF {park_run:.2f}) — suppresses run production")
+
+    # 7. H2H RBI history
+    if h2h_pa >= 10 and h2h_conf >= 0.33:
+        h2h_rbi_pg = h2h_rbi / max(h2h_pa / 3.5, 1)
+        if h2h_rbi_pg >= 0.5:
+            score += 1; notes.append(f"H2H RBI rate ({h2h_rbi} RBI / {h2h_pa} PA) vs this pitcher")
+
+    lean = "OVER" if score >= 3 else "UNDER" if score <= -3 else "NEUTRAL"
+    conf = "Strong" if abs(score) >= 5 else "Lean" if abs(score) >= 3 else "Slight"
+
+    return {
+        "prop_type":        "H+R+RBI",
+        "batter":           batter_stats.get("name", ""),
+        "line":             line,
+        "lean":             lean,
+        "confidence":       conf,
+        "score":            score,
+        "season_hrrbi_pg":  round(season_hrrbi_pg, 2),
+        "l5_hrrbi":         l5_hrrbi,
+        "l5_avg_hrrbi":     round(l5_avg, 2),
+        "l5_over":          l5_over,
+        "hits_pg":          round(hits_pg, 2),
+        "r_pg":             round(r_pg, 2),
+        "rbi_pg":           round(rbi_pg, 2),
+        "notes":            notes,
+    }
+
+
+def analyze_fantasy_score_prop(batter_stats: dict, recent_games: list,
+                                pitcher_stats: dict, h2h: dict,
+                                park_factors: dict, weather: dict,
+                                line: float = 6.5) -> dict:
+    """
+    Fantasy score = H + R + RBI + BB + SB×2.
+    Typical lines: 5.5 / 6.5 / 7.5.
+    Weights match PrizePicks / Underdog Baseball scoring.
+    """
+    s   = batter_stats.get("stats", {})
+    pa  = s.get("pa", 0) or 1
+    gp  = max(pa / 3.9, 1)
+
+    h_pg  = s.get("hits", 0) / gp
+    r_pg  = s.get("runs", 0) / gp
+    rbi_g = s.get("rbi", 0) / gp
+    bb_pg = s.get("bb", 0) / gp
+    sb_pg = s.get("sb", 0) / gp
+
+    season_fs_pg = h_pg + r_pg + rbi_g + bb_pg + sb_pg * 2
+
+    obp = float(s.get("obp", ".300") or ".300")
+    slg = float(s.get("slg", ".400") or ".400")
+    ops = obp + slg
+
+    # L5 fantasy scores
+    l5_fs = []
+    for g in recent_games[:5]:
+        fs = g.get("h",0) + g.get("r",0) + g.get("rbi",0) + g.get("bb",0) + g.get("sb",0) * 2
+        l5_fs.append(fs)
+    l5_avg = sum(l5_fs) / len(l5_fs) if l5_fs else 0
+    l5_over = sum(1 for x in l5_fs if x >= line)
+
+    # Pitcher signals
+    p_stats = pitcher_stats.get("stats", {}) if pitcher_stats else {}
+    p_era   = float(p_stats.get("era", "4.50") or "4.50")
+    p_bb9   = float(p_stats.get("bb9", "3.0")  or "3.0")
+    p_hr9   = float(p_stats.get("hr9", "1.0")  or "1.0")
+    p_baa   = float(p_stats.get("avg", ".250") or ".250")
+
+    park_run = park_factors.get("run", 1.0)
+    park_hr  = park_factors.get("hr",  1.0)
+    wx_score = weather.get("impact", {}).get("score", 0) if weather.get("available") else 0
+
+    score  = 0
+    notes  = []
+
+    # Suggest auto-line based on season rate
+    if season_fs_pg >= 2.5:
+        suggested_line = 7.5
+    elif season_fs_pg >= 2.1:
+        suggested_line = 6.5
+    else:
+        suggested_line = 5.5
+
+    # 1. Season rate vs suggested line
+    gap = season_fs_pg - suggested_line
+    if gap >= 0.8:
+        score += 2; notes.append(f"Season fantasy rate {season_fs_pg:.2f} pts/g — well above {suggested_line} line")
+    elif gap >= 0.2:
+        score += 1; notes.append(f"Season fantasy rate {season_fs_pg:.2f} pts/g — above suggested line")
+    elif gap <= -0.8:
+        score -= 2; notes.append(f"Season fantasy rate {season_fs_pg:.2f} pts/g — well below {suggested_line} line")
+    elif gap <= -0.2:
+        score -= 1; notes.append(f"Season fantasy rate {season_fs_pg:.2f} pts/g — under suggested line")
+
+    # 2. Recent fantasy form
+    if l5_avg >= suggested_line + 2.0:
+        score += 3; notes.append(f"Elite recent fantasy form — L5 avg {l5_avg:.1f} pts  {l5_fs}")
+    elif l5_avg >= suggested_line + 1.0:
+        score += 2; notes.append(f"Hot recent fantasy form — L5 avg {l5_avg:.1f} pts  {l5_fs}")
+    elif l5_avg >= suggested_line:
+        score += 1; notes.append(f"Solid recent form — L5 avg {l5_avg:.1f} pts  {l5_fs}")
+    elif l5_avg < suggested_line - 2.0:
+        score -= 3; notes.append(f"Cold recent fantasy form — L5 avg {l5_avg:.1f} pts  {l5_fs}")
+    elif l5_avg < suggested_line - 1.0:
+        score -= 2; notes.append(f"Below-line recent form — L5 avg {l5_avg:.1f} pts  {l5_fs}")
+    elif l5_avg < suggested_line - 0.3:
+        score -= 1; notes.append(f"Slightly below line — L5 avg {l5_avg:.1f} pts  {l5_fs}")
+
+    # 3. Line-clearing consistency
+    if l5_over >= 4:
+        score += 1; notes.append(f"Cleared {suggested_line} fantasy pts in {l5_over}/5 recent games")
+    elif l5_over == 0 and len(l5_fs) >= 4:
+        score -= 2; notes.append(f"0/{len(l5_fs)} recent games clearing {suggested_line} — avoid OVER")
+
+    # 4. SB threat — bonus category worth 2 pts
+    if sb_pg >= 0.25:
+        score += 1; notes.append(f"Active SB threat ({s.get('sb',0)} SB, {sb_pg:.2f}/g) — +2 pts per steal")
+    elif sb_pg >= 0.12:
+        notes.append(f"Occasional SB ({s.get('sb',0)} SB, {sb_pg:.2f}/g) — modest fantasy boost")
+
+    # 5. OBP / walk rate — drives BB points
+    if obp >= 0.380:
+        score += 1; notes.append(f"Elite OBP ({obp:.3f}) — walks inflate fantasy score")
+    elif obp <= 0.280:
+        score -= 1; notes.append(f"Poor OBP ({obp:.3f}) — low BB floor")
+
+    # 6. Power (HR = H+R+RBI in one AB = +3 effective fantasy pts)
+    hr_pg = s.get("hr", 0) / gp
+    if hr_pg >= 0.065:
+        score += 1; notes.append(f"Power bat ({s.get('hr',0)} HR) — HR worth 3 effective pts")
+
+    # 7. Pitcher walk rate
+    if p_bb9 >= 4.5:
+        score += 1; notes.append(f"Wild pitcher (BB/9={p_bb9:.1f}) — free bases boost R+BB scoring")
+    elif p_bb9 <= 1.8:
+        score -= 1; notes.append(f"Pitcher walks nobody (BB/9={p_bb9:.1f}) — limits BB category")
+
+    # 8. Pitcher ERA / run environment
+    if p_era >= 5.50:
+        score += 1; notes.append(f"High-ERA pitcher ({p_era:.2f}) — elevated run-scoring environment")
+    elif p_era <= 2.50:
+        score -= 1; notes.append(f"Dominant starter (ERA {p_era:.2f}) — suppresses all fantasy categories")
+
+    # 9. Park + weather
+    if park_run >= 1.15:
+        score += 1; notes.append(f"Hitter's park (Run PF {park_run:.2f})")
+    elif park_run <= 0.88:
+        score -= 1; notes.append(f"Pitcher's park (Run PF {park_run:.2f})")
+
+    if wx_score >= 2.0:
+        score += 1; notes.append("Hot weather — inflates HR/runs/fantasy scoring")
+
+    lean = "OVER" if score >= 4 else "UNDER" if score <= -4 else "NEUTRAL"
+    conf = "Strong" if abs(score) >= 6 else "Lean" if abs(score) >= 4 else "Slight"
+
+    return {
+        "prop_type":        "Fantasy Score",
+        "batter":           batter_stats.get("name", ""),
+        "line":             suggested_line,
+        "lean":             lean,
+        "confidence":       conf,
+        "score":            score,
+        "season_fs_pg":     round(season_fs_pg, 2),
+        "l5_fs":            l5_fs,
+        "l5_avg_fs":        round(l5_avg, 2),
+        "l5_over":          l5_over,
+        "suggested_line":   suggested_line,
+        "breakdown": {
+            "h_pg":   round(h_pg, 2),
+            "r_pg":   round(r_pg, 2),
+            "rbi_pg": round(rbi_g, 2),
+            "bb_pg":  round(bb_pg, 2),
+            "sb_pg":  round(sb_pg, 2),
+        },
+        "obp":  s.get("obp", ".000"),
+        "slg":  s.get("slg", ".000"),
+        "ops":  s.get("ops", ".000"),
+        "sb_season": s.get("sb", 0),
+        "notes": notes,
+    }
+
+
 def analyze_total(away_pitcher: dict, home_pitcher: dict,
                   park_factors: dict, weather: dict,
                   game_odds: dict) -> dict:
@@ -1109,6 +1380,26 @@ def build_prop_sheet(game_analysis: dict, as_of_date: str = None) -> dict:
             hr_p["opposing_pitcher_id"] = pitcher_id
             if abs(hr_p["score"]) >= 2:
                 props.append(hr_p)
+
+            # H+R+RBI prop (1.5 line)
+            hrrbi_p = analyze_hrrbi_prop(batter_full, recent, pitcher_stats, h2h, park, weather, 1.5)
+            hrrbi_p["order"] = batter.get("order", 0)
+            hrrbi_p["batter_side"] = side_label
+            hrrbi_p["side"] = side_label
+            hrrbi_p["opposing_pitcher"] = opp_name
+            hrrbi_p["opposing_pitcher_id"] = pitcher_id
+            if hrrbi_p.get("lean") in ("OVER", "UNDER") or abs(hrrbi_p["score"]) >= 2:
+                props.append(hrrbi_p)
+
+            # Fantasy Score prop (5.5 / 6.5 / 7.5 line — auto-suggested)
+            fs_p = analyze_fantasy_score_prop(batter_full, recent, pitcher_stats, h2h, park, weather)
+            fs_p["order"] = batter.get("order", 0)
+            fs_p["batter_side"] = side_label
+            fs_p["side"] = side_label
+            fs_p["opposing_pitcher"] = opp_name
+            fs_p["opposing_pitcher_id"] = pitcher_id
+            if fs_p.get("lean") in ("OVER", "UNDER") or abs(fs_p["score"]) >= 2:
+                props.append(fs_p)
 
     if home_p_stats and home_p_id:
         process_batters(
