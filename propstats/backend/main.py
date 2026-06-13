@@ -50,6 +50,7 @@ from odds_engine import (
     calc_context_score,
     get_value_hr_picks,
     get_handedness_edge,
+    build_pitcher_vulnerability_preview,
 )
 from baseball_engine import (
     get_batter_savant,
@@ -633,6 +634,19 @@ def blast_alerts_today(date: str = Query(None)):
             analyses.append(a)
     alerts = get_blast_alerts(analyses)
     return {"alerts": alerts, "count": len(alerts)}
+
+
+@app.get("/baseball/today/pitcher-vulnerability")
+def pitcher_vulnerability_today(date: str = Query(None)):
+    """Tiered pitcher vulnerability preview — Tier 1 (bleeding), Tier 2 (vulnerable), Volume Aces, Leave Alone."""
+    games = get_today_games(date)
+    analyses = []
+    for g in games:
+        a = get_full_game_analysis(g["game_pk"])
+        if "error" not in a:
+            analyses.append(a)
+    preview = build_pitcher_vulnerability_preview(analyses)
+    return preview
 
 
 @app.get("/baseball/today/value-hr")

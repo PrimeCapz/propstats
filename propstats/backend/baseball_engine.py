@@ -235,11 +235,13 @@ def get_pitcher_season_stats(pitcher_id: int, season: int = None, as_of_date: st
 def get_pitcher_splits(pitcher_id: int, season: int = None) -> dict:
     if not season:
         season = datetime.now().year
+    # sitCodes=vl,vr unlocks vs-Left / vs-Right split data from the MLB Stats API
     data = _get(f"{MLB_API}/people/{pitcher_id}/stats", {
         "stats": "statSplits",
         "group": "pitching",
         "season": season,
         "sportId": 1,
+        "sitCodes": "vl,vr,h,a",
     })
     if not data:
         return {}
@@ -249,16 +251,26 @@ def get_pitcher_splits(pitcher_id: int, season: int = None) -> dict:
         for split in entry.get("splits", []):
             split_type = split.get("split", {}).get("description", "")
             stat = split.get("stat", {})
-            if split_type in ("vs. Left", "vs. Right", "Home", "Away"):
+            # Normalize: API returns "vs Left" / "vs Right" (no period)
+            # Map to canonical keys with period for backward compatibility
+            key_map = {
+                "vs Left": "vs. Left", "vs. Left": "vs. Left",
+                "vs Right": "vs. Right", "vs. Right": "vs. Right",
+                "Home Games": "Home", "Home": "Home",
+                "Away Games": "Away", "Away": "Away",
+            }
+            canonical = key_map.get(split_type)
+            if canonical:
+                split_type = canonical
                 splits[split_type] = {
-                    "era": stat.get("era", "-"),
-                    "avg": stat.get("avg", "-"),
-                    "ops": stat.get("ops", "-"),
+                    "era":  stat.get("era", "-"),
+                    "avg":  stat.get("avg", "-"),
+                    "ops":  stat.get("ops", "-"),
                     "whip": stat.get("whip", "-"),
-                    "k9": stat.get("strikeoutsPer9Inn", "-"),
-                    "bb9": stat.get("walksPer9Inn", "-"),
-                    "ip": stat.get("inningsPitched", "0.0"),
-                    "hr": stat.get("homeRuns", 0),
+                    "k9":   stat.get("strikeoutsPer9Inn", "-"),
+                    "bb9":  stat.get("walksPer9Inn", "-"),
+                    "ip":   stat.get("inningsPitched", "0.0"),
+                    "hr":   stat.get("homeRuns", 0),
                 }
     return splits
 

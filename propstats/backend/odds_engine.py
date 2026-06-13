@@ -576,6 +576,25 @@ def analyze_batter_hit_prop(batter_stats: dict, recent_games: list,
     elif platoon <= 0.93:
         score -= 1; notes.append(f"Same-hand matchup disadvantage ({batter_hand} vs {p_hand}HP)")
 
+    # ── TIER 1: Pitcher splits vs batter handedness ───────────────────────────
+    p_splits = pitcher_stats.get("splits", {}) if pitcher_stats else {}
+    split_key = "vs. Left" if batter_hand == "L" else "vs. Right"
+    split_d = p_splits.get(split_key, {})
+    if split_d:
+        try:
+            split_ip  = float(split_d.get("ip", "0.0") or "0.0")
+            split_ops = float(split_d.get("ops", ".000") or ".000")
+            if split_ip >= 20 and split_ops > 0:
+                hand_lbl = "LHB" if batter_hand == "L" else "RHB"
+                if split_ops >= 0.810:
+                    score += 2; notes.append(f"Pitcher bleeds vs {hand_lbl} (.{int(split_ops*1000)} OPS allowed)")
+                elif split_ops >= 0.750:
+                    score += 1; notes.append(f"Pitcher hittable vs {hand_lbl} (.{int(split_ops*1000)} OPS allowed)")
+                elif split_ops <= 0.580:
+                    score -= 1; notes.append(f"Pitcher dominates {hand_lbl} (.{int(split_ops*1000)} OPS allowed)")
+        except Exception:
+            pass
+
     # ── TIER 1: Line Drive % ──────────────────────────────────────────────────
     ld_pct = _f(s.get("ld_pct", 0))
     bip = int(s.get("balls_in_play", 0) or 0)
@@ -744,6 +763,25 @@ def analyze_batter_hr_prop(batter_stats: dict, recent_games: list,
         score += 1; notes.append(f"Pitcher slightly HR-prone ({p_hr9} HR/9)")
     elif p_hr9 <= 0.60:
         score -= 1; notes.append(f"Pitcher suppresses HRs ({p_hr9} HR/9)")
+
+    # Pitcher splits HR rate vs batter handedness
+    batter_hand = batter_stats.get("bats", "R")
+    p_splits = pitcher_stats.get("splits", {}) if pitcher_stats else {}
+    split_key = "vs. Left" if batter_hand == "L" else "vs. Right"
+    split_d = p_splits.get(split_key, {})
+    if split_d:
+        try:
+            split_ip = float(split_d.get("ip", "0.0") or "0.0")
+            split_hr = split_d.get("hr", 0)
+            if split_ip >= 20 and split_hr > 0:
+                hr_per_100 = (split_hr / (split_ip * 4.3)) * 100
+                hand_lbl = "LHB" if batter_hand == "L" else "RHB"
+                if hr_per_100 >= 4.0:
+                    score += 2; notes.append(f"Pitcher allows {hr_per_100:.1f} HR/100 to {hand_lbl}")
+                elif hr_per_100 >= 2.8:
+                    score += 1; notes.append(f"Pitcher HR-prone vs {hand_lbl} ({hr_per_100:.1f} HR/100)")
+        except Exception:
+            pass
 
     if park_hr >= 1.15:
         score += 2; notes.append(f"Hitter's park (HR PF: {park_hr:.2f})")
@@ -1482,8 +1520,11 @@ def calc_pitcher_vulnerability(savant: dict, pitcher_stats: dict) -> float:
     barrel_ag = savant.get("barrel_pct_against", 0) or 0
     hard_ag   = savant.get("hard_hit_pct_against", 0) or 0
     ev_ag     = savant.get("exit_velo_against", 0) or 0
-    hr9       = float(pitcher_stats.get("stats", {}).get("hr9", "1.0") or "1.0") if pitcher_stats else 1.0
-    era       = float(pitcher_stats.get("stats", {}).get("era", "4.50") or "4.50") if pitcher_stats else 4.50
+    def _fv(v, default):
+        try: return float(v) if v and str(v) not in ("-", "-.--", "") else default
+        except Exception: return default
+    hr9 = _fv(pitcher_stats.get("stats", {}).get("hr9"), 1.0) if pitcher_stats else 1.0
+    era = _fv(pitcher_stats.get("stats", {}).get("era"), 4.50) if pitcher_stats else 4.50
 
     # Barrel% against (weight 35%)
     if barrel_ag > 0:
@@ -2074,3 +2115,185 @@ def build_hr_matchup_table(game_analysis: dict) -> list:
 
     rows.sort(key=lambda x: x["hr_prob_pct"], reverse=True)
     return rows
+
+
+def build_pitcher_vulnerability_preview(game_analyses: list) -> dict:
+    """
+    Tiered pitcher vulnerability report across today's games.
+
+    TIER_1  (bleeding):  ERA ≥ 5.0 or hittable from both sides
+    TIER_2  (vulnerable): one-sided weak spot or moderate ERA
+    VOLUME_ACE:           elite K-rate but some HR/contact vulnerability
+    LEAVE_ALONE:          shutdown — avoid targeting
+    """
+    from baseball_engine import get_pitcher_savant
+
+    tier1     = []
+    tier2     = []
+    vol_aces  = []
+    leave     = []
+    seen      = set()
+
+    def _sp(val, default=0.0):
+        try:
+            return float(str(val).replace("-", "0") or default)
+        except Exception:
+            return default
+
+    for analysis in game_analyses:
+        if "error" in analysis:
+            continue
+        pitchers  = analysis.get("pitchers", {})
+        matchups  = analysis.get("matchups", {})
+        season    = analysis.get("season", datetime.now().year)
+        away_team = analysis.get("away_team", {})
+        home_team = analysis.get("home_team", {})
+        game_info = analysis.get("game", {})
+        game_time = game_info.get("game_time_local", game_info.get("datetime", ""))
+
+        for side, opp_batters_key, this_team, opp_team in [
+            ("home", "away_batters_vs_home_pitcher", home_team, away_team),
+            ("away", "home_batters_vs_away_pitcher", away_team, home_team),
+        ]:
+            p_info   = pitchers.get(side, {})
+            # p_info["stats"] is the pitcher profile object; actual season stats
+            # are nested one level deeper at p_info["stats"]["stats"]
+            p_profile = p_info.get("stats", {})
+            p_stats   = p_profile.get("stats", {})
+            p_splits  = p_info.get("splits", {})
+            p_recent  = p_info.get("recent_starts", [])
+            p_id      = p_info.get("info", {}).get("id")
+            p_name    = p_profile.get("name", "Unknown")
+            p_throws  = (p_profile.get("throws") or
+                         p_info.get("info", {}).get("throws") or "R").upper()
+
+            if not p_id or p_id in seen:
+                continue
+            seen.add(p_id)
+
+            era   = _sp(p_stats.get("era",  "4.50"), 4.50)
+            hr9   = _sp(p_stats.get("hr9",  "1.0"),  1.0)
+            k9    = _sp(p_stats.get("k9",   "8.0"),  8.0)
+            whip  = _sp(p_stats.get("whip", "1.30"), 1.30)
+            ip_s  = _sp(p_stats.get("innings_pitched", "0.0"), 0.0)
+            gs    = p_stats.get("games_started", 0) or 0
+            avg_ip = round(ip_s / max(gs, 1), 2)
+
+            p_savant  = get_pitcher_savant(p_id, season)
+            barrel_ag = p_savant.get("barrel_pct_against", 0) or 0
+            hard_ag   = p_savant.get("hard_hit_pct_against", 0) or 0
+            vuln      = calc_pitcher_vulnerability(p_savant, {"stats": p_stats})
+
+            # L3 ERA from recent starts
+            l3 = p_recent[:3]
+            l3_era = None
+            if l3:
+                l3_er = sum(s.get("earned_runs", 0) for s in l3)
+                l3_ip = sum(_sp(s.get("innings_pitched", "0.0"), 0.0) for s in l3)
+                l3_era = round((l3_er * 9) / l3_ip, 2) if l3_ip > 0 else None
+
+            # LHB / RHB splits
+            def _split(sp):
+                if not sp:
+                    return None
+                ip_ = _sp(sp.get("ip", "0.0"), 0.0)
+                if ip_ < 5:
+                    return None
+                hr_ = sp.get("hr", 0)
+                pa_approx = ip_ * 4.3
+                return {
+                    "era":       round(_sp(sp.get("era", "0.00"), 0.0), 2),
+                    "ops":       round(_sp(sp.get("ops", ".000"), 0.0), 3),
+                    "avg":       sp.get("avg", "---"),
+                    "hr_per_100": round((hr_ / max(pa_approx, 1)) * 100, 1),
+                    "ip":        ip_,
+                }
+
+            vs_lhb = _split(p_splits.get("vs. Left"))
+            vs_rhb = _split(p_splits.get("vs. Right"))
+
+            lhb_ops = vs_lhb["ops"] if vs_lhb else era / 9.0
+            rhb_ops = vs_rhb["ops"] if vs_rhb else era / 9.0
+            lhb_era_ = vs_lhb["era"] if vs_lhb else era
+            rhb_era_ = vs_rhb["era"] if vs_rhb else era
+
+            if lhb_ops >= 0.790 and rhb_ops >= 0.790:
+                weak_side = "BOTH"
+            elif vs_lhb and vs_rhb and (lhb_ops > rhb_ops + 0.055 or lhb_era_ > rhb_era_ + 0.80):
+                weak_side = "LHB"
+            elif vs_lhb and vs_rhb and (rhb_ops > lhb_ops + 0.055 or rhb_era_ > lhb_era_ + 0.80):
+                weak_side = "RHB"
+            elif not vs_lhb and not vs_rhb:
+                weak_side = "NEITHER"
+            else:
+                weak_side = "NEITHER"
+
+            # Attack bats — opposing lineup matching pitcher's weak side
+            attack_bats = []
+            for item in matchups.get(opp_batters_key, [])[:9]:
+                b = item.get("batter", {})
+                b_hand  = b.get("bats", "R")
+                matches = (
+                    weak_side == "BOTH" or
+                    (weak_side == "LHB" and b_hand in ("L", "S")) or
+                    (weak_side == "RHB" and b_hand in ("R", "S"))
+                )
+                if matches:
+                    attack_bats.append({
+                        "name":  b.get("name", "?"),
+                        "order": b.get("order", 0),
+                        "hand":  b_hand,
+                    })
+
+            rec = {
+                "pitcher":       p_name,
+                "pitcher_id":    p_id,
+                "throws":        p_throws,
+                "team":          this_team.get("name", "?"),
+                "opp_team":      opp_team.get("name", "?"),
+                "game_time":     game_time,
+                "era":           era,
+                "hr9":           hr9,
+                "k9":            round(k9, 1),
+                "whip":          whip,
+                "avg_ip":        avg_ip,
+                "vuln_score":    vuln,
+                "barrel_pct_ag": round(barrel_ag, 1),
+                "hard_hit_ag":   round(hard_ag, 1),
+                "l3_era":        l3_era,
+                "vs_lhb":        vs_lhb,
+                "vs_rhb":        vs_rhb,
+                "weak_side":     weak_side,
+                "attack_bats":   attack_bats,
+            }
+
+            if era >= 5.0 or (era >= 4.2 and vuln >= 0.62) or weak_side == "BOTH":
+                rec["tier"] = "TIER_1"
+                tier1.append(rec)
+            elif era >= 4.0 or (era >= 3.7 and vuln >= 0.48) or (weak_side in ("LHB","RHB") and era >= 3.5):
+                rec["tier"] = "TIER_2"
+                tier2.append(rec)
+            elif k9 >= 9.0 and era <= 3.8 and (hr9 >= 1.05 or barrel_ag >= 9.0):
+                rec["tier"] = "VOLUME_ACE"
+                vol_aces.append(rec)
+            elif era <= 3.5 and vuln < 0.42:
+                rec["tier"] = "LEAVE_ALONE"
+                leave.append(rec)
+            else:
+                rec["tier"] = "NEUTRAL"
+
+    for lst in (tier1, tier2):
+        lst.sort(key=lambda x: x["era"], reverse=True)
+
+    return {
+        "tier1_bleeding":   tier1,
+        "tier2_vulnerable": tier2,
+        "volume_aces":      vol_aces,
+        "leave_alone":      leave,
+        "counts": {
+            "tier1":        len(tier1),
+            "tier2":        len(tier2),
+            "volume_aces":  len(vol_aces),
+            "leave_alone":  len(leave),
+        },
+    }
