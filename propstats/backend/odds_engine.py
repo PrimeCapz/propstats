@@ -411,8 +411,14 @@ def analyze_pitcher_k_prop(pitcher_stats: dict, recent_starts: list,
     if force_neutral:
         label = "NEUTRAL"
     else:
-        label = "OVER" if score >= 3 else "UNDER" if score <= -2 else "NEUTRAL"
+        label = "OVER" if score >= 3 else "UNDER" if score <= -3 else "NEUTRAL"
     confidence = "Strong" if abs(score) >= 4 else "Lean" if abs(score) >= 2 else "Slight"
+
+    # K/9 gate: pitchers with K/9 ≥ 6.0 have real K ability — suppress UNDER
+    # even when recent starts look shaky (injury return, low pitch counts, etc.)
+    if label == "UNDER" and k9 >= 6.0:
+        label = "NEUTRAL"
+        notes.append(f"K/9 {k9:.1f} — K UNDER suppressed (pitcher has legitimate K rate)")
 
     return {
         "prop_type": "Strikeouts",
@@ -1375,6 +1381,7 @@ def build_prop_sheet(game_analysis: dict, as_of_date: str = None) -> dict:
         # side_label = team side of the BATTER ("home"/"away"), NOT which pitcher they face.
         # Home batters face the away pitcher; away batters face the home pitcher.
         opp_name = pitcher_stats.get("name", "") if pitcher_stats else ""
+        hr_per_pitcher = {}   # cap HR props at 3 per opposing pitcher
         for item in batter_list[:9]:
             batter = item.get("batter", {})
             bid = batter.get("player_id")
@@ -1409,15 +1416,17 @@ def build_prop_sheet(game_analysis: dict, as_of_date: str = None) -> dict:
             ):
                 props.append(hit_p)
 
-            # HR prop
+            # HR prop — cap at 3 per opposing pitcher to avoid over-stacking
             hr_p = analyze_batter_hr_prop(batter_full, recent, pitcher_stats, h2h, park, weather, 0.5)
             hr_p["order"] = batter.get("order", 0)
             hr_p["batter_side"] = side_label
             hr_p["side"] = side_label
             hr_p["opposing_pitcher"] = opp_name
             hr_p["opposing_pitcher_id"] = pitcher_id
-            if abs(hr_p["score"]) >= 2:
+            p_hr_count = hr_per_pitcher.get(pitcher_id, 0)
+            if abs(hr_p["score"]) >= 2 and p_hr_count < 3:
                 props.append(hr_p)
+                hr_per_pitcher[pitcher_id] = p_hr_count + 1
 
             # H+R+RBI prop (1.5 line)
             hrrbi_p = analyze_hrrbi_prop(batter_full, recent, pitcher_stats, h2h, park, weather, 1.5)
