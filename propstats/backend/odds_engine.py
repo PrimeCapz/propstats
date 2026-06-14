@@ -391,19 +391,25 @@ def analyze_pitcher_k_prop(pitcher_stats: dict, recent_starts: list,
             score -= 1
             notes.append(f"Hitter-friendly HP umpire ({umpire_k_rate:.1f} K/game avg) — tight zone, limits K ceiling")
 
-    # ── Tier 2: Opposing lineup whiff rate ────────────────────────────────────
+    # ── Tier 2: Opposing lineup K% (strikeout rate per PA) ───────────────────
+    # Replaces broken whiff_rate check — lineups now carry so/pa from seasonStats
     if opposing_lineup:
-        lineup_whiff_rates = []
+        lineup_k_rates = []
         for b in opposing_lineup:
-            wr = b.get("stats", {}).get("whiff_rate", 0) if isinstance(b, dict) else 0
-            if wr and wr > 0:
-                lineup_whiff_rates.append(wr)
-        if lineup_whiff_rates:
-            avg_lineup_whiff = sum(lineup_whiff_rates) / len(lineup_whiff_rates)
-            if avg_lineup_whiff >= 30:
-                score += 1; notes.append(f"Swing-happy lineup (avg whiff {avg_lineup_whiff:.1f}%)")
-            elif avg_lineup_whiff <= 20:
-                score -= 1; notes.append(f"Contact lineup (avg whiff {avg_lineup_whiff:.1f}%)")
+            b_so = b.get("so", 0)
+            b_pa = b.get("pa", 0)
+            if b_pa >= 50:
+                lineup_k_rates.append(b_so / b_pa * 100)
+        if lineup_k_rates:
+            avg_lineup_k_pct = sum(lineup_k_rates) / len(lineup_k_rates)
+            if avg_lineup_k_pct >= 26:
+                score += 2; notes.append(f"K-prone lineup ({avg_lineup_k_pct:.1f}% K rate) — K OVER boost")
+            elif avg_lineup_k_pct >= 22:
+                score += 1; notes.append(f"Above-avg K lineup ({avg_lineup_k_pct:.1f}% K rate)")
+            elif avg_lineup_k_pct <= 16:
+                score -= 2; notes.append(f"Contact lineup ({avg_lineup_k_pct:.1f}% K rate) — K OVER risk")
+            elif avg_lineup_k_pct <= 19:
+                score -= 1; notes.append(f"Below-avg K lineup ({avg_lineup_k_pct:.1f}% K rate)")
 
     suggested_line = round(avg_k_per_start - 0.5, 1) if avg_k_per_start > 0 else round((k9 / 9) * avg_ip - 0.5, 1)
     suggested_line = max(2.5, min(suggested_line, 12.5))
@@ -411,7 +417,7 @@ def analyze_pitcher_k_prop(pitcher_stats: dict, recent_starts: list,
     if force_neutral:
         label = "NEUTRAL"
     else:
-        label = "OVER" if score >= 3 else "UNDER" if score <= -3 else "NEUTRAL"
+        label = "OVER" if score >= 4 else "UNDER" if score <= -3 else "NEUTRAL"
     confidence = "Strong" if abs(score) >= 4 else "Lean" if abs(score) >= 2 else "Slight"
 
     # K/9 gate: pitchers with K/9 ≥ 6.0 have real K ability — suppress UNDER
@@ -709,9 +715,9 @@ def analyze_batter_hit_prop(batter_stats: dict, recent_games: list,
     elif park_hit <= 0.78 or park_run <= 0.78:
         score -= 2; notes.append(f"Strong pitcher's park (Hit PF {park_hit:.2f} / Run PF {park_run:.2f})")
 
-    # UNDER threshold raised to -3: base rate of 0.5 hit line is too high for weak signals.
-    # Even a .150 hitter gets 1+ hit 47% of the time in 4 AB — need strong conviction.
-    lean = "OVER" if score >= 5 else "UNDER" if score <= -3 else "NEUTRAL"
+    # UNDER threshold raised to -4: even cold hitters get 1+ hit ~40% of the time.
+    # Hit UNDERs at -3 threshold ran 38% — tightening to require stronger conviction.
+    lean = "OVER" if score >= 5 else "UNDER" if score <= -4 else "NEUTRAL"
     confidence = "Strong" if abs(score) >= 4 else "Lean" if abs(score) >= 2 else "Slight"
 
     return {
@@ -811,7 +817,9 @@ def analyze_batter_hr_prop(batter_stats: dict, recent_games: list,
     if recent_hr_total >= 3:
         score += 1; notes.append(f"{recent_hr_total} HR in last {len(recent_games)} games")
 
-    lean = "OVER" if score >= 3 else "UNDER" if score <= -2 else "NEUTRAL"
+    # HR OVER raised to 5: individual game HR rate is ~4-6% per AB — need stacked signals.
+    # HR OVERs ran 19% at threshold 3. Require more conviction before flagging.
+    lean = "OVER" if score >= 5 else "UNDER" if score <= -2 else "NEUTRAL"
     confidence = "Strong" if abs(score) >= 4 else "Lean" if abs(score) >= 2 else "Slight"
 
     return {
@@ -1424,7 +1432,7 @@ def build_prop_sheet(game_analysis: dict, as_of_date: str = None) -> dict:
             hr_p["opposing_pitcher"] = opp_name
             hr_p["opposing_pitcher_id"] = pitcher_id
             p_hr_count = hr_per_pitcher.get(pitcher_id, 0)
-            if abs(hr_p["score"]) >= 2 and p_hr_count < 3:
+            if abs(hr_p["score"]) >= 4 and p_hr_count < 3:
                 props.append(hr_p)
                 hr_per_pitcher[pitcher_id] = p_hr_count + 1
 

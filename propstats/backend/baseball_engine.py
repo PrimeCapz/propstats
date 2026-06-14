@@ -1131,6 +1131,8 @@ def _extract_lineup(team_data: dict) -> list:
             "ops": s.get("ops", ".000"),
             "hr": s.get("homeRuns", 0),
             "rbi": s.get("rbi", 0),
+            "so": s.get("strikeOuts", 0),
+            "pa": s.get("plateAppearances", 0),
         })
     return lineup
 
