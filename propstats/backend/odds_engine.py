@@ -1109,42 +1109,59 @@ def analyze_fantasy_score_prop(batter_stats: dict, recent_games: list,
     # Use the passed-in line (or caller can pass suggested_line explicitly)
     eval_line = line
 
-    # 1. Season rate vs actual line
+    # 1. Season rate vs actual line — primary anchor (most predictive signal)
     gap = season_fs_pg - eval_line
-    if gap >= 0.5:
-        score += 2; notes.append(f"Season fantasy rate {season_fs_pg:.2f} pts/g — above {eval_line} line")
+    if gap >= 1.0:
+        score += 3; notes.append(f"Season PP rate {season_fs_pg:.2f} pts/g — comfortably above {eval_line} line")
+    elif gap >= 0.5:
+        score += 2; notes.append(f"Season PP rate {season_fs_pg:.2f} pts/g — above {eval_line} line")
     elif gap >= 0.1:
-        score += 1; notes.append(f"Season fantasy rate {season_fs_pg:.2f} pts/g — at the {eval_line} line")
+        score += 1; notes.append(f"Season PP rate {season_fs_pg:.2f} pts/g — at the {eval_line} line")
+    elif gap <= -1.5:
+        score -= 3; notes.append(f"Season PP rate {season_fs_pg:.2f} pts/g — well below {eval_line} line")
     elif gap <= -0.8:
-        score -= 2; notes.append(f"Season fantasy rate {season_fs_pg:.2f} pts/g — well below {eval_line} line")
+        score -= 2; notes.append(f"Season PP rate {season_fs_pg:.2f} pts/g — below {eval_line} line")
     elif gap <= -0.2:
-        score -= 1; notes.append(f"Season fantasy rate {season_fs_pg:.2f} pts/g — under {eval_line} line")
+        score -= 1; notes.append(f"Season PP rate {season_fs_pg:.2f} pts/g — under {eval_line} line")
 
-    # 2. Recent fantasy form vs actual line
-    if l5_avg >= eval_line + 1.5:
-        score += 3; notes.append(f"Elite recent fantasy form — L5 avg {l5_avg:.1f} pts  {l5_fs}")
+    # 2. Recent form — secondary modifier (max ±2; season + matchup carry the call)
+    if l5_avg >= eval_line + 2.0:
+        score += 2; notes.append(f"Hot L5 — avg {l5_avg:.1f} PP pts  {l5_fs}")
     elif l5_avg >= eval_line + 0.5:
-        score += 2; notes.append(f"Hot recent fantasy form — L5 avg {l5_avg:.1f} pts  {l5_fs}")
-    elif l5_avg >= eval_line - 0.3:
-        score += 1; notes.append(f"Solid recent form — L5 avg {l5_avg:.1f} pts  {l5_fs}")
+        score += 1; notes.append(f"Solid L5 — avg {l5_avg:.1f} PP pts  {l5_fs}")
     elif l5_avg < eval_line - 2.0:
-        score -= 3; notes.append(f"Cold recent fantasy form — L5 avg {l5_avg:.1f} pts  {l5_fs}")
+        score -= 2; notes.append(f"Cold L5 — avg {l5_avg:.1f} PP pts  {l5_fs}")
     elif l5_avg < eval_line - 1.0:
-        score -= 2; notes.append(f"Below-line recent form — L5 avg {l5_avg:.1f} pts  {l5_fs}")
-    elif l5_avg < eval_line - 0.3:
-        score -= 1; notes.append(f"Slightly below line — L5 avg {l5_avg:.1f} pts  {l5_fs}")
+        score -= 1; notes.append(f"Soft L5 — avg {l5_avg:.1f} PP pts  {l5_fs}")
+    else:
+        notes.append(f"L5 near line — avg {l5_avg:.1f} PP pts  {l5_fs}")
 
-    # 3. Line-clearing consistency
+    # 3. Line-clearing consistency — informational, smaller penalty for 0-of-5
     if l5_over >= 4:
         score += 1; notes.append(f"Cleared {eval_line} PP pts in {l5_over}/5 recent games")
     elif l5_over == 0 and len(l5_fs) >= 4:
-        score -= 2; notes.append(f"0/{len(l5_fs)} recent games clearing {eval_line} PP pts — avoid OVER")
+        score -= 1; notes.append(f"0/{len(l5_fs)} recent games clearing {eval_line} PP pts")
 
-    # 4. SB threat — bonus category worth 2 pts
+    # 3b. Hot-streak regression dampener: if L5 far outpaces season rate AND season
+    # rate is below the line, the hot stretch is variance/schedule-driven, not ability.
+    # Green L5 alone is a trap — need season production to confirm the OVER.
+    _l5_delta = l5_avg - season_fs_pg
+    if _l5_delta >= 5.0 and season_fs_pg < eval_line:
+        score -= 2; notes.append(
+            f"Hot-streak regression risk — L5 avg {l5_avg:.1f} far above season {season_fs_pg:.1f} pts/g; "
+            f"season rate below line, bet relies on streak continuing"
+        )
+    elif _l5_delta >= 3.0 and season_fs_pg < eval_line - 0.5:
+        score -= 1; notes.append(
+            f"Streak caution — L5 avg {l5_avg:.1f} outpacing season {season_fs_pg:.1f} pts/g; "
+            f"season rate below line anchor"
+        )
+
+    # 4. SB threat — +5 PP pts per stolen base
     if sb_pg >= 0.25:
-        score += 1; notes.append(f"Active SB threat ({s.get('sb',0)} SB, {sb_pg:.2f}/g) — +2 pts per steal")
+        score += 1; notes.append(f"Active SB threat ({s.get('sb',0)} SB, {sb_pg:.2f}/g) — +5 PP pts per steal")
     elif sb_pg >= 0.12:
-        notes.append(f"Occasional SB ({s.get('sb',0)} SB, {sb_pg:.2f}/g) — modest fantasy boost")
+        notes.append(f"Occasional SB ({s.get('sb',0)} SB, {sb_pg:.2f}/g) — +5 pts when active")
 
     # 5. OBP / walk rate — drives BB points
     if obp >= 0.380:
@@ -1163,11 +1180,15 @@ def analyze_fantasy_score_prop(batter_stats: dict, recent_games: list,
     elif p_bb9 <= 1.8:
         score -= 1; notes.append(f"Pitcher walks nobody (BB/9={p_bb9:.1f}) — limits BB category")
 
-    # 8. Pitcher ERA / run environment
-    if p_era >= 5.50:
-        score += 1; notes.append(f"High-ERA pitcher ({p_era:.2f}) — elevated run-scoring environment")
+    # 8. Pitcher ERA / run environment — meaningful matchup weight
+    if p_era >= 6.0:
+        score += 2; notes.append(f"Very hittable pitcher (ERA {p_era:.2f}) — prime FS spot")
+    elif p_era >= 5.0:
+        score += 1; notes.append(f"Hittable pitcher (ERA {p_era:.2f}) — elevated run environment")
     elif p_era <= 2.50:
-        score -= 1; notes.append(f"Dominant starter (ERA {p_era:.2f}) — suppresses all fantasy categories")
+        score -= 2; notes.append(f"Elite starter (ERA {p_era:.2f}) — suppresses all FS categories")
+    elif p_era <= 3.50:
+        score -= 1; notes.append(f"Strong starter (ERA {p_era:.2f}) — limits FS ceiling")
 
     # 9. Park + weather
     if park_run >= 1.15:
