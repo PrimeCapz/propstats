@@ -717,29 +717,36 @@ def analyze_batter_hit_prop(batter_stats: dict, recent_games: list,
         score -= 2; notes.append(f"Strong pitcher's park (Hit PF {park_hit:.2f} / Run PF {park_run:.2f})")
 
     # ── TIER 1: Statcast batter quality (Savant CSV) ──────────────────────────
+    # Positive contribution capped at +3 so batter profile alone can't cross
+    # the OVER threshold — pitcher/park signals must stack for a call.
     if batter_savant:
-        sv_barrel    = _f(batter_savant.get("barrel_pct", 0))
-        sv_hard_hit  = _f(batter_savant.get("hard_hit_pct", 0))
+        sv_barrel     = _f(batter_savant.get("barrel_pct", 0))
+        sv_hard_hit   = _f(batter_savant.get("hard_hit_pct", 0))
         sv_sweet_spot = _f(batter_savant.get("sweet_spot", 0))
         sv_bat_speed  = _f(batter_savant.get("avg_bat_speed", 0))
 
+        _sv_pos = 0; _sv_neg = 0; _sv_notes = []
+
         if sv_barrel >= 12:
-            score += 2; notes.append(f"Elite barrel% ({sv_barrel:.1f}%) — power contact boosts hit floor")
+            _sv_pos += 2; _sv_notes.append(f"Elite barrel% ({sv_barrel:.1f}%) — power contact boosts hit floor")
         elif sv_barrel >= 8:
-            score += 1; notes.append(f"Good barrel% ({sv_barrel:.1f}%) — solid contact quality")
+            _sv_pos += 1; _sv_notes.append(f"Good barrel% ({sv_barrel:.1f}%) — solid contact quality")
         elif sv_barrel > 0 and sv_barrel <= 3:
-            score -= 1; notes.append(f"Weak barrel% ({sv_barrel:.1f}%) — poor contact quality")
+            _sv_neg -= 1; _sv_notes.append(f"Weak barrel% ({sv_barrel:.1f}%) — poor contact quality")
 
         if sv_hard_hit >= 50:
-            score += 1; notes.append(f"Hard-hit% {sv_hard_hit:.1f}% — quality contact above avg")
+            _sv_pos += 1; _sv_notes.append(f"Hard-hit% {sv_hard_hit:.1f}% — quality contact above avg")
         elif sv_hard_hit > 0 and sv_hard_hit <= 30:
-            score -= 1; notes.append(f"Low hard-hit% ({sv_hard_hit:.1f}%) — soft contact risk")
+            _sv_neg -= 1; _sv_notes.append(f"Low hard-hit% ({sv_hard_hit:.1f}%) — soft contact risk")
 
         if sv_sweet_spot >= 38:
-            score += 1; notes.append(f"Sweet spot% {sv_sweet_spot:.1f}% — optimal launch angle for hits")
+            _sv_pos += 1; _sv_notes.append(f"Sweet spot% {sv_sweet_spot:.1f}% — optimal launch angle for hits")
 
         if sv_bat_speed >= 75:
-            score += 1; notes.append(f"Elite bat speed ({sv_bat_speed:.1f} mph) — hard contact potential")
+            _sv_pos += 1; _sv_notes.append(f"Elite bat speed ({sv_bat_speed:.1f} mph) — hard contact potential")
+
+        score += min(_sv_pos, 3) + _sv_neg
+        notes.extend(_sv_notes)
 
     # UNDER threshold raised to -4: even cold hitters get 1+ hit ~40% of the time.
     # Hit UNDERs at -3 threshold ran 38% — tightening to require stronger conviction.
@@ -849,6 +856,8 @@ def analyze_batter_hr_prop(batter_stats: dict, recent_games: list,
         score += 1; notes.append(f"{recent_hr_total} HR in last {len(recent_games)} games")
 
     # ── Statcast batter quality (Savant CSV) — barrel% is the strongest HR predictor
+    # Positive contribution capped at +2: batter power profile alone cannot
+    # cross the OVER-5 threshold — pitcher HR-proneness and park must confirm.
     if batter_savant:
         sv_barrel    = _sv(batter_savant.get("barrel_pct"))
         sv_hard_hit  = _sv(batter_savant.get("hard_hit_pct"))
@@ -857,28 +866,34 @@ def analyze_batter_hr_prop(batter_stats: dict, recent_games: list,
         sv_bat_speed  = _sv(batter_savant.get("avg_bat_speed"))
         sv_blast     = _sv(batter_savant.get("blast_per_swing"))
 
+        _sv_pos = 0; _sv_neg = 0; _sv_notes = []
+
         if sv_barrel >= 15:
-            score += 2; notes.append(f"Elite barrel% ({sv_barrel:.1f}%) — strongest HR predictor")
+            _sv_pos += 2; _sv_notes.append(f"Elite barrel% ({sv_barrel:.1f}%) — strongest HR predictor")
         elif sv_barrel >= 10:
-            score += 1; notes.append(f"Strong barrel% ({sv_barrel:.1f}%) — HR power quality")
+            _sv_pos += 1; _sv_notes.append(f"Strong barrel% ({sv_barrel:.1f}%) — HR power quality")
         elif sv_barrel > 0 and sv_barrel <= 3:
-            score -= 2; notes.append(f"Weak barrel% ({sv_barrel:.1f}%) — not a HR threat")
+            _sv_neg -= 2; _sv_notes.append(f"Weak barrel% ({sv_barrel:.1f}%) — not a HR threat")
 
         if sv_hard_hit >= 50:
-            score += 1; notes.append(f"Hard-hit% {sv_hard_hit:.1f}% — power contact quality")
+            _sv_pos += 1; _sv_notes.append(f"Hard-hit% {sv_hard_hit:.1f}% — power contact quality")
 
         if sv_xslg > 0 and sv_slg > 0 and (sv_xslg - sv_slg) >= 0.060:
-            score += 1; notes.append(f"xSLG ({sv_xslg:.3f}) >> SLG ({sv_slg:.3f}) — HR regression due")
+            _sv_pos += 1; _sv_notes.append(f"xSLG ({sv_xslg:.3f}) >> SLG ({sv_slg:.3f}) — HR regression due")
 
         if sv_bat_speed >= 75:
-            score += 1; notes.append(f"Elite bat speed ({sv_bat_speed:.1f} mph) — power potential")
+            _sv_pos += 1; _sv_notes.append(f"Elite bat speed ({sv_bat_speed:.1f} mph) — power potential")
 
         if sv_blast >= 12:
-            score += 1; notes.append(f"Blast/swing {sv_blast:.1f}% — max-effort power swings")
+            _sv_pos += 1; _sv_notes.append(f"Blast/swing {sv_blast:.1f}% — max-effort power swings")
 
-    # HR OVER raised to 5: individual game HR rate is ~4-6% per AB — need stacked signals.
-    # HR OVERs ran 19% at threshold 3. Require more conviction before flagging.
-    lean = "OVER" if score >= 5 else "UNDER" if score <= -2 else "NEUTRAL"
+        score += min(_sv_pos, 2) + _sv_neg
+        notes.extend(_sv_notes)
+
+    # HR OVER raised to 6: Savant batter-quality cap (+2) means pitcher/park signals
+    # must stack. At threshold 5 with Savant, mediocre plays scored 3+2=5 (OVER).
+    # Threshold 6 requires genuinely multi-signal conviction before flagging.
+    lean = "OVER" if score >= 6 else "UNDER" if score <= -2 else "NEUTRAL"
     confidence = "Strong" if abs(score) >= 4 else "Lean" if abs(score) >= 2 else "Slight"
 
     return {
