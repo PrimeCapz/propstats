@@ -1035,31 +1035,49 @@ def analyze_fantasy_score_prop(batter_stats: dict, recent_games: list,
                                 park_factors: dict, weather: dict,
                                 line: float = 6.5) -> dict:
     """
-    Fantasy score = H + R + RBI + BB + SB×2.
-    Typical lines: 5.5 / 6.5 / 7.5.
-    Weights match PrizePicks / Underdog Baseball scoring.
+    PrizePicks Baseball Fantasy Score.
+    Scoring: 1B=3 | 2B=5 | 3B=8 | HR=10 | R=2 | RBI=2 | BB=2 | SB=5 | K=-1
+    Typical lines: 5.5 / 6.5 / 7.5 / 8.5
     """
     s   = batter_stats.get("stats", {})
     pa  = s.get("pa", 0) or 1
     gp  = max(pa / 3.9, 1)
 
-    h_pg  = s.get("hits", 0) / gp
-    r_pg  = s.get("runs", 0) / gp
-    rbi_g = s.get("rbi", 0) / gp
-    bb_pg = s.get("bb", 0) / gp
-    sb_pg = s.get("sb", 0) / gp
+    # Season rate: estimate hit-type distribution from SLG/AVG (= total bases per hit).
+    # PrizePicks pts per hit type: 1B=3, 2B=5, 3B=8, HR=10.
+    # Linear interp: pts/hit ≈ 3 + 2*(tb_h - 1), capped at 10.
+    avg_val = max(float(s.get("avg", ".250") or ".250"), 0.100)
+    slg = max(float(s.get("slg", ".400") or ".400"), 0.100)
+    tb_h = min(slg / avg_val, 4.0)
+    hit_pts_mult = min(3.0 + 2.0 * (tb_h - 1.0), 10.0)
 
-    season_fs_pg = h_pg + r_pg + rbi_g + bb_pg + sb_pg * 2
+    h_pg   = (s.get("hits", 0) or 0) / gp
+    r_pg   = (s.get("runs", 0) or 0) / gp
+    rbi_pg = (s.get("rbi",  0) or 0) / gp
+    bb_pg  = (s.get("bb",   0) or 0) / gp
+    sb_pg  = (s.get("sb",   0) or 0) / gp
+    k_pg   = (s.get("so",   0) or s.get("k", 0) or 0) / gp
+
+    season_fs_pg = h_pg * hit_pts_mult + r_pg * 2 + rbi_pg * 2 + bb_pg * 2 + sb_pg * 5 - k_pg * 1
 
     obp = float(s.get("obp", ".300") or ".300")
-    slg = float(s.get("slg", ".400") or ".400")
-    ops = obp + slg
 
-    # L5 fantasy scores
+    # L5 PrizePicks fantasy scores using actual hit-type breakdown from game logs
     l5_fs = []
     for g in recent_games[:5]:
-        fs = g.get("h",0) + g.get("r",0) + g.get("rbi",0) + g.get("bb",0) + g.get("sb",0) * 2
-        l5_fs.append(fs)
+        _h  = g.get("h",  0) or 0
+        _d  = g.get("doubles", 0) or 0
+        _hr = g.get("hr", 0) or 0
+        _tb = g.get("total_bases", 0) or 0
+        _t  = max((_tb - _h - _d - 3 * _hr) // 2, 0)
+        _s1 = max(_h - _d - _hr - _t, 0)
+        fs  = (_s1 * 3 + _d * 5 + _t * 8 + _hr * 10
+               + (g.get("r",   0) or 0) * 2
+               + (g.get("rbi", 0) or 0) * 2
+               + (g.get("bb",  0) or 0) * 2
+               + (g.get("sb",  0) or 0) * 5
+               - (g.get("k",   0) or 0) * 1)
+        l5_fs.append(max(fs, 0))
     l5_avg = sum(l5_fs) / len(l5_fs) if l5_fs else 0
     l5_over = sum(1 for x in l5_fs if x >= line)
 
@@ -1077,11 +1095,13 @@ def analyze_fantasy_score_prop(batter_stats: dict, recent_games: list,
     score  = 0
     notes  = []
 
-    # Auto-select the appropriate market line based on season production.
-    # suggested_line is returned as metadata for display; all scoring uses `line`.
-    if season_fs_pg >= 4.5:
+    # Auto-select display line based on PP-scale season production.
+    # suggested_line is returned as metadata; all scoring uses the passed-in `line`.
+    if season_fs_pg >= 8.5:
+        suggested_line = 8.5
+    elif season_fs_pg >= 7.0:
         suggested_line = 7.5
-    elif season_fs_pg >= 3.5:
+    elif season_fs_pg >= 5.5:
         suggested_line = 6.5
     else:
         suggested_line = 5.5
@@ -1116,9 +1136,9 @@ def analyze_fantasy_score_prop(batter_stats: dict, recent_games: list,
 
     # 3. Line-clearing consistency
     if l5_over >= 4:
-        score += 1; notes.append(f"Cleared {suggested_line} fantasy pts in {l5_over}/5 recent games")
+        score += 1; notes.append(f"Cleared {eval_line} PP pts in {l5_over}/5 recent games")
     elif l5_over == 0 and len(l5_fs) >= 4:
-        score -= 2; notes.append(f"0/{len(l5_fs)} recent games clearing {suggested_line} — avoid OVER")
+        score -= 2; notes.append(f"0/{len(l5_fs)} recent games clearing {eval_line} PP pts — avoid OVER")
 
     # 4. SB threat — bonus category worth 2 pts
     if sb_pg >= 0.25:
@@ -1164,7 +1184,7 @@ def analyze_fantasy_score_prop(batter_stats: dict, recent_games: list,
     return {
         "prop_type":        "Fantasy Score",
         "batter":           batter_stats.get("name", ""),
-        "line":             suggested_line,
+        "line":             eval_line,
         "lean":             lean,
         "confidence":       conf,
         "score":            score,
@@ -1174,11 +1194,13 @@ def analyze_fantasy_score_prop(batter_stats: dict, recent_games: list,
         "l5_over":          l5_over,
         "suggested_line":   suggested_line,
         "breakdown": {
-            "h_pg":   round(h_pg, 2),
-            "r_pg":   round(r_pg, 2),
-            "rbi_pg": round(rbi_g, 2),
-            "bb_pg":  round(bb_pg, 2),
-            "sb_pg":  round(sb_pg, 2),
+            "h_pg":         round(h_pg, 2),
+            "hit_pts_mult": round(hit_pts_mult, 2),
+            "r_pg":         round(r_pg, 2),
+            "rbi_pg":       round(rbi_pg, 2),
+            "bb_pg":        round(bb_pg, 2),
+            "sb_pg":        round(sb_pg, 2),
+            "k_pg":         round(k_pg, 2),
         },
         "obp":  s.get("obp", ".000"),
         "slg":  s.get("slg", ".000"),
@@ -1526,12 +1548,35 @@ def build_prop_sheet(game_analysis: dict, as_of_date: str = None) -> dict:
             if hrrbi_p.get("lean") in ("OVER", "UNDER") or abs(hrrbi_p["score"]) >= 2:
                 props.append(hrrbi_p)
 
-            # Fantasy Score prop — pick line based on player's season production
+            # Fantasy Score prop — PP-calibrated line from season rate + matchup bump
             _s = batter_full.get("stats", {})
             _gp = max((_s.get("pa", 0) or 1) / 3.9, 1)
-            _fs_rate = ((_s.get("hits",0) or 0) + (_s.get("runs",0) or 0) +
-                        (_s.get("rbi",0) or 0) + (_s.get("bb",0) or 0)) / _gp
-            _fs_line = 7.5 if _fs_rate >= 4.5 else 6.5 if _fs_rate >= 3.5 else 5.5
+            _avg_v = max(float(_s.get("avg", ".250") or ".250"), 0.100)
+            _slg_v = max(float(_s.get("slg", ".400") or ".400"), 0.100)
+            _hit_m = min(3.0 + 2.0 * (min(_slg_v / _avg_v, 4.0) - 1.0), 10.0)
+            _h_pg  = (_s.get("hits", 0) or 0) / _gp
+            _r_pg  = (_s.get("runs", 0) or 0) / _gp
+            _rbi_g = (_s.get("rbi",  0) or 0) / _gp
+            _bb_g  = (_s.get("bb",   0) or 0) / _gp
+            _sb_g  = (_s.get("sb",   0) or 0) / _gp
+            _k_g   = (_s.get("so", 0) or _s.get("k", 0) or 0) / _gp
+            _fs_rate = _h_pg * _hit_m + _r_pg * 2 + _rbi_g * 2 + _bb_g * 2 + _sb_g * 5 - _k_g
+            # Base line from PP season rate
+            if _fs_rate >= 8.5:   _fs_line = 8.5
+            elif _fs_rate >= 7.0: _fs_line = 7.5
+            elif _fs_rate >= 5.5: _fs_line = 6.5
+            else:                  _fs_line = 5.5
+            # Bump line up for hittable pitcher or hitter's park (books do the same)
+            _p_s = pitcher_stats.get("stats", {}) if pitcher_stats else {}
+            _p_era = float(_p_s.get("era", "4.50") or "4.50")
+            _p_bb9 = float(_p_s.get("bb9", "3.0")  or "3.0")
+            _park_run = park.get("run", 1.0)
+            _bump = 0.0
+            if _p_era >= 6.0:     _bump += 1.0
+            elif _p_era >= 5.0:   _bump += 0.5
+            if _p_bb9 >= 4.5:     _bump += 0.5
+            if _park_run >= 1.20: _bump += 0.5
+            _fs_line = round(min(_fs_line + _bump, 9.5) * 2) / 2
             fs_p = analyze_fantasy_score_prop(batter_full, recent, pitcher_stats, h2h, park, weather, _fs_line)
             fs_p["order"] = batter.get("order", 0)
             fs_p["batter_side"] = side_label
