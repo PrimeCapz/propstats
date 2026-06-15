@@ -1077,37 +1077,41 @@ def analyze_fantasy_score_prop(batter_stats: dict, recent_games: list,
     score  = 0
     notes  = []
 
-    # Suggest auto-line based on season rate
-    if season_fs_pg >= 2.5:
+    # Auto-select the appropriate market line based on season production.
+    # suggested_line is returned as metadata for display; all scoring uses `line`.
+    if season_fs_pg >= 4.5:
         suggested_line = 7.5
-    elif season_fs_pg >= 2.1:
+    elif season_fs_pg >= 3.5:
         suggested_line = 6.5
     else:
         suggested_line = 5.5
 
-    # 1. Season rate vs suggested line
-    gap = season_fs_pg - suggested_line
-    if gap >= 0.8:
-        score += 2; notes.append(f"Season fantasy rate {season_fs_pg:.2f} pts/g — well above {suggested_line} line")
-    elif gap >= 0.2:
-        score += 1; notes.append(f"Season fantasy rate {season_fs_pg:.2f} pts/g — above suggested line")
-    elif gap <= -0.8:
-        score -= 2; notes.append(f"Season fantasy rate {season_fs_pg:.2f} pts/g — well below {suggested_line} line")
-    elif gap <= -0.2:
-        score -= 1; notes.append(f"Season fantasy rate {season_fs_pg:.2f} pts/g — under suggested line")
+    # Use the passed-in line (or caller can pass suggested_line explicitly)
+    eval_line = line
 
-    # 2. Recent fantasy form
-    if l5_avg >= suggested_line + 2.0:
+    # 1. Season rate vs actual line
+    gap = season_fs_pg - eval_line
+    if gap >= 0.5:
+        score += 2; notes.append(f"Season fantasy rate {season_fs_pg:.2f} pts/g — above {eval_line} line")
+    elif gap >= 0.1:
+        score += 1; notes.append(f"Season fantasy rate {season_fs_pg:.2f} pts/g — at the {eval_line} line")
+    elif gap <= -0.8:
+        score -= 2; notes.append(f"Season fantasy rate {season_fs_pg:.2f} pts/g — well below {eval_line} line")
+    elif gap <= -0.2:
+        score -= 1; notes.append(f"Season fantasy rate {season_fs_pg:.2f} pts/g — under {eval_line} line")
+
+    # 2. Recent fantasy form vs actual line
+    if l5_avg >= eval_line + 1.5:
         score += 3; notes.append(f"Elite recent fantasy form — L5 avg {l5_avg:.1f} pts  {l5_fs}")
-    elif l5_avg >= suggested_line + 1.0:
+    elif l5_avg >= eval_line + 0.5:
         score += 2; notes.append(f"Hot recent fantasy form — L5 avg {l5_avg:.1f} pts  {l5_fs}")
-    elif l5_avg >= suggested_line:
+    elif l5_avg >= eval_line - 0.3:
         score += 1; notes.append(f"Solid recent form — L5 avg {l5_avg:.1f} pts  {l5_fs}")
-    elif l5_avg < suggested_line - 2.0:
+    elif l5_avg < eval_line - 2.0:
         score -= 3; notes.append(f"Cold recent fantasy form — L5 avg {l5_avg:.1f} pts  {l5_fs}")
-    elif l5_avg < suggested_line - 1.0:
+    elif l5_avg < eval_line - 1.0:
         score -= 2; notes.append(f"Below-line recent form — L5 avg {l5_avg:.1f} pts  {l5_fs}")
-    elif l5_avg < suggested_line - 0.3:
+    elif l5_avg < eval_line - 0.3:
         score -= 1; notes.append(f"Slightly below line — L5 avg {l5_avg:.1f} pts  {l5_fs}")
 
     # 3. Line-clearing consistency
@@ -1522,8 +1526,13 @@ def build_prop_sheet(game_analysis: dict, as_of_date: str = None) -> dict:
             if hrrbi_p.get("lean") in ("OVER", "UNDER") or abs(hrrbi_p["score"]) >= 2:
                 props.append(hrrbi_p)
 
-            # Fantasy Score prop (5.5 / 6.5 / 7.5 line — auto-suggested)
-            fs_p = analyze_fantasy_score_prop(batter_full, recent, pitcher_stats, h2h, park, weather)
+            # Fantasy Score prop — pick line based on player's season production
+            _s = batter_full.get("stats", {})
+            _gp = max((_s.get("pa", 0) or 1) / 3.9, 1)
+            _fs_rate = ((_s.get("hits",0) or 0) + (_s.get("runs",0) or 0) +
+                        (_s.get("rbi",0) or 0) + (_s.get("bb",0) or 0)) / _gp
+            _fs_line = 7.5 if _fs_rate >= 4.5 else 6.5 if _fs_rate >= 3.5 else 5.5
+            fs_p = analyze_fantasy_score_prop(batter_full, recent, pitcher_stats, h2h, park, weather, _fs_line)
             fs_p["order"] = batter.get("order", 0)
             fs_p["batter_side"] = side_label
             fs_p["side"] = side_label
