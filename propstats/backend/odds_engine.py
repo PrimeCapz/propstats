@@ -448,7 +448,8 @@ def analyze_batter_hit_prop(batter_stats: dict, recent_games: list,
                              line: float = 0.5,
                              pitcher_hand: str = None,
                              is_home: bool = False,
-                             park_factors: dict = None) -> dict:
+                             park_factors: dict = None,
+                             batter_savant: dict = None) -> dict:
     """Evaluate a batter's hits prop (Over/Under 0.5 hits default).
 
     Tier 1 signals: platoon edge, LD%, xBA vs BA, BABIP regression,
@@ -715,6 +716,31 @@ def analyze_batter_hit_prop(batter_stats: dict, recent_games: list,
     elif park_hit <= 0.78 or park_run <= 0.78:
         score -= 2; notes.append(f"Strong pitcher's park (Hit PF {park_hit:.2f} / Run PF {park_run:.2f})")
 
+    # ── TIER 1: Statcast batter quality (Savant CSV) ──────────────────────────
+    if batter_savant:
+        sv_barrel    = _f(batter_savant.get("barrel_pct", 0))
+        sv_hard_hit  = _f(batter_savant.get("hard_hit_pct", 0))
+        sv_sweet_spot = _f(batter_savant.get("sweet_spot", 0))
+        sv_bat_speed  = _f(batter_savant.get("avg_bat_speed", 0))
+
+        if sv_barrel >= 12:
+            score += 2; notes.append(f"Elite barrel% ({sv_barrel:.1f}%) — power contact boosts hit floor")
+        elif sv_barrel >= 8:
+            score += 1; notes.append(f"Good barrel% ({sv_barrel:.1f}%) — solid contact quality")
+        elif sv_barrel > 0 and sv_barrel <= 3:
+            score -= 1; notes.append(f"Weak barrel% ({sv_barrel:.1f}%) — poor contact quality")
+
+        if sv_hard_hit >= 50:
+            score += 1; notes.append(f"Hard-hit% {sv_hard_hit:.1f}% — quality contact above avg")
+        elif sv_hard_hit > 0 and sv_hard_hit <= 30:
+            score -= 1; notes.append(f"Low hard-hit% ({sv_hard_hit:.1f}%) — soft contact risk")
+
+        if sv_sweet_spot >= 38:
+            score += 1; notes.append(f"Sweet spot% {sv_sweet_spot:.1f}% — optimal launch angle for hits")
+
+        if sv_bat_speed >= 75:
+            score += 1; notes.append(f"Elite bat speed ({sv_bat_speed:.1f} mph) — hard contact potential")
+
     # UNDER threshold raised to -4: even cold hitters get 1+ hit ~40% of the time.
     # Hit UNDERs at -3 threshold ran 38% — tightening to require stronger conviction.
     lean = "OVER" if score >= 5 else "UNDER" if score <= -4 else "NEUTRAL"
@@ -744,8 +770,13 @@ def analyze_batter_hit_prop(batter_stats: dict, recent_games: list,
 def analyze_batter_hr_prop(batter_stats: dict, recent_games: list,
                             pitcher_stats: dict, h2h: dict,
                             park_factors: dict, weather: dict,
-                            line: float = 0.5) -> dict:
+                            line: float = 0.5,
+                            batter_savant: dict = None) -> dict:
     """Evaluate a batter's HR prop."""
+    def _sv(v, d=0.0):
+        try: return float(v or d)
+        except: return d
+
     s = batter_stats.get("stats", {})
     pa = s.get("pa", 0) or 1
     hr = s.get("hr", 0) or 0
@@ -816,6 +847,34 @@ def analyze_batter_hr_prop(batter_stats: dict, recent_games: list,
     recent_hr_total = sum(g.get("hr", 0) for g in recent_games)
     if recent_hr_total >= 3:
         score += 1; notes.append(f"{recent_hr_total} HR in last {len(recent_games)} games")
+
+    # ── Statcast batter quality (Savant CSV) — barrel% is the strongest HR predictor
+    if batter_savant:
+        sv_barrel    = _sv(batter_savant.get("barrel_pct"))
+        sv_hard_hit  = _sv(batter_savant.get("hard_hit_pct"))
+        sv_xslg      = _sv(batter_savant.get("xslg"))
+        sv_slg       = _sv(s.get("slg", 0) or 0)
+        sv_bat_speed  = _sv(batter_savant.get("avg_bat_speed"))
+        sv_blast     = _sv(batter_savant.get("blast_per_swing"))
+
+        if sv_barrel >= 15:
+            score += 2; notes.append(f"Elite barrel% ({sv_barrel:.1f}%) — strongest HR predictor")
+        elif sv_barrel >= 10:
+            score += 1; notes.append(f"Strong barrel% ({sv_barrel:.1f}%) — HR power quality")
+        elif sv_barrel > 0 and sv_barrel <= 3:
+            score -= 2; notes.append(f"Weak barrel% ({sv_barrel:.1f}%) — not a HR threat")
+
+        if sv_hard_hit >= 50:
+            score += 1; notes.append(f"Hard-hit% {sv_hard_hit:.1f}% — power contact quality")
+
+        if sv_xslg > 0 and sv_slg > 0 and (sv_xslg - sv_slg) >= 0.060:
+            score += 1; notes.append(f"xSLG ({sv_xslg:.3f}) >> SLG ({sv_slg:.3f}) — HR regression due")
+
+        if sv_bat_speed >= 75:
+            score += 1; notes.append(f"Elite bat speed ({sv_bat_speed:.1f} mph) — power potential")
+
+        if sv_blast >= 12:
+            score += 1; notes.append(f"Blast/swing {sv_blast:.1f}% — max-effort power swings")
 
     # HR OVER raised to 5: individual game HR rate is ~4-6% per AB — need stacked signals.
     # HR OVERs ran 19% at threshold 3. Require more conviction before flagging.
@@ -1294,7 +1353,7 @@ def analyze_nrfi_prop(away_pitcher_stats: dict, home_pitcher_stats: dict,
 
 def build_prop_sheet(game_analysis: dict, as_of_date: str = None) -> dict:
     """Master prop sheet builder — takes full game_analysis output, returns ranked props."""
-    from baseball_engine import get_batter_vs_pitcher, get_batter_season_stats, get_pitcher_savant, get_game_umpire
+    from baseball_engine import get_batter_vs_pitcher, get_batter_season_stats, get_pitcher_savant, get_game_umpire, get_batter_savant
     import time as _time
 
     pitchers = game_analysis.get("pitchers", {})
@@ -1403,6 +1462,7 @@ def build_prop_sheet(game_analysis: dict, as_of_date: str = None) -> dict:
                 continue
 
             recent = get_batter_last_n(bid, season, 5, as_of_date)
+            b_savant = get_batter_savant(bid, season)
             _time.sleep(0.15)
 
             # Hits prop — pass pitcher hand, home/away context, and park factors
@@ -1411,6 +1471,7 @@ def build_prop_sheet(game_analysis: dict, as_of_date: str = None) -> dict:
                 pitcher_hand=opp_pitcher_hand,
                 is_home=batter_is_home,
                 park_factors=park,
+                batter_savant=b_savant,
             )
             hit_p["order"] = batter.get("order", 0)
             hit_p["batter_side"] = side_label          # which team the batter plays for
@@ -1425,7 +1486,7 @@ def build_prop_sheet(game_analysis: dict, as_of_date: str = None) -> dict:
                 props.append(hit_p)
 
             # HR prop — cap at 3 per opposing pitcher to avoid over-stacking
-            hr_p = analyze_batter_hr_prop(batter_full, recent, pitcher_stats, h2h, park, weather, 0.5)
+            hr_p = analyze_batter_hr_prop(batter_full, recent, pitcher_stats, h2h, park, weather, 0.5, batter_savant=b_savant)
             hr_p["order"] = batter.get("order", 0)
             hr_p["batter_side"] = side_label
             hr_p["side"] = side_label
