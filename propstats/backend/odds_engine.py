@@ -1626,11 +1626,74 @@ def build_prop_sheet(game_analysis: dict, as_of_date: str = None) -> dict:
         return (conf_rank, -abs(p.get("score", 0)))
 
     props.sort(key=sort_key)
+
+    # ── Cross-prop confirmation ───────────────────────────────────────────────
+    # Group batter props by name+lean — if ≥2 prop types agree on direction,
+    # tag each prop as confirmed and surface the player as a locked play.
+    from collections import defaultdict
+    batter_signals = defaultdict(list)  # name -> [(lean, prop_type, score, conf)]
+
+    for p in props:
+        ptype = p.get("prop_type", "")
+        lean  = p.get("lean", "")
+        name  = p.get("batter") or p.get("pitcher")
+        conf  = p.get("confidence", "")
+        score = p.get("score", 0)
+        if not name or lean not in ("OVER", "UNDER"):
+            continue
+        if ptype in ("Fantasy Score", "Hits", "Home Run", "Total Bases"):
+            batter_signals[name].append({"lean": lean, "prop_type": ptype, "score": score, "conf": conf})
+
+    confirmed_plays = []  # top-level list for quick access
+
+    for p in props:
+        name = p.get("batter") or p.get("pitcher")
+        lean = p.get("lean", "")
+        if not name or lean not in ("OVER", "UNDER"):
+            continue
+        signals = batter_signals.get(name, [])
+        # Count signals pointing same direction as this prop
+        same_dir = [s for s in signals if s["lean"] == lean]
+        if len(same_dir) >= 2:
+            types_agreeing = [s["prop_type"] for s in same_dir]
+            total_score    = sum(s["score"] for s in same_dir)
+            strong_count   = sum(1 for s in same_dir if s["conf"] in ("Strong", "Lean"))
+            label = "TRIPLE LOCK" if len(same_dir) >= 3 else "DOUBLE CONFIRMED"
+            p["cross_confirmed"]       = True
+            p["cross_confirmed_label"] = label
+            p["cross_confirmed_types"] = types_agreeing
+            p["cross_confirmed_score"] = total_score
+        else:
+            p["cross_confirmed"] = False
+
+    # Build confirmed_plays list (one entry per player, not per prop type)
+    seen_confirmed = set()
+    for p in props:
+        if not p.get("cross_confirmed"):
+            continue
+        name = p.get("batter") or p.get("pitcher")
+        lean = p.get("lean", "")
+        key  = (name, lean)
+        if key in seen_confirmed:
+            continue
+        seen_confirmed.add(key)
+        confirmed_plays.append({
+            "player":     name,
+            "lean":       lean,
+            "label":      p.get("cross_confirmed_label"),
+            "prop_types": p.get("cross_confirmed_types", []),
+            "combined_score": p.get("cross_confirmed_score", 0),
+            "game":       f"{game_analysis.get('away_team',{}).get('abbr','')}@{game_analysis.get('home_team',{}).get('abbr','')}",
+        })
+
+    confirmed_plays.sort(key=lambda x: x["combined_score"])  # most negative first for unders
+
     return {
         "game_pk": game_analysis.get("game_pk"),
         "away": game_analysis.get("away_team", {}).get("abbr", ""),
         "home": game_analysis.get("home_team", {}).get("abbr", ""),
         "props": props,
+        "confirmed_plays": confirmed_plays,
         "top_plays": [p for p in props if p.get("confidence") in ("Strong", "Lean") and p.get("lean") != "NEUTRAL"][:8],
     }
 
