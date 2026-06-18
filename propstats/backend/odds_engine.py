@@ -534,15 +534,35 @@ def analyze_batter_hit_prop(batter_stats: dict, recent_games: list,
 
     # ── Dominant pitcher ERA gate ─────────────────────────────────────────────
     # Applied after avg-against so both signals can stack or offset each other.
+    # FIX: IP sample gate — ERA from < 30 IP is unreliable (new pitchers, tiny samples).
+    # A pitcher with ERA 0.00 in 8 IP is not an "elite ace"; treat conservatively.
     p_era_raw = p_stats.get("era", "4.50")
     try:
         p_era = float(p_era_raw or "4.50")
     except Exception:
         p_era = 4.50
+
+    p_ip_str = str(p_stats.get("innings_pitched", "50.0") or "50.0")
+    try:
+        _ip_parts = p_ip_str.split(".")
+        p_ip_total = int(_ip_parts[0]) + (int(_ip_parts[1]) if len(_ip_parts) > 1 else 0) / 3.0
+    except Exception:
+        p_ip_total = 50.0
+
+    _small_sample = p_ip_total < 30.0   # fewer than ~8 starts is unreliable
+
     if p_era <= 1.80:
-        score -= 3; notes.append(f"Elite ace on mound (ERA {p_era:.2f}) — hit OVER suppressed")
+        if _small_sample:
+            score -= 1
+            notes.append(f"Low ERA ({p_era:.2f}) but SMALL SAMPLE ({p_ip_total:.0f} IP) — treat as unreliable")
+        else:
+            score -= 3; notes.append(f"Elite ace on mound (ERA {p_era:.2f}) — hit OVER suppressed")
     elif p_era <= 2.50:
-        score -= 2; notes.append(f"Dominant starter (ERA {p_era:.2f}) — hit OVER penalized")
+        if _small_sample:
+            score -= 1
+            notes.append(f"Strong ERA ({p_era:.2f}) but small sample ({p_ip_total:.0f} IP) — reduced confidence")
+        else:
+            score -= 2; notes.append(f"Dominant starter (ERA {p_era:.2f}) — hit OVER penalized")
 
     # ── H2H (min 10 PA) — Bayesian shrinkage scales signal by PA confidence ────
     # At 10 PA: 33% weight | 20 PA: 67% | 30+ PA: full signal
@@ -638,11 +658,21 @@ def analyze_batter_hit_prop(batter_stats: dict, recent_games: list,
     l5_babip_h = sum(max(g.get("h", 0) - g.get("hr", 0), 0) for g in recent_games)
     l5_babip = round(l5_babip_h / l5_bip, 3) if l5_bip >= 6 else None
 
+    babip_over_blocked = False
+    babip_under_blocked = False
     if l5_babip is not None:
-        if l5_babip > 0.450:
-            score -= 3; notes.append(f"L5 BABIP {l5_babip:.3f} — extreme luck, sharp regression likely")
-        elif l5_babip > 0.420:
-            score -= 2; notes.append(f"L5 BABIP {l5_babip:.3f} — luck-driven hot streak, regression likely")
+        if l5_babip > 0.500:
+            babip_over_blocked = True
+            score -= 5; notes.append(f"L5 BABIP {l5_babip:.3f} — UNSUSTAINABLE luck, OVER BLOCKED")
+        elif l5_babip > 0.400:
+            score -= 4; notes.append(f"L5 BABIP {l5_babip:.3f} — very lucky hot streak, sharp regression due")
+        elif l5_babip > 0.380:
+            score -= 3; notes.append(f"L5 BABIP {l5_babip:.3f} — luck-elevated, regression likely")
+        elif l5_babip > 0.320:
+            score -= 1; notes.append(f"L5 BABIP {l5_babip:.3f} — slightly elevated BABIP, mild regression risk")
+        elif l5_babip < 0.100 and season_babip > 0.280 and season_avg >= 0.230:
+            babip_under_blocked = True
+            score += 2; notes.append(f"L5 BABIP {l5_babip:.3f} — extreme cold, UNDER BLOCKED (bounce-back due)")
         elif l5_babip < 0.200 and season_babip > 0.280 and season_avg >= 0.230:
             score += 1; notes.append(f"L5 BABIP {l5_babip:.3f} — cold streak unlucky, bounce-back due")
 
@@ -659,10 +689,19 @@ def analyze_batter_hit_prop(batter_stats: dict, recent_games: list,
     # Strikeout-heavy batters facing elite K pitchers get fewer balls in play
     batter_whiff = _f(s.get("whiff_rate", 0))
     p_k9_raw = _f((pitcher_stats.get("stats", {}) if pitcher_stats else {}).get("k9", 0))
-    if batter_whiff >= 28 and p_k9_raw >= 9.0:
-        score -= 1; notes.append(f"K-risk matchup — batter whiff {batter_whiff:.0f}% vs pitcher K/9 {p_k9_raw:.1f}")
-    elif batter_whiff >= 32:
-        score -= 1; notes.append(f"High batter whiff rate ({batter_whiff:.0f}%) — contact risk")
+    if batter_whiff >= 34:
+        score -= 3; notes.append(f"Extreme whiff rate ({batter_whiff:.0f}%) — severe contact risk, hit OVER penalized")
+    elif batter_whiff >= 28 and p_k9_raw >= 9.0:
+        score -= 2; notes.append(f"K-risk matchup — batter whiff {batter_whiff:.0f}% vs pitcher K/9 {p_k9_raw:.1f}")
+    elif batter_whiff >= 28:
+        score -= 1; notes.append(f"High whiff rate ({batter_whiff:.0f}%) — contact risk")
+
+    # ── TIER 1: K% — strikeout rate dampens ball-in-play outcomes ────────────
+    batter_k_pct = _f(s.get("k_pct", 0))
+    if batter_k_pct >= 30:
+        score -= 1; notes.append(f"High K% ({batter_k_pct:.0f}%) — strikeout-prone, fewer balls in play")
+    elif batter_k_pct > 0 and batter_k_pct <= 12:
+        score += 1; notes.append(f"Elite contact rate (K% {batter_k_pct:.0f}%) — consistently puts ball in play")
 
     # ── TIER 1: wRC+ — park-and-league-adjusted offensive production ──────────
     # More predictive than BA/OPS for true offensive ability; 100 = league avg.
@@ -750,7 +789,19 @@ def analyze_batter_hit_prop(batter_stats: dict, recent_games: list,
 
     # UNDER threshold raised to -4: even cold hitters get 1+ hit ~40% of the time.
     # Hit UNDERs at -3 threshold ran 38% — tightening to require stronger conviction.
-    lean = "OVER" if score >= 5 else "UNDER" if score <= -4 else "NEUTRAL"
+    # Hard vetoes: BABIP bounce-back blocks UNDER; extreme BABIP blocks OVER; strong H2H blocks UNDER.
+    raw_lean = "OVER" if score >= 5 else "UNDER" if score <= -4 else "NEUTRAL"
+    if raw_lean == "OVER" and babip_over_blocked:
+        lean = "NEUTRAL"
+        notes.append("OVER BLOCKED — unsustainable L5 BABIP overrides positive score")
+    elif raw_lean == "UNDER" and babip_under_blocked:
+        lean = "NEUTRAL"
+        notes.append("UNDER BLOCKED — bounce-back signal overrides negative score")
+    elif raw_lean == "UNDER" and h2h_avg is not None and h2h_avg >= 0.430:
+        lean = "NEUTRAL"
+        notes.append(f"UNDER BLOCKED — H2H history .{int(h2h_avg*1000):03d} in {h2h_pa} PA conflicts with UNDER call")
+    else:
+        lean = raw_lean
     confidence = "Strong" if abs(score) >= 4 else "Lean" if abs(score) >= 2 else "Slight"
 
     return {
@@ -1088,6 +1139,15 @@ def analyze_fantasy_score_prop(batter_stats: dict, recent_games: list,
     p_hr9   = float(p_stats.get("hr9", "1.0")  or "1.0")
     p_baa   = float(p_stats.get("avg", ".250") or ".250")
 
+    # IP sample gate for FS — ERA from < 30 IP is unreliable
+    _fs_ip_str = str(p_stats.get("innings_pitched", "50.0") or "50.0")
+    try:
+        _fs_ip_parts = _fs_ip_str.split(".")
+        _fs_p_ip = int(_fs_ip_parts[0]) + (int(_fs_ip_parts[1]) if len(_fs_ip_parts) > 1 else 0) / 3.0
+    except Exception:
+        _fs_p_ip = 50.0
+    _fs_small_sample = _fs_p_ip < 30.0
+
     park_run = park_factors.get("run", 1.0)
     park_hr  = park_factors.get("hr",  1.0)
     wx_score = weather.get("impact", {}).get("score", 0) if weather.get("available") else 0
@@ -1180,15 +1240,21 @@ def analyze_fantasy_score_prop(batter_stats: dict, recent_games: list,
     elif p_bb9 <= 1.8:
         score -= 1; notes.append(f"Pitcher walks nobody (BB/9={p_bb9:.1f}) — limits BB category")
 
-    # 8. Pitcher ERA / run environment — meaningful matchup weight
+    # 8. Pitcher ERA / run environment — IP sample gate applied (< 30 IP = unreliable)
     if p_era >= 6.0:
         score += 2; notes.append(f"Very hittable pitcher (ERA {p_era:.2f}) — prime FS spot")
     elif p_era >= 5.0:
         score += 1; notes.append(f"Hittable pitcher (ERA {p_era:.2f}) — elevated run environment")
     elif p_era <= 2.50:
-        score -= 2; notes.append(f"Elite starter (ERA {p_era:.2f}) — suppresses all FS categories")
+        if _fs_small_sample:
+            score -= 1; notes.append(f"Low ERA ({p_era:.2f}) but SMALL SAMPLE ({_fs_p_ip:.0f} IP) — FS penalty reduced")
+        else:
+            score -= 2; notes.append(f"Elite starter (ERA {p_era:.2f}) — suppresses all FS categories")
     elif p_era <= 3.50:
-        score -= 1; notes.append(f"Strong starter (ERA {p_era:.2f}) — limits FS ceiling")
+        if _fs_small_sample:
+            notes.append(f"Strong ERA ({p_era:.2f}) but small sample ({_fs_p_ip:.0f} IP) — FS signal ignored")
+        else:
+            score -= 1; notes.append(f"Strong starter (ERA {p_era:.2f}) — limits FS ceiling")
 
     # 9. Park + weather
     if park_run >= 1.15:
