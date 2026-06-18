@@ -1217,6 +1217,21 @@ def analyze_fantasy_score_prop(batter_stats: dict, recent_games: list,
             f"season rate below line anchor"
         )
 
+    # 3c. Cold-slump at fair line — regression to talent OVER edge.
+    # Books price lines off true talent/season rate, not 2-week slumps.
+    # When season production far exceeds the line AND L5 is cold, the OVER
+    # is undervalued — books haven't adjusted, regression is imminent.
+    _cold_delta = season_fs_pg - l5_avg  # positive = season >> L5 (cold slump)
+    if _cold_delta >= 2.5 and season_fs_pg >= eval_line + 1.0:
+        score += 2; notes.append(
+            f"Regression-to-talent OVER — season avg {season_fs_pg:.1f} pts ({eval_line + 1.0:.1f}+ above line) "
+            f"vs cold L5 {l5_avg:.1f}; books haven't moved the line, slump due to snap back"
+        )
+    elif _cold_delta >= 1.5 and season_fs_pg >= eval_line + 0.5:
+        score += 1; notes.append(
+            f"Talent OVER edge — season {season_fs_pg:.1f} pts above line, cold L5 {l5_avg:.1f} likely regressing"
+        )
+
     # 4. SB threat — +5 PP pts per stolen base
     if sb_pg >= 0.25:
         score += 1; notes.append(f"Active SB threat ({s.get('sb',0)} SB, {sb_pg:.2f}/g) — +5 PP pts per steal")
