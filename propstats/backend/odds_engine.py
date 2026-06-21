@@ -542,10 +542,7 @@ def analyze_batter_hit_prop(batter_stats: dict, recent_games: list,
     # FIX: IP sample gate — ERA from < 30 IP is unreliable (new pitchers, tiny samples).
     # A pitcher with ERA 0.00 in 8 IP is not an "elite ace"; treat conservatively.
     p_era_raw = p_stats.get("era", "4.50")
-    try:
-        p_era = float(p_era_raw or "4.50")
-    except Exception:
-        p_era = 4.50
+    p_era = _sf(p_era_raw, 4.50)
 
     p_ip_str = str(p_stats.get("innings_pitched", "50.0") or "50.0")
     try:
@@ -570,7 +567,7 @@ def analyze_batter_hit_prop(batter_stats: dict, recent_games: list,
             score -= 2; notes.append(f"Dominant starter (ERA {p_era:.2f}) — hit OVER penalized")
 
     # ── Pitcher recent form (L3 ERA) — season ERA misses pitchers trending hot/cold ──
-    p_l3_era = float(p_stats.get("l3_era", 0) or 0)
+    p_l3_era = _sf(p_stats.get("l3_era", 0), 0.0)
     if p_l3_era > 0:
         hit_trend = p_era - p_l3_era  # positive = pitcher improved recently vs season
         if hit_trend >= 1.50:
@@ -633,8 +630,8 @@ def analyze_batter_hit_prop(batter_stats: dict, recent_games: list,
     split_d = p_splits.get(split_key, {})
     if split_d:
         try:
-            split_ip  = float(split_d.get("ip", "0.0") or "0.0")
-            split_ops = float(split_d.get("ops", ".000") or ".000")
+            split_ip  = _sf(split_d.get("ip",  "0.0"), 0.0)
+            split_ops = _sf(split_d.get("ops", ".000"), 0.0)
             if split_ip >= 20 and split_ops > 0:
                 hand_lbl = "LHB" if batter_hand == "L" else "RHB"
                 if split_ops >= 0.810:
@@ -890,7 +887,7 @@ def analyze_batter_hr_prop(batter_stats: dict, recent_games: list,
     split_d = p_splits.get(split_key, {})
     if split_d:
         try:
-            split_ip = float(split_d.get("ip", "0.0") or "0.0")
+            split_ip = _sf(split_d.get("ip", "0.0"), 0.0)
             split_hr = split_d.get("hr", 0)
             if split_ip >= 20 and split_hr > 0:
                 hr_per_100 = (split_hr / (split_ip * 4.3)) * 100
@@ -1129,7 +1126,7 @@ def analyze_fantasy_score_prop(batter_stats: dict, recent_games: list,
 
     season_fs_pg = h_pg * hit_pts_mult + r_pg * 2 + rbi_pg * 2 + bb_pg * 2 + sb_pg * 5 - k_pg * 1
 
-    obp = float(s.get("obp", ".300") or ".300")
+    obp = _sf(s.get("obp", ".300"), 0.300)
 
     # L5 PrizePicks fantasy scores using actual hit-type breakdown from game logs
     l5_fs = []
@@ -1302,7 +1299,7 @@ def analyze_fantasy_score_prop(batter_stats: dict, recent_games: list,
     # 10. Pitcher recent form (L3 ERA) — season ERA alone misses hot/cold streaks
     # Abbott (ERA 4.89) dominated on Jun 20 despite hittable season number.
     # L3 ERA reveals whether the pitcher is sharper or worse than season suggests.
-    _p_l3_era = float(p_stats.get("l3_era", 0) or 0)
+    _p_l3_era = _sf(p_stats.get("l3_era", 0), 0.0)
     if _p_l3_era > 0:
         _fs_trend = p_era - _p_l3_era  # positive = pitcher has improved recently
         if _fs_trend >= 1.50:
@@ -1704,8 +1701,8 @@ def build_prop_sheet(game_analysis: dict, as_of_date: str = None) -> dict:
             else:                  _fs_line = 5.5
             # Bump line up for hittable pitcher or hitter's park (books do the same)
             _p_s = pitcher_stats.get("stats", {}) if pitcher_stats else {}
-            _p_era = float(_p_s.get("era", "4.50") or "4.50")
-            _p_bb9 = float(_p_s.get("bb9", "3.0")  or "3.0")
+            _p_era = _sf(_p_s.get("era", "4.50"), 4.50)
+            _p_bb9 = _sf(_p_s.get("bb9", "3.0"),  3.0)
             _park_run = park.get("run", 1.0)
             _bump = 0.0
             if _p_era >= 6.0:     _bump += 1.0
@@ -2083,7 +2080,7 @@ def get_value_hr_picks(game_analyses: list, min_prob: float = 0.12, max_prob: fl
             pitcher_stats = pitcher_info.get("stats", {})
             pitcher_id    = pitcher_info.get("info", {}).get("id")
             pitcher_name  = pitcher_stats.get("name", "Unknown")
-            p_hr9 = float((pitcher_stats.get("stats", {}) or {}).get("hr9", "1.2") or "1.2")
+            p_hr9 = _sf((pitcher_stats.get("stats", {}) or {}).get("hr9", "1.2"), 1.2)
             if not pitcher_id:
                 continue
 
@@ -2279,7 +2276,7 @@ def get_blast_alerts(game_analyses: list) -> list:
                 continue
 
             p_savant = get_pitcher_savant(pitcher_id, season)
-            p_hr9    = float((pitcher_stats.get("stats", {}) or {}).get("hr9", "1.2") or "1.2")
+            p_hr9    = _sf((pitcher_stats.get("stats", {}) or {}).get("hr9", "1.2"), 1.2)
             p_barrel = p_savant.get("barrel_pct_against", 0)
             p_vuln   = calc_pitcher_vulnerability(p_savant, pitcher_stats)
 
