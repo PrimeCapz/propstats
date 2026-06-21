@@ -204,6 +204,15 @@ def get_pitcher_last_n(pitcher_id: int, season: int = None, n: int = 5) -> list:
 
 # ── Prop Analyzer ─────────────────────────────────────────────────────────────
 
+def _sf(val, default=0.0):
+    """Safe float: handles None, '-', '-.--', empty string from MLB API."""
+    try:
+        v = float(val)
+        return v if v == v else default  # NaN guard
+    except (TypeError, ValueError):
+        return default
+
+
 def _fmt_ml(ml):
     if ml is None:
         return "N/A"
@@ -244,15 +253,8 @@ def analyze_pitcher_k_prop(pitcher_stats: dict, recent_starts: list,
     Tier 2: K/9 supporting signal, CSW%, opposing lineup whiff rate.
     """
     s = pitcher_stats.get("stats", {})
-    try:
-        k9 = float(s.get("k9", 0) or 0)
-    except (ValueError, TypeError):
-        k9 = 0.0
-
-    try:
-        era = float(s.get("era", "4.50") or "4.50")
-    except Exception:
-        era = 4.50
+    k9  = _sf(s.get("k9",  0),    0.0)
+    era = _sf(s.get("era", "4.50"), 4.50)
 
     start_games = [g for g in recent_starts if g.get("gs", 0) > 0 or float(str(g.get("ip","0")).split(".")[0]) >= 3][:5]
     recent_k_list = [g.get("k", 0) for g in start_games]
@@ -856,7 +858,7 @@ def analyze_batter_hr_prop(batter_stats: dict, recent_games: list,
     hr = s.get("hr", 0) or 0
     hr_rate = hr / pa if pa > 0 else 0
 
-    p_hr9 = float(pitcher_stats.get("stats", {}).get("hr9", "1.0") or "1.0")
+    p_hr9 = _sf(pitcher_stats.get("stats", {}).get("hr9", "1.0"), 1.0)
     park_hr = park_factors.get("hr", 1.0)
     weather_score = weather.get("impact", {}).get("score", 0) if weather.get("available") else 0
 
@@ -1005,10 +1007,10 @@ def analyze_hrrbi_prop(batter_stats: dict, recent_games: list,
 
     # Pitcher walk rate inflates BB (indirect run scorer)
     p_stats  = pitcher_stats.get("stats", {}) if pitcher_stats else {}
-    p_era    = float(p_stats.get("era", "4.50") or "4.50")
-    p_bb9    = float(p_stats.get("bb9", "3.0")  or "3.0")
-    p_hr9    = float(p_stats.get("hr9", "1.0")  or "1.0")
-    p_baa    = float(p_stats.get("avg", ".250") or ".250")
+    p_era    = _sf(p_stats.get("era", "4.50"), 4.50)
+    p_bb9    = _sf(p_stats.get("bb9", "3.0"),  3.0)
+    p_hr9    = _sf(p_stats.get("hr9", "1.0"),  1.0)
+    p_baa    = _sf(p_stats.get("avg", ".250"), 0.250)
 
     park_run = park_factors.get("run", 1.0)
     park_hr  = park_factors.get("hr",  1.0)
@@ -1150,10 +1152,10 @@ def analyze_fantasy_score_prop(batter_stats: dict, recent_games: list,
 
     # Pitcher signals
     p_stats = pitcher_stats.get("stats", {}) if pitcher_stats else {}
-    p_era   = float(p_stats.get("era", "4.50") or "4.50")
-    p_bb9   = float(p_stats.get("bb9", "3.0")  or "3.0")
-    p_hr9   = float(p_stats.get("hr9", "1.0")  or "1.0")
-    p_baa   = float(p_stats.get("avg", ".250") or ".250")
+    p_era   = _sf(p_stats.get("era", "4.50"), 4.50)
+    p_bb9   = _sf(p_stats.get("bb9", "3.0"),  3.0)
+    p_hr9   = _sf(p_stats.get("hr9", "1.0"),  1.0)
+    p_baa   = _sf(p_stats.get("avg", ".250"), 0.250)
 
     # IP sample gate for FS — ERA from < 30 IP is unreliable
     _fs_ip_str = str(p_stats.get("innings_pitched", "50.0") or "50.0")
@@ -1991,7 +1993,7 @@ def calc_hr_probability(batter_stats: dict, batter_savant: dict,
 
     # ── Pitcher: blended HR/9 using barrel% against for sample correction ─────
     p_stats = (pitcher_stats or {}).get("stats", {})
-    p_hr9   = float(p_stats.get("hr9", "1.20") or "1.20")
+    p_hr9   = _sf(p_stats.get("hr9", "1.20"), 1.20)
 
     # Estimate batters faced from innings pitched for sample regression
     try:
