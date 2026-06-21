@@ -244,7 +244,10 @@ def analyze_pitcher_k_prop(pitcher_stats: dict, recent_starts: list,
     Tier 2: K/9 supporting signal, CSW%, opposing lineup whiff rate.
     """
     s = pitcher_stats.get("stats", {})
-    k9 = float(s.get("k9", 0) or 0)
+    try:
+        k9 = float(s.get("k9", 0) or 0)
+    except (ValueError, TypeError):
+        k9 = 0.0
 
     try:
         era = float(s.get("era", "4.50") or "4.50")
