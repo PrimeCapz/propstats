@@ -1259,18 +1259,9 @@ def analyze_fantasy_score_prop(batter_stats: dict, recent_games: list,
     elif obp <= 0.280:
         score -= 1; notes.append(f"Poor OBP ({obp:.3f}) — low BB floor")
 
-    # 6. Power (HR = H+R+RBI in one AB = +3 effective fantasy pts)
-    hr_pg = s.get("hr", 0) / gp
-    if hr_pg >= 0.065:
-        score += 1; notes.append(f"Power bat ({s.get('hr',0)} HR) — HR worth 3 effective pts")
-
-    # HR volatility gate: a single HR adds +10 FS in one swing, often +12-14 with R+RBI.
-    # Even low-medium HR bats hit a HR every 15-25 games — too frequent to ignore on UNDER plays.
-    hr_season = s.get("hr", 0) or 0
-    if hr_season >= 12:
-        score += 2; notes.append(f"HR volatility risk ({hr_season} season HR) — 1 HR = +10 FS swing; UNDER confidence reduced")
-    elif hr_season >= 5:
-        score += 1; notes.append(f"HR volatility flag ({hr_season} season HR) — single HR blows up FS UNDER")
+    # HR is analyzed as its own separate prop — not scored here.
+    # HR rate (power bat) and HR volatility do not influence FS scoring direction.
+    hr_pg = s.get("hr", 0) / gp  # retained for breakdown metadata only
 
     # 7. Pitcher walk rate
     if p_bb9 >= 4.5:
@@ -1779,7 +1770,9 @@ def build_prop_sheet(game_analysis: dict, as_of_date: str = None) -> dict:
         score = p.get("score", 0)
         if not name or lean not in ("OVER", "UNDER"):
             continue
-        if ptype in ("Fantasy Score", "Hits", "Home Run", "Total Bases"):
+        # HR is tracked separately — excluded from Hits/FS cross-confirmation.
+        # A strong HR outlook is its own standalone play, not a tiebreaker for Hits or FS.
+        if ptype in ("Fantasy Score", "Hits", "Total Bases"):
             batter_signals[name].append({"lean": lean, "prop_type": ptype, "score": score, "conf": conf})
 
     confirmed_plays = []  # top-level list for quick access
