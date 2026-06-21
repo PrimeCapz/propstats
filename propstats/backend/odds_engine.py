@@ -564,6 +564,19 @@ def analyze_batter_hit_prop(batter_stats: dict, recent_games: list,
         else:
             score -= 2; notes.append(f"Dominant starter (ERA {p_era:.2f}) — hit OVER penalized")
 
+    # ── Pitcher recent form (L3 ERA) — season ERA misses pitchers trending hot/cold ──
+    p_l3_era = float(p_stats.get("l3_era", 0) or 0)
+    if p_l3_era > 0:
+        hit_trend = p_era - p_l3_era  # positive = pitcher improved recently vs season
+        if hit_trend >= 1.50:
+            score -= 2; notes.append(f"Pitcher trending hot — L3 ERA {p_l3_era:.2f} vs season {p_era:.2f}; tougher than season suggests")
+        elif hit_trend >= 0.80:
+            score -= 1; notes.append(f"Pitcher recent form strong — L3 ERA {p_l3_era:.2f} better than season {p_era:.2f}")
+        elif hit_trend <= -1.50:
+            score += 2; notes.append(f"Pitcher struggling recently — L3 ERA {p_l3_era:.2f} vs season {p_era:.2f}; hittable right now")
+        elif hit_trend <= -0.80:
+            score += 1; notes.append(f"Pitcher cold — L3 ERA {p_l3_era:.2f} worse than season {p_era:.2f}")
+
     # ── H2H (min 10 PA) — Bayesian shrinkage scales signal by PA confidence ────
     # At 10 PA: 33% weight | 20 PA: 67% | 30+ PA: full signal
     if h2h_avg is not None:
@@ -1232,11 +1245,13 @@ def analyze_fantasy_score_prop(batter_stats: dict, recent_games: list,
             f"Talent OVER edge — season {season_fs_pg:.1f} pts above line, cold L5 {l5_avg:.1f} likely regressing"
         )
 
-    # 4. SB threat — +5 PP pts per stolen base
-    if sb_pg >= 0.25:
-        score += 1; notes.append(f"Active SB threat ({s.get('sb',0)} SB, {sb_pg:.2f}/g) — +5 PP pts per steal")
+    # 4. SB threat — each SB = +5 PP pts; multi-SB nights crush FS UNDER calls
+    if sb_pg >= 0.40:
+        score += 3; notes.append(f"Elite SB threat ({s.get('sb',0)} SB, {sb_pg:.2f}/g) — 2-SB nights frequent, extreme FS UNDER risk")
+    elif sb_pg >= 0.25:
+        score += 2; notes.append(f"Active SB threat ({s.get('sb',0)} SB, {sb_pg:.2f}/g) — SB volatility = FS UNDER risk (+5 pts/steal)")
     elif sb_pg >= 0.12:
-        notes.append(f"Occasional SB ({s.get('sb',0)} SB, {sb_pg:.2f}/g) — +5 pts when active")
+        score += 1; notes.append(f"Occasional SB ({s.get('sb',0)} SB, {sb_pg:.2f}/g) — +5 pts when active")
 
     # 5. OBP / walk rate — drives BB points
     if obp >= 0.380:
@@ -1248,6 +1263,14 @@ def analyze_fantasy_score_prop(batter_stats: dict, recent_games: list,
     hr_pg = s.get("hr", 0) / gp
     if hr_pg >= 0.065:
         score += 1; notes.append(f"Power bat ({s.get('hr',0)} HR) — HR worth 3 effective pts")
+
+    # HR volatility gate: a single HR adds +10 FS in one swing, often +12-14 with R+RBI.
+    # Even low-medium HR bats hit a HR every 15-25 games — too frequent to ignore on UNDER plays.
+    hr_season = s.get("hr", 0) or 0
+    if hr_season >= 12:
+        score += 2; notes.append(f"HR volatility risk ({hr_season} season HR) — 1 HR = +10 FS swing; UNDER confidence reduced")
+    elif hr_season >= 5:
+        score += 1; notes.append(f"HR volatility flag ({hr_season} season HR) — single HR blows up FS UNDER")
 
     # 7. Pitcher walk rate
     if p_bb9 >= 4.5:
@@ -1279,6 +1302,21 @@ def analyze_fantasy_score_prop(batter_stats: dict, recent_games: list,
 
     if wx_score >= 2.0:
         score += 1; notes.append("Hot weather — inflates HR/runs/fantasy scoring")
+
+    # 10. Pitcher recent form (L3 ERA) — season ERA alone misses hot/cold streaks
+    # Abbott (ERA 4.89) dominated on Jun 20 despite hittable season number.
+    # L3 ERA reveals whether the pitcher is sharper or worse than season suggests.
+    _p_l3_era = float(p_stats.get("l3_era", 0) or 0)
+    if _p_l3_era > 0:
+        _fs_trend = p_era - _p_l3_era  # positive = pitcher has improved recently
+        if _fs_trend >= 1.50:
+            score -= 2; notes.append(f"Pitcher trending hot — L3 ERA {_p_l3_era:.2f} vs season {p_era:.2f}; sharper than season suggests")
+        elif _fs_trend >= 0.80:
+            score -= 1; notes.append(f"Pitcher recent form strong — L3 ERA {_p_l3_era:.2f} better than season {p_era:.2f}")
+        elif _fs_trend <= -1.50:
+            score += 2; notes.append(f"Pitcher struggling recently — L3 ERA {_p_l3_era:.2f} vs season {p_era:.2f}; hittable right now")
+        elif _fs_trend <= -0.80:
+            score += 1; notes.append(f"Pitcher cold — L3 ERA {_p_l3_era:.2f} worse than season {p_era:.2f}")
 
     lean = "OVER" if score >= 4 else "UNDER" if score <= -4 else "NEUTRAL"
     conf = "Strong" if abs(score) >= 6 else "Lean" if abs(score) >= 4 else "Slight"
@@ -1687,6 +1725,25 @@ def build_prop_sheet(game_analysis: dict, as_of_date: str = None) -> dict:
             fs_p["opposing_pitcher_id"] = pitcher_id
             if fs_p.get("lean") in ("OVER", "UNDER") or abs(fs_p["score"]) >= 2:
                 props.append(fs_p)
+
+    # Compute L3 ERA from recent starts and inject into pitcher inner stats dict.
+    # This gives analyzers pitcher "form" vs season ERA — catches pitchers trending hot/cold.
+    def _inject_l3_era(outer_stats, recent_starts):
+        inner = outer_stats.get("stats", {})
+        if not inner:
+            return
+        starts = [g for g in recent_starts
+                  if g.get("gs", 0) > 0 or float(str(g.get("ip", "0.0")).split(".")[0]) >= 3][:3]
+        if len(starts) >= 2:
+            total_er = sum(g.get("er", 0) for g in starts)
+            total_ip = _avg_ip(starts) * len(starts)
+            if total_ip > 0:
+                inner["l3_era"] = round(total_er / total_ip * 9, 2)
+
+    if away_p_stats:
+        _inject_l3_era(away_p_stats, away_p_recent)
+    if home_p_stats:
+        _inject_l3_era(home_p_stats, home_p_recent)
 
     if home_p_stats and home_p_id:
         process_batters(
