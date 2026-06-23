@@ -1271,11 +1271,19 @@ SAVANT_BAT_TRACK_URL = "https://baseballsavant.mlb.com/leaderboard/bat-tracking?
 # Custom leaderboard: pitcher whiff% and K% (CSW% often unavailable via API)
 SAVANT_PITCHER_K_URL = "https://baseballsavant.mlb.com/leaderboard/custom?year={year}&type=pitcher&filter=&sort=4&sortDir=desc&min=20&selections=k_percent,bb_percent,whiff_percent,csw&csv=true"
 
+# Pitch arsenal leaderboards — per pitch-type stats for pitchers and batters
+# pitcher view: how effective each pitch type is (whiff%, wOBA against, run value)
+# batter view: how each batter performs against each pitch type
+SAVANT_PITCHER_ARSENAL_URL = "https://baseballsavant.mlb.com/leaderboard/pitch-arsenal-stats?year={year}&type=pitcher&min=10&csv=true"
+SAVANT_BATTER_PITCH_SPLIT_URL = "https://baseballsavant.mlb.com/leaderboard/pitch-arsenal-stats?year={year}&type=batter&min=10&csv=true"
+
 _savant_batting:    dict = {}
 _savant_pitching:   dict = {}
 _savant_pitcher_k:  dict = {}
 _savant_xstats:     dict = {}
 _savant_bat_track:  dict = {}
+_savant_pitcher_arsenal:    dict = {}  # {season: {player_id: [pitch_entry, ...]}}
+_savant_batter_pitch_split: dict = {}  # {season: {player_id: {pitch_type: perf_dict}}}
 
 # ── Umpire K-rate tendency table ───────────────────────────────────────────────
 # K/game averages from Retrosheet/FanGraphs umpire scorecards (2022-2025).
@@ -1477,6 +1485,105 @@ def get_pitcher_savant(player_id: int, season: int = None) -> dict:
     return {**contact, **k_stats}
 
 
+def load_savant_pitcher_arsenal(season: int = None) -> dict:
+    """Per-pitch-type stats for pitchers: usage%, velocity, spin, whiff%, wOBA against, run value.
+
+    Returns {player_id_str: [pitch_entry_dict, ...]} where each entry is one pitch type.
+    Pitch types: FF (4-seam), SI (sinker), FC (cutter), SL (slider), ST (sweeper),
+                 CH (changeup), CU (curveball), FS (splitter), KC (knuckle-curve).
+    """
+    global _savant_pitcher_arsenal
+    if not season:
+        season = datetime.now().year
+    if season in _savant_pitcher_arsenal:
+        return _savant_pitcher_arsenal[season]
+    rows = _fetch_savant_csv(SAVANT_PITCHER_ARSENAL_URL.format(year=season))
+    result: dict = {}
+    for row in rows:
+        pid = str(row.get("player_id", "")).strip()
+        if not pid:
+            continue
+        pitch_type = row.get("pitch_type", "").strip().upper()
+        if not pitch_type:
+            continue
+        entry = {
+            "pitch_type":      pitch_type,
+            "pitch_name":      row.get("pitch_name", pitch_type),
+            "usage_pct":       _safe_float(row.get("pitch_usage")),
+            "whiff_pct":       _safe_float(row.get("whiff_percent")),   # swing-and-miss per swing
+            "k_pct":           _safe_float(row.get("k_percent")),       # K% with this pitch
+            "put_away_pct":    _safe_float(row.get("put_away")),        # K% in 2-strike counts
+            "woba_against":    _safe_float(row.get("woba")),            # wOBA allowed
+            "xwoba_against":   _safe_float(row.get("est_woba")),        # xwOBA allowed (luck-neutral)
+            "ba_against":      _safe_float(row.get("ba")),              # BA allowed
+            "slg_against":     _safe_float(row.get("slg")),             # SLG allowed
+            "hard_hit_pct":    _safe_float(row.get("hard_hit_percent")),# hard hit% allowed
+            "run_value_per100": _safe_float(row.get("run_value_per_100")),  # negative = good for pitcher
+        }
+        if pid not in result:
+            result[pid] = []
+        result[pid].append(entry)
+    if result:
+        _savant_pitcher_arsenal[season] = result
+    return result
+
+
+def load_savant_batter_pitch_splits(season: int = None) -> dict:
+    """Per-pitch-type batting performance for hitters vs each pitch type.
+
+    Returns {player_id_str: {pitch_type: perf_dict}} so you can look up
+    how a specific batter performs against FF, SL, CH, etc.
+    Fields per pitch type: ba, slg, woba, whiff_pct, k_pct, usage_faced
+    """
+    global _savant_batter_pitch_split
+    if not season:
+        season = datetime.now().year
+    if season in _savant_batter_pitch_split:
+        return _savant_batter_pitch_split[season]
+    rows = _fetch_savant_csv(SAVANT_BATTER_PITCH_SPLIT_URL.format(year=season))
+    result: dict = {}
+    for row in rows:
+        pid = str(row.get("player_id", "")).strip()
+        if not pid:
+            continue
+        pitch_type = row.get("pitch_type", "").strip().upper()
+        if not pitch_type:
+            continue
+        if pid not in result:
+            result[pid] = {}
+        result[pid][pitch_type] = {
+            "ba":           _safe_float(row.get("ba")),
+            "slg":          _safe_float(row.get("slg")),
+            "woba":         _safe_float(row.get("woba")),
+            "xwoba":        _safe_float(row.get("est_woba")),
+            "whiff_pct":    _safe_float(row.get("whiff_percent")),
+            "k_pct":        _safe_float(row.get("k_percent")),
+            "hard_hit_pct": _safe_float(row.get("hard_hit_percent")),
+            "run_value_per100": _safe_float(row.get("run_value_per_100")),
+            "usage_faced":  _safe_float(row.get("pitch_usage")),  # how often they see this pitch type
+        }
+    if result:
+        _savant_batter_pitch_split[season] = result
+    return result
+
+
+def get_pitcher_arsenal_full(player_id: int, season: int = None) -> list:
+    """Return pitcher's full arsenal list sorted by usage% descending."""
+    if not season:
+        season = datetime.now().year
+    pid = str(player_id)
+    pitches = load_savant_pitcher_arsenal(season).get(pid, [])
+    return sorted(pitches, key=lambda x: x.get("usage_pct", 0), reverse=True)
+
+
+def get_batter_pitch_splits(player_id: int, season: int = None) -> dict:
+    """Return batter's performance vs each pitch type: {pitch_type: {ba, slg, woba, whiff_pct, ...}}."""
+    if not season:
+        season = datetime.now().year
+    pid = str(player_id)
+    return load_savant_batter_pitch_splits(season).get(pid, {})
+
+
 def get_game_umpire(game_pk: int) -> dict:
     """Return HP umpire info + K-rate tendency for a game.
 
@@ -1507,9 +1614,11 @@ def get_today_savant_leaderboards(season: int = None) -> dict:
     if not season:
         season = datetime.now().year
     return {
-        "batting":      load_savant_batting(season),
-        "pitching":     load_savant_pitching(season),
-        "pitcher_k":    load_savant_pitcher_k(season),
-        "xstats":       load_savant_xstats(season),
-        "bat_tracking": load_bat_tracking(season),
+        "batting":             load_savant_batting(season),
+        "pitching":            load_savant_pitching(season),
+        "pitcher_k":           load_savant_pitcher_k(season),
+        "xstats":              load_savant_xstats(season),
+        "bat_tracking":        load_bat_tracking(season),
+        "pitcher_arsenal":     load_savant_pitcher_arsenal(season),
+        "batter_pitch_splits": load_savant_batter_pitch_splits(season),
     }

@@ -448,18 +448,137 @@ def analyze_pitcher_k_prop(pitcher_stats: dict, recent_starts: list,
     }
 
 
+_PITCH_LABELS = {
+    "FF": "4-Seam FB", "SI": "Sinker", "FC": "Cutter",
+    "SL": "Slider",    "ST": "Sweeper", "KC": "Knuckle-Curve",
+    "CU": "Curveball", "CH": "Changeup", "FS": "Splitter",
+    "CS": "Slow Curve", "KN": "Knuckleball",
+}
+
+
+def analyze_arsenal_matchup(pitcher_arsenal: list, batter_pitch_splits: dict,
+                             batter_hand: str = "R") -> dict:
+    """Score a pitcher vs batter matchup using pitch arsenal and batter pitch-type splits.
+
+    Logic:
+    - For each of pitcher's primary pitches (usage% ≥ 10%), check batter's performance
+      vs that pitch type (wOBA, whiff%, BA).
+    - Pitcher's high-whiff pitch vs batter's high whiff rate = UNDER edge.
+    - Pitcher's weak/hittable pitch (high wOBA against) vs batter who crushes that type = OVER edge.
+    - Score range: -4 (strong UNDER edge for pitcher) to +4 (strong OVER edge for batter).
+
+    Returns:
+        {score: int, notes: [str], primary_pitches: [str], edge: str, data_available: bool}
+    """
+    if not pitcher_arsenal:
+        return {"score": 0, "notes": [], "primary_pitches": [], "edge": "none", "data_available": False}
+
+    primary = [p for p in pitcher_arsenal if p.get("usage_pct", 0) >= 10.0]
+    if not primary:
+        return {"score": 0, "notes": [], "primary_pitches": [], "edge": "none", "data_available": False}
+
+    score = 0
+    notes = []
+    matchup_details = []
+
+    for pitch in primary:
+        pt = pitch.get("pitch_type", "")
+        pt_name = _PITCH_LABELS.get(pt, pt)
+        usage = pitch.get("usage_pct", 0)
+        p_whiff = pitch.get("whiff_pct", 0)        # pitcher's whiff% with this pitch
+        p_woba  = pitch.get("woba_against", 0.320) # wOBA pitcher allows with this pitch
+        p_rv100 = pitch.get("run_value_per100", 0) # negative = pitch is good for pitcher
+
+        b_split = batter_pitch_splits.get(pt, {})
+        b_woba  = b_split.get("woba", 0)
+        b_whiff = b_split.get("whiff_pct", 0)
+        b_ba    = b_split.get("ba", 0)
+
+        pitch_score = 0
+        pitch_notes = []
+
+        # ── Pitcher pitch effectiveness ────────────────────────────────────────
+        if p_rv100 <= -2.0:
+            pitch_score -= 1
+            pitch_notes.append(f"elite (RV/100: {p_rv100:.1f})")
+        elif p_rv100 >= 2.0:
+            pitch_score += 1
+            pitch_notes.append(f"hittable (RV/100: +{p_rv100:.1f})")
+
+        if p_whiff >= 40:
+            pitch_score -= 1
+            pitch_notes.append(f"elite whiff {p_whiff:.0f}%")
+        elif p_whiff >= 30:
+            pitch_score -= 0  # note only, no score
+            pitch_notes.append(f"strong whiff {p_whiff:.0f}%")
+
+        # ── Batter performance vs this pitch type (requires split data) ────────
+        if b_woba > 0:
+            if b_woba >= 0.400:
+                pitch_score += 2
+                pitch_notes.append(f"batter CRUSHES (.{int(b_woba*1000):03d} wOBA vs {pt_name})")
+            elif b_woba >= 0.350:
+                pitch_score += 1
+                pitch_notes.append(f"batter strong vs {pt_name} (.{int(b_woba*1000):03d} wOBA)")
+            elif b_woba <= 0.220:
+                pitch_score -= 2
+                pitch_notes.append(f"batter WEAK vs {pt_name} (.{int(b_woba*1000):03d} wOBA)")
+            elif b_woba <= 0.270:
+                pitch_score -= 1
+                pitch_notes.append(f"batter struggles vs {pt_name} (.{int(b_woba*1000):03d} wOBA)")
+
+        if b_whiff >= 40 and p_whiff >= 30:
+            pitch_score -= 1
+            pitch_notes.append(f"double whiff risk — batter {b_whiff:.0f}% whiff vs pitch that gets {p_whiff:.0f}%")
+
+        if b_ba > 0 and b_ba >= 0.320 and p_woba >= 0.350:
+            pitch_score += 1
+            pitch_notes.append(f"batter hits {pt_name} well (.{int(b_ba*1000):03d} BA, pitcher weak with it)")
+
+        # Weight by usage: primary pitch matters more
+        usage_weight = 2 if usage >= 30 else 1
+        weighted = round(pitch_score * (usage_weight / 2))
+        score += weighted
+
+        if pitch_notes:
+            usage_tag = f"{usage:.0f}%"
+            matchup_details.append(f"{pt_name} ({usage_tag}): {', '.join(pitch_notes)}")
+
+    # Cap score: arsenal matchup is one layer, shouldn't dominate the full model
+    score = max(-4, min(4, score))
+
+    primary_names = [_PITCH_LABELS.get(p.get("pitch_type",""), p.get("pitch_type",""))
+                     + f" {p.get('usage_pct',0):.0f}%"
+                     for p in primary[:4]]
+
+    edge = "pitcher" if score <= -2 else "batter" if score >= 2 else "neutral"
+
+    if matchup_details:
+        notes.append(f"Arsenal matchup ({edge}): {' | '.join(matchup_details[:3])}")
+
+    return {
+        "score":           score,
+        "notes":           notes,
+        "primary_pitches": primary_names,
+        "edge":            edge,
+        "data_available":  True,
+    }
+
+
 def analyze_batter_hit_prop(batter_stats: dict, recent_games: list,
                              pitcher_stats: dict, h2h: dict,
                              line: float = 0.5,
                              pitcher_hand: str = None,
                              is_home: bool = False,
                              park_factors: dict = None,
-                             batter_savant: dict = None) -> dict:
+                             batter_savant: dict = None,
+                             pitcher_arsenal: list = None,
+                             batter_pitch_splits: dict = None) -> dict:
     """Evaluate a batter's hits prop (Over/Under 0.5 hits default).
 
     Tier 1 signals: platoon edge, LD%, xBA vs BA, BABIP regression,
                     hot-streak dampener, H2H min-10-PA gate.
-    Tier 2 signals: home/away OPS split.
+    Tier 2 signals: home/away OPS split, arsenal matchup.
     """
     import math
 
@@ -802,6 +921,16 @@ def analyze_batter_hit_prop(batter_stats: dict, recent_games: list,
         score += min(_sv_pos, 3) + _sv_neg
         notes.extend(_sv_notes)
 
+    # ── TIER 2: Pitcher arsenal vs batter pitch-type splits ───────────────────
+    arsenal_result = {}
+    batter_hand_for_arsenal = batter_stats.get("bats", "R")
+    if pitcher_arsenal and batter_pitch_splits is not None:
+        arsenal_result = analyze_arsenal_matchup(pitcher_arsenal, batter_pitch_splits, batter_hand_for_arsenal)
+        a_score = arsenal_result.get("score", 0)
+        if a_score != 0:
+            score += a_score
+            notes.extend(arsenal_result.get("notes", []))
+
     # UNDER threshold raised to -4: even cold hitters get 1+ hit ~40% of the time.
     # Hit UNDERs at -3 threshold ran 38% — tightening to require stronger conviction.
     # Hard vetoes: BABIP bounce-back blocks UNDER; extreme BABIP blocks OVER; strong H2H blocks UNDER.
@@ -836,6 +965,8 @@ def analyze_batter_hit_prop(batter_stats: dict, recent_games: list,
         "ld_pct": ld_pct,
         "l5_babip": l5_babip,
         "platoon": round(platoon, 3),
+        "arsenal_edge": arsenal_result.get("edge", "none"),
+        "primary_pitches": arsenal_result.get("primary_pitches", []),
         "notes": notes,
     }
 
@@ -1099,7 +1230,9 @@ def analyze_hrrbi_prop(batter_stats: dict, recent_games: list,
 def analyze_fantasy_score_prop(batter_stats: dict, recent_games: list,
                                 pitcher_stats: dict, h2h: dict,
                                 park_factors: dict, weather: dict,
-                                line: float = 6.5) -> dict:
+                                line: float = 6.5,
+                                pitcher_arsenal: list = None,
+                                batter_pitch_splits: dict = None) -> dict:
     """
     PrizePicks Baseball Fantasy Score.
     Scoring: 1B=3 | 2B=5 | 3B=8 | HR=10 | R=2 | RBI=2 | BB=2 | SB=5 | K=-1
@@ -1311,6 +1444,16 @@ def analyze_fantasy_score_prop(batter_stats: dict, recent_games: list,
         elif _fs_trend <= -0.80:
             score += 1; notes.append(f"Pitcher cold — L3 ERA {_p_l3_era:.2f} worse than season {p_era:.2f}")
 
+    # 11. Arsenal matchup — pitcher's pitch types vs batter's pitch-type splits
+    fs_arsenal_result = {}
+    if pitcher_arsenal and batter_pitch_splits is not None:
+        batter_hand_fs = batter_stats.get("bats", "R")
+        fs_arsenal_result = analyze_arsenal_matchup(pitcher_arsenal, batter_pitch_splits, batter_hand_fs)
+        a_score = fs_arsenal_result.get("score", 0)
+        if a_score != 0:
+            score += a_score
+            notes.extend(fs_arsenal_result.get("notes", []))
+
     lean = "OVER" if score >= 4 else "UNDER" if score <= -4 else "NEUTRAL"
     conf = "Strong" if abs(score) >= 6 else "Lean" if abs(score) >= 4 else "Slight"
 
@@ -1326,6 +1469,8 @@ def analyze_fantasy_score_prop(batter_stats: dict, recent_games: list,
         "l5_avg_fs":        round(l5_avg, 2),
         "l5_over":          l5_over,
         "suggested_line":   suggested_line,
+        "arsenal_edge":     fs_arsenal_result.get("edge", "none"),
+        "primary_pitches":  fs_arsenal_result.get("primary_pitches", []),
         "breakdown": {
             "h_pg":         round(h_pg, 2),
             "hit_pts_mult": round(hit_pts_mult, 2),
@@ -1527,7 +1672,9 @@ def analyze_nrfi_prop(away_pitcher_stats: dict, home_pitcher_stats: dict,
 
 def build_prop_sheet(game_analysis: dict, as_of_date: str = None) -> dict:
     """Master prop sheet builder — takes full game_analysis output, returns ranked props."""
-    from baseball_engine import get_batter_vs_pitcher, get_batter_season_stats, get_pitcher_savant, get_game_umpire, get_batter_savant
+    from baseball_engine import (get_batter_vs_pitcher, get_batter_season_stats,
+                                  get_pitcher_savant, get_game_umpire, get_batter_savant,
+                                  get_pitcher_arsenal_full, get_batter_pitch_splits)
     import time as _time
 
     pitchers = game_analysis.get("pitchers", {})
@@ -1556,6 +1703,10 @@ def build_prop_sheet(game_analysis: dict, as_of_date: str = None) -> dict:
     home_swstr = home_savant.get("swstr_pct") or None
     away_csw = away_savant.get("csw_pct") or None
     home_csw = home_savant.get("csw_pct") or None
+
+    # ── Fetch pitcher arsenal data (per-pitch-type stats from Savant) ─────────
+    away_p_arsenal_full = get_pitcher_arsenal_full(away_p_id, season) if away_p_id else []
+    home_p_arsenal_full = get_pitcher_arsenal_full(home_p_id, season) if home_p_id else []
 
     umpire = {}
     if game_pk:
@@ -1618,7 +1769,7 @@ def build_prop_sheet(game_analysis: dict, as_of_date: str = None) -> dict:
     matchups = game_analysis.get("matchups", {})
 
     def process_batters(batter_list, pitcher_stats, pitcher_id, side_label,
-                        opp_pitcher_hand, batter_is_home):
+                        opp_pitcher_hand, batter_is_home, opp_pitcher_arsenal=None):
         # side_label = team side of the BATTER ("home"/"away"), NOT which pitcher they face.
         # Home batters face the away pitcher; away batters face the home pitcher.
         opp_name = pitcher_stats.get("name", "") if pitcher_stats else ""
@@ -1637,15 +1788,18 @@ def build_prop_sheet(game_analysis: dict, as_of_date: str = None) -> dict:
 
             recent = get_batter_last_n(bid, season, 5, as_of_date)
             b_savant = get_batter_savant(bid, season)
+            b_pitch_splits = get_batter_pitch_splits(bid, season)
             _time.sleep(0.15)
 
-            # Hits prop — pass pitcher hand, home/away context, and park factors
+            # Hits prop — pass pitcher hand, home/away context, park factors, and arsenal
             hit_p = analyze_batter_hit_prop(
                 batter_full, recent, pitcher_stats, h2h, 0.5,
                 pitcher_hand=opp_pitcher_hand,
                 is_home=batter_is_home,
                 park_factors=park,
                 batter_savant=b_savant,
+                pitcher_arsenal=opp_pitcher_arsenal,
+                batter_pitch_splits=b_pitch_splits,
             )
             hit_p["order"] = batter.get("order", 0)
             hit_p["batter_side"] = side_label          # which team the batter plays for
@@ -1710,7 +1864,11 @@ def build_prop_sheet(game_analysis: dict, as_of_date: str = None) -> dict:
             if _p_bb9 >= 4.5:     _bump += 0.5
             if _park_run >= 1.20: _bump += 0.5
             _fs_line = round(min(_fs_line + _bump, 9.5) * 2) / 2
-            fs_p = analyze_fantasy_score_prop(batter_full, recent, pitcher_stats, h2h, park, weather, _fs_line)
+            fs_p = analyze_fantasy_score_prop(
+                batter_full, recent, pitcher_stats, h2h, park, weather, _fs_line,
+                pitcher_arsenal=opp_pitcher_arsenal,
+                batter_pitch_splits=b_pitch_splits,
+            )
             fs_p["order"] = batter.get("order", 0)
             fs_p["batter_side"] = side_label
             fs_p["side"] = side_label
@@ -1738,17 +1896,20 @@ def build_prop_sheet(game_analysis: dict, as_of_date: str = None) -> dict:
     if home_p_stats:
         _inject_l3_era(home_p_stats, home_p_recent)
 
+    # home pitcher faces away batters; away pitcher faces home batters
     if home_p_stats and home_p_id:
         process_batters(
             matchups.get("away_batters_vs_home_pitcher", []),
             home_p_stats, home_p_id, "away",
             opp_pitcher_hand=home_p_hand, batter_is_home=False,
+            opp_pitcher_arsenal=home_p_arsenal_full,
         )
     if away_p_stats and away_p_id:
         process_batters(
             matchups.get("home_batters_vs_away_pitcher", []),
             away_p_stats, away_p_id, "home",
             opp_pitcher_hand=away_p_hand, batter_is_home=True,
+            opp_pitcher_arsenal=away_p_arsenal_full,
         )
 
     # Sort: Strong > Lean, then by abs(score)
