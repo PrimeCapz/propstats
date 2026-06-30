@@ -227,6 +227,50 @@ def _last5_avg(games: list) -> Optional[float]:
     return round(h / ab, 3) if ab > 0 else None
 
 
+# EWMA decay=0.65: game[0]=most recent (×1.0), game[1]×0.65, game[2]×0.42, …
+_EWMA_WEIGHTS = [1.0, 0.65, 0.4225, 0.2746, 0.1785]
+
+
+def _ewma_avg(games: list) -> Optional[float]:
+    """Exponentially weighted moving average of batting avg — recent games count more."""
+    wh = 0.0; wab = 0.0
+    for i, g in enumerate(games[:5]):
+        w = _EWMA_WEIGHTS[i]
+        wh  += g.get("h",  0) * w
+        wab += g.get("ab", 0) * w
+    return round(wh / wab, 3) if wab > 0 else None
+
+
+def _pitcher_l14_k_pct(recent_starts: list) -> dict:
+    """K rate over last 4 qualifying starts (~14-day window)."""
+    starts = [g for g in recent_starts[:8]
+              if g.get("gs", 0) > 0 or float(str(g.get("ip", "0.0")).split(".")[0]) >= 3][:4]
+    if len(starts) < 2:
+        return {}
+    total_k  = sum(g.get("k", 0) for g in starts)
+    total_ip = 0.0
+    for g in starts:
+        try:
+            parts = str(g.get("ip", "0.0")).split(".")
+            total_ip += int(parts[0]) + (int(parts[1]) if len(parts) > 1 else 0) / 3.0
+        except Exception:
+            pass
+    if total_ip < 8:
+        return {}
+    return {
+        "l14_k_per9":  round(total_k / total_ip * 9, 2),
+        "l14_k_pct":   round(total_k / (total_ip * 4.3), 3),
+        "l14_starts":  len(starts),
+        "l14_k":       total_k,
+        "l14_ip":      round(total_ip, 1),
+    }
+
+
+# Batting-order PA multiplier — top of order sees ~15% more PAs than bottom
+_ORDER_PA_MULT = {1: 1.15, 2: 1.12, 3: 1.08, 4: 1.08,
+                  5: 1.00, 6: 1.00, 7: 0.92, 8: 0.92, 9: 0.87}
+
+
 def _last5_streak(games: list) -> str:
     """Count consecutive games with a hit."""
     streak = 0
@@ -346,6 +390,21 @@ def analyze_pitcher_k_prop(pitcher_stats: dict, recent_starts: list,
         score -= 2; notes.append(f"Low: only {avg_k_per_start:.1f} K/start recently")
     elif avg_k_per_start <= 5.5:
         score -= 1; notes.append(f"Below-avg {avg_k_per_start:.1f} K/start recently")
+
+    # ── L14 Rolling K% — catches K-rate form shifts vs season baseline ────────
+    _l14 = _pitcher_l14_k_pct(recent_starts)
+    if _l14 and k9 > 0:
+        _l14_k9 = _l14.get("l14_k_per9", 0)
+        _k9_delta = _l14_k9 - k9
+        _ns = _l14.get("l14_starts", 0)
+        if _k9_delta >= 2.0:
+            score += 2; notes.append(f"K rate surging — L{_ns}s: {_l14_k9:.1f} K/9 vs {k9:.1f} season K/9")
+        elif _k9_delta >= 1.0:
+            score += 1; notes.append(f"K rate trending up — L{_ns}s: {_l14_k9:.1f} vs {k9:.1f} season K/9")
+        elif _k9_delta <= -2.0:
+            score -= 2; notes.append(f"K rate declining — L{_ns}s: {_l14_k9:.1f} K/9 vs {k9:.1f} season K/9")
+        elif _k9_delta <= -1.0:
+            score -= 1; notes.append(f"K rate soft — L{_ns}s: {_l14_k9:.1f} K/9 below {k9:.1f} season")
 
     # ── SECONDARY: K/9 supporting signal ─────────────────────────────────────
     if k9 >= 11:
@@ -597,7 +656,7 @@ def analyze_batter_hit_prop(batter_stats: dict, recent_games: list,
 
     # ── Null-data gate ────────────────────────────────────────────────────────
     # If we have no meaningful batting data, don't issue a misleading lean.
-    l5_avg_raw = _last5_avg(recent_games)
+    l5_avg_raw = _ewma_avg(recent_games)   # EWMA weights most-recent game highest
     l5_avg = l5_avg_raw if l5_avg_raw is not None else season_avg
     if season_avg == 0.0 and (l5_avg_raw is None or l5_avg_raw == 0.0) and pa < 30:
         return {
@@ -779,8 +838,12 @@ def analyze_batter_hit_prop(batter_stats: dict, recent_games: list,
         try:
             xba = float(str(xba_raw).lstrip(".") and xba_raw or 0)
             ba_delta = xba - season_avg
-            if ba_delta >= 0.040:
+            if ba_delta >= 0.060:
+                score += 2; notes.append(f"xBA ({xba:.3f}) >> BA ({season_avg:.3f}) — significantly unlucky, OVER regression due")
+            elif ba_delta >= 0.040:
                 score += 1; notes.append(f"xBA ({xba:.3f}) >> BA ({season_avg:.3f}) — unlucky, OVER regression")
+            elif ba_delta <= -0.060:
+                score -= 2; notes.append(f"BA ({season_avg:.3f}) >> xBA ({xba:.3f}) — significantly lucky, UNDER regression")
             elif ba_delta <= -0.040:
                 score -= 1; notes.append(f"BA ({season_avg:.3f}) >> xBA ({xba:.3f}) — lucky, UNDER regression")
         except Exception:
@@ -829,6 +892,14 @@ def analyze_batter_hit_prop(batter_stats: dict, recent_games: list,
         score -= 2; notes.append(f"K-risk matchup — batter whiff {batter_whiff:.0f}% vs pitcher K/9 {p_k9_raw:.1f}")
     elif batter_whiff >= 28:
         score -= 1; notes.append(f"High whiff rate ({batter_whiff:.0f}%) — contact risk")
+
+    # ── L14 Pitcher K trend vs batter whiff — rolling form catches hot/cold K spells ──
+    p_l14_k9 = _f((pitcher_stats.get("stats", {}) if pitcher_stats else {}).get("l14_k_per9", 0))
+    if p_l14_k9 > 0 and batter_whiff >= 26:
+        if p_l14_k9 >= 10.5 and batter_whiff >= 30:
+            score -= 1; notes.append(f"L4-start K spike ({p_l14_k9:.1f} K/9) vs high-whiff batter — K-risk elevated")
+        elif p_l14_k9 >= 9.0 and batter_whiff >= 34:
+            score -= 1; notes.append(f"Pitcher recent K rate ({p_l14_k9:.1f} K/9) vs extreme-whiff batter")
 
     # ── TIER 1: K% — strikeout rate dampens ball-in-play outcomes ────────────
     batter_k_pct = _f(s.get("k_pct", 0))
@@ -1670,8 +1741,12 @@ def analyze_nrfi_prop(away_pitcher_stats: dict, home_pitcher_stats: dict,
     }
 
 
-def build_prop_sheet(game_analysis: dict, as_of_date: str = None) -> dict:
-    """Master prop sheet builder — takes full game_analysis output, returns ranked props."""
+def build_prop_sheet(game_analysis: dict, as_of_date: str = None,
+                     streak_log: dict = None) -> dict:
+    """Master prop sheet builder — takes full game_analysis output, returns ranked props.
+
+    streak_log: optional dict {\"PlayerName_LEAN\": consecutive_days} for streak dampener.
+    """
     from baseball_engine import (get_batter_vs_pitcher, get_batter_season_stats,
                                   get_pitcher_savant, get_game_umpire, get_batter_savant,
                                   get_pitcher_arsenal_full, get_batter_pitch_splits)
@@ -1769,11 +1844,18 @@ def build_prop_sheet(game_analysis: dict, as_of_date: str = None) -> dict:
     matchups = game_analysis.get("matchups", {})
 
     def process_batters(batter_list, pitcher_stats, pitcher_id, side_label,
-                        opp_pitcher_hand, batter_is_home, opp_pitcher_arsenal=None):
+                        opp_pitcher_hand, batter_is_home, opp_pitcher_arsenal=None,
+                        pitcher_recent_starts=None):
         # side_label = team side of the BATTER ("home"/"away"), NOT which pitcher they face.
         # Home batters face the away pitcher; away batters face the home pitcher.
         opp_name = pitcher_stats.get("name", "") if pitcher_stats else ""
         hr_per_pitcher = {}   # cap HR props at 3 per opposing pitcher
+
+        # TTO: pitcher avg IP over recent qualifying starts — high-IP starters expose top of order to 3rd TTO
+        _p_qual_starts = [g for g in (pitcher_recent_starts or [])
+                          if g.get("gs", 0) > 0 or float(str(g.get("ip", "0.0")).split(".")[0]) >= 3][:5]
+        _pitcher_avg_ip = _avg_ip(_p_qual_starts) if _p_qual_starts else 5.0
+
         for item in batter_list[:9]:
             batter = item.get("batter", {})
             bid = batter.get("player_id")
@@ -1791,6 +1873,44 @@ def build_prop_sheet(game_analysis: dict, as_of_date: str = None) -> dict:
             b_pitch_splits = get_batter_pitch_splits(bid, season)
             _time.sleep(0.15)
 
+            # Lineup gate + batting-order context
+            is_projected = batter.get("projected", False)
+            order = batter.get("order", 5)
+            _om = _ORDER_PA_MULT.get(order, 1.00)
+
+            # TTO: top of order vs deep-IP starter sees 3rd TTO → OVER edge
+            _tto_adj  = 0
+            _tto_note = ""
+            if _pitcher_avg_ip >= 6.0 and order in (1, 2, 3):
+                _tto_adj  = 1
+                _tto_note = f"3rd TTO advantage (#{order} vs {_pitcher_avg_ip:.1f}-IP starter)"
+            elif _pitcher_avg_ip < 4.5 and order in (1, 2, 3):
+                _tto_adj  = -1
+                _tto_note = f"Short-IP starter ({_pitcher_avg_ip:.1f} avg IP) — top-order sees only 1st TTO"
+
+            def _apply_mult(prop, ptype):
+                """Apply batting-order PA multiplier + TTO and re-derive lean/confidence."""
+                old = prop.get("score", 0)
+                new = round(old * _om) + _tto_adj
+                if new == old:
+                    return
+                prop["score"] = new
+                if _tto_note:
+                    prop.setdefault("notes", []).append(_tto_note)
+                if _om != 1.00:
+                    prop.setdefault("notes", []).append(f"Order #{order} PA mult ×{_om:.2f} ({old}→{new})")
+                if any("BLOCKED" in n for n in prop.get("notes", [])):
+                    return  # veto blocks must not be overridden
+                if ptype == "Hits":
+                    prop["lean"] = "OVER" if new >= 5 else "UNDER" if new <= -4 else "NEUTRAL"
+                    prop["confidence"] = "Strong" if abs(new) >= 4 else "Lean" if abs(new) >= 2 else "Slight"
+                elif ptype == "Fantasy Score":
+                    prop["lean"] = "OVER" if new >= 4 else "UNDER" if new <= -4 else "NEUTRAL"
+                    prop["confidence"] = "Strong" if abs(new) >= 6 else "Lean" if abs(new) >= 4 else "Slight"
+                elif ptype == "H+R+RBI":
+                    prop["lean"] = "OVER" if new >= 3 else "UNDER" if new <= -3 else "NEUTRAL"
+                    prop["confidence"] = "Strong" if abs(new) >= 5 else "Lean" if abs(new) >= 3 else "Slight"
+
             # Hits prop — pass pitcher hand, home/away context, park factors, and arsenal
             hit_p = analyze_batter_hit_prop(
                 batter_full, recent, pitcher_stats, h2h, 0.5,
@@ -1801,12 +1921,16 @@ def build_prop_sheet(game_analysis: dict, as_of_date: str = None) -> dict:
                 pitcher_arsenal=opp_pitcher_arsenal,
                 batter_pitch_splits=b_pitch_splits,
             )
-            hit_p["order"] = batter.get("order", 0)
+            hit_p["order"] = order
             hit_p["batter_side"] = side_label          # which team the batter plays for
             hit_p["side"] = side_label                  # kept for backwards compat
             hit_p["opposing_pitcher"] = opp_name        # the pitcher this batter actually faces
             hit_p["opposing_pitcher_id"] = pitcher_id
             hit_p["recent_games"] = recent
+            hit_p["lineup_confirmed"] = not is_projected
+            if is_projected:
+                hit_p["notes"].insert(0, "⚠️ Projected lineup — not confirmed")
+            _apply_mult(hit_p, "Hits")
             # Include all actionable props: any OVER/UNDER call, or high-signal neutrals
             if not hit_p.get("insufficient_data") and (
                 hit_p.get("lean") in ("OVER", "UNDER") or abs(hit_p["score"]) >= 2
@@ -1815,11 +1939,12 @@ def build_prop_sheet(game_analysis: dict, as_of_date: str = None) -> dict:
 
             # HR prop — cap at 3 per opposing pitcher to avoid over-stacking
             hr_p = analyze_batter_hr_prop(batter_full, recent, pitcher_stats, h2h, park, weather, 0.5, batter_savant=b_savant)
-            hr_p["order"] = batter.get("order", 0)
+            hr_p["order"] = order
             hr_p["batter_side"] = side_label
             hr_p["side"] = side_label
             hr_p["opposing_pitcher"] = opp_name
             hr_p["opposing_pitcher_id"] = pitcher_id
+            hr_p["lineup_confirmed"] = not is_projected
             p_hr_count = hr_per_pitcher.get(pitcher_id, 0)
             if abs(hr_p["score"]) >= 4 and p_hr_count < 3:
                 props.append(hr_p)
@@ -1827,11 +1952,15 @@ def build_prop_sheet(game_analysis: dict, as_of_date: str = None) -> dict:
 
             # H+R+RBI prop (1.5 line)
             hrrbi_p = analyze_hrrbi_prop(batter_full, recent, pitcher_stats, h2h, park, weather, 1.5)
-            hrrbi_p["order"] = batter.get("order", 0)
+            hrrbi_p["order"] = order
             hrrbi_p["batter_side"] = side_label
             hrrbi_p["side"] = side_label
             hrrbi_p["opposing_pitcher"] = opp_name
             hrrbi_p["opposing_pitcher_id"] = pitcher_id
+            hrrbi_p["lineup_confirmed"] = not is_projected
+            if is_projected:
+                hrrbi_p["notes"].insert(0, "⚠️ Projected lineup — not confirmed")
+            _apply_mult(hrrbi_p, "H+R+RBI")
             if hrrbi_p.get("lean") in ("OVER", "UNDER") or abs(hrrbi_p["score"]) >= 2:
                 props.append(hrrbi_p)
 
@@ -1869,11 +1998,15 @@ def build_prop_sheet(game_analysis: dict, as_of_date: str = None) -> dict:
                 pitcher_arsenal=opp_pitcher_arsenal,
                 batter_pitch_splits=b_pitch_splits,
             )
-            fs_p["order"] = batter.get("order", 0)
+            fs_p["order"] = order
             fs_p["batter_side"] = side_label
             fs_p["side"] = side_label
             fs_p["opposing_pitcher"] = opp_name
             fs_p["opposing_pitcher_id"] = pitcher_id
+            fs_p["lineup_confirmed"] = not is_projected
+            if is_projected:
+                fs_p["notes"].insert(0, "⚠️ Projected lineup — not confirmed")
+            _apply_mult(fs_p, "Fantasy Score")
             if fs_p.get("lean") in ("OVER", "UNDER") or abs(fs_p["score"]) >= 2:
                 props.append(fs_p)
 
@@ -1891,10 +2024,20 @@ def build_prop_sheet(game_analysis: dict, as_of_date: str = None) -> dict:
             if total_ip > 0:
                 inner["l3_era"] = round(total_er / total_ip * 9, 2)
 
+    def _inject_l14_k(outer_stats, recent_starts):
+        inner = outer_stats.get("stats", {})
+        if not inner:
+            return
+        l14 = _pitcher_l14_k_pct(recent_starts)
+        if l14:
+            inner["l14_k_per9"] = l14.get("l14_k_per9", 0)
+
     if away_p_stats:
         _inject_l3_era(away_p_stats, away_p_recent)
+        _inject_l14_k(away_p_stats, away_p_recent)
     if home_p_stats:
         _inject_l3_era(home_p_stats, home_p_recent)
+        _inject_l14_k(home_p_stats, home_p_recent)
 
     # home pitcher faces away batters; away pitcher faces home batters
     if home_p_stats and home_p_id:
@@ -1903,6 +2046,7 @@ def build_prop_sheet(game_analysis: dict, as_of_date: str = None) -> dict:
             home_p_stats, home_p_id, "away",
             opp_pitcher_hand=home_p_hand, batter_is_home=False,
             opp_pitcher_arsenal=home_p_arsenal_full,
+            pitcher_recent_starts=home_p_recent,
         )
     if away_p_stats and away_p_id:
         process_batters(
@@ -1910,6 +2054,7 @@ def build_prop_sheet(game_analysis: dict, as_of_date: str = None) -> dict:
             away_p_stats, away_p_id, "home",
             opp_pitcher_hand=away_p_hand, batter_is_home=True,
             opp_pitcher_arsenal=away_p_arsenal_full,
+            pitcher_recent_starts=away_p_recent,
         )
 
     # Sort: Strong > Lean, then by abs(score)
@@ -1960,6 +2105,37 @@ def build_prop_sheet(game_analysis: dict, as_of_date: str = None) -> dict:
         else:
             p["cross_confirmed"] = False
 
+    # ── Post-confirmation adjustments ─────────────────────────────────────────
+    for p in props:
+        if not p.get("cross_confirmed"):
+            continue
+
+        # Lineup gate discount — unconfirmed (projected) lineups carry 40% less weight
+        if not p.get("lineup_confirmed", True):
+            old_xcs = p.get("cross_confirmed_score", 0)
+            p["cross_confirmed_score"] = round(old_xcs * 0.60)
+            p.setdefault("notes", []).append(
+                f"⚠️ Projected lineup — cross-confirmed score discounted 40% ({old_xcs}→{p['cross_confirmed_score']})"
+            )
+
+        # Streak bias dampener — consecutive days cross-confirmed reduces edge
+        if streak_log:
+            _sname = p.get("batter") or p.get("pitcher")
+            _slean = p.get("lean", "")
+            _days  = streak_log.get(f"{_sname}_{_slean}", 0)
+            if _days >= 2:
+                old_xcs = p.get("cross_confirmed_score", 0)
+                p["cross_confirmed_score"] = round(old_xcs * 0.70)
+                p.setdefault("notes", []).append(
+                    f"Day {_days + 1} streak dampener ({_days} prior day(s) cross-confirmed {_slean}): ×0.70"
+                )
+            elif _days == 1:
+                old_xcs = p.get("cross_confirmed_score", 0)
+                p["cross_confirmed_score"] = round(old_xcs * 0.85)
+                p.setdefault("notes", []).append(
+                    f"Day 2 streak dampener (cross-confirmed {_slean} yesterday): ×0.85"
+                )
+
     # Build confirmed_plays list (one entry per player, not per prop type)
     seen_confirmed = set()
     for p in props:
@@ -1972,12 +2148,13 @@ def build_prop_sheet(game_analysis: dict, as_of_date: str = None) -> dict:
             continue
         seen_confirmed.add(key)
         confirmed_plays.append({
-            "player":     name,
-            "lean":       lean,
-            "label":      p.get("cross_confirmed_label"),
-            "prop_types": p.get("cross_confirmed_types", []),
-            "combined_score": p.get("cross_confirmed_score", 0),
-            "game":       f"{game_analysis.get('away_team',{}).get('abbr','')}@{game_analysis.get('home_team',{}).get('abbr','')}",
+            "player":          name,
+            "lean":            lean,
+            "label":           p.get("cross_confirmed_label"),
+            "prop_types":      p.get("cross_confirmed_types", []),
+            "combined_score":  p.get("cross_confirmed_score", 0),
+            "lineup_confirmed": p.get("lineup_confirmed", True),
+            "game":            f"{game_analysis.get('away_team',{}).get('abbr','')}@{game_analysis.get('home_team',{}).get('abbr','')}",
         })
 
     confirmed_plays.sort(key=lambda x: x["combined_score"])  # most negative first for unders
