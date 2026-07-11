@@ -501,23 +501,44 @@ def _quick_batter_entry(batter_id: int, batter_name: str, bats: str,
     d    = batter_hr_data.get(pid, {})
     ev   = savant_batting.get(pid, {})
 
-    brl_bip  = _safe(d.get("brl_per_bip"))
-    pull_pct = _safe(d.get("pull_pct"))
-    fb_pct   = _safe(d.get("fb_pct"))
-    la_avg   = _safe(d.get("la_avg"))
-    sweet    = _safe(d.get("sweet_spot_pct"))
-    xiso     = _safe(d.get("xiso"))
-    xwoba    = _safe(d.get("xwoba"))
-    hh_pct   = _safe(ev.get("hard_hit_pct"))
-    exit_velo = _safe(ev.get("exit_velo"))        # avg EV from Savant batting
-    avg_dist  = _safe(d.get("avg_distance"))       # season avg distance
+    brl_bip   = _safe(d.get("brl_per_bip"))
+    pull_pct  = _safe(d.get("pull_pct"))
+    fb_pct    = _safe(d.get("fb_pct"))
+    la_avg    = _safe(d.get("la_avg"))
+    sweet     = _safe(d.get("sweet_spot_pct"))
+    xiso      = _safe(d.get("xiso"))
+    iso       = _safe(d.get("iso"))
+    xwoba     = _safe(d.get("xwoba"))
+    hr_fb_pct = _safe(d.get("hr_fb_pct"))
+    hh_pct    = _safe(ev.get("hard_hit_pct"))
+    exit_velo = _safe(ev.get("exit_velo"))
+    avg_dist  = _safe(d.get("avg_distance"))
 
-    hr_score = _batter_hr_score(batter_hr_data, savant_batting, bat_track, batter_id)
-    zone_fit = _zone_fit(batter_id, pitcher_id, batter_pitch_splits, pitcher_arsenal)
+    # xwOBAcon — prefer batter_hr_data (custom leaderboard), fall back to savant_batting
+    xwoba_con = _safe(d.get("xwoba_con")) or _safe(ev.get("xwoba_con"))
+
+    # SwStr% — compute from batter pitch splits (weighted whiff% across pitch types)
+    b_splits  = batter_pitch_splits.get(pid, {})
+    if b_splits:
+        _tot_usage = sum(v.get("usage_faced", 0) for v in b_splits.values())
+        swstr_pct = (sum(v.get("whiff_pct", 0) * v.get("usage_faced", 0)
+                        for v in b_splits.values()) / _tot_usage
+                    if _tot_usage > 0 else 0.0)
+    else:
+        swstr_pct = _safe(ev.get("swstr_pct"))
+
+    # HR/FB% — Savant field (percentage, e.g. 18.0), or xISO-based proxy
+    if hr_fb_pct == 0.0 and fb_pct > 0:
+        hr_fb_pct = round((xiso * 0.22) / (fb_pct / 100.0) * 100.0, 1)
+
+    hr_score     = _batter_hr_score(batter_hr_data, savant_batting, bat_track, batter_id)
+    barrel_score = _scale(brl_bip, 2.0, 7.0, 16.0)   # 0-100 barrel-only power score
+    zone_fit     = _zone_fit(batter_id, pitcher_id, batter_pitch_splits, pitcher_arsenal)
+    matchup_score = min(100.0, hr_score * 0.55 + zone_fit * 600 * 0.45)
 
     # Use platoon-adjusted vuln score for this batter
     vuln_score = _hand_vuln_score(pitcher_vuln, bats, pitcher_throws)
-    est_hr_pa = xiso * 0.22 if xiso > 0 else LEAGUE_HR_PA
+    est_hr_pa  = xiso * 0.22 if xiso > 0 else LEAGUE_HR_PA
     vuln_mult  = 0.40 + (vuln_score / 100.0) * 1.30
     park_hr    = PARK_FACTORS.get(venue_name, {}).get("hr", 1.0)
     lam = est_hr_pa * vuln_mult * park_hr * 4.0
@@ -541,33 +562,42 @@ def _quick_batter_entry(batter_id: int, batter_name: str, bats: str,
         tags.append("BLASTS")
     if sweet >= 38.0:
         tags.append("SWEET SPOT")
+    if hr_fb_pct >= 18.0:
+        tags.append("HR/FB ELITE")
 
     return {
-        "batter_id":    batter_id,
-        "batter_name":  batter_name,
-        "bats":         bats,
-        "hr_score":     hr_score,
-        "hr_prob":      prob,
-        "implied_odds": odds,
-        "zone_fit":     zone_fit,
-        "hr_form_pct":  None,
-        "hr_form_trend":"?",
-        "near_hr_L10":  None,     # N/A in fast mode (no game log)
-        "exit_velo":    round(exit_velo, 1) if exit_velo else None,
-        "avg_dist":     round(avg_dist, 0) if avg_dist else None,
-        "brl_bip":      brl_bip,
-        "pull_pct":     pull_pct,
-        "fb_pct":       fb_pct,
-        "la_avg":       la_avg,
-        "sweet_spot":   sweet,
-        "xiso":         xiso,
-        "xwoba":        xwoba,
-        "pulled_brl":   pulled_brl,
+        "batter_id":     batter_id,
+        "batter_name":   batter_name,
+        "bats":          bats,
+        "hr_score":      hr_score,
+        "barrel_score":  round(barrel_score, 1),
+        "matchup_score": round(matchup_score, 1),
+        "hr_prob":       prob,
+        "implied_odds":  odds,
+        "zone_fit":      zone_fit,
+        "hr_form_pct":   None,
+        "hr_form_trend": "?",
+        "near_hr_L10":   None,      # N/A in fast mode (no game log)
+        "exit_velo":     round(exit_velo, 1) if exit_velo else None,
+        "avg_dist":      round(avg_dist, 0) if avg_dist else None,
+        "brl_bip":       brl_bip,
+        "pull_pct":      pull_pct,
+        "fb_pct":        fb_pct,
+        "la_avg":        la_avg,
+        "sweet_spot":    sweet,
+        "hh_pct":        hh_pct,
+        "xiso":          xiso,
+        "iso":           iso,
+        "xwoba":         xwoba,
+        "xwoba_con":     xwoba_con,
+        "swstr_pct":     swstr_pct,
+        "hr_fb_pct":     hr_fb_pct,
+        "pulled_brl":    pulled_brl,
         "park_hr_factor": park_hr,
-        "vuln_used":    round(vuln_score, 1),   # which hand score was applied
-        "venue":        venue_name,
-        "tags":         tags,
-        "pitcher_name": pitcher_name,
+        "vuln_used":     round(vuln_score, 1),
+        "venue":         venue_name,
+        "tags":          tags,
+        "pitcher_name":  pitcher_name,
     }
 
 
@@ -638,7 +668,7 @@ def build_hr_attack_board(game_date: str) -> list:
                 batter_entries.append((rank_key, entry))
 
             batter_entries.sort(key=lambda x: -x[0])
-            top_batters = [e for _, e in batter_entries[:5]]
+            top_batters = [e for _, e in batter_entries[:8]]
 
             results.append({
                 "game":           f"{g['away']['team_abbr']}@{g['home']['team_abbr']}",
@@ -698,18 +728,29 @@ def enrich_top_reads(results: list, game_date: str, top_n_pitchers: int = 6) -> 
 
 # ── Formatting ───────────────────────────────────────────────────────────────
 
+def _fmt(val, fmt=".1f", suffix="", none_str="  -"):
+    """Format a float metric or return none_str if zero/None."""
+    if val is None or val == 0.0:
+        return none_str
+    try:
+        return f"{val:{fmt}}{suffix}"
+    except Exception:
+        return none_str
+
+
 def format_hr_attack_board(results: list, game_date: str) -> str:
     lines = []
-    lines.append("=" * 76)
+    W = 90
+    lines.append("=" * W)
     lines.append(f"  HR ATTACK BOARD — {game_date}")
-    lines.append(f"  Pitcher Vulnerability Score: xwOBA_allowed + Barrel% + FB% + LA allowed")
-    lines.append(f"  Batter HR Score: BRL/BIP (35%) + Pull% (25%) + SweetSpot (20%) + xISO (15%)")
-    lines.append("=" * 76)
+    lines.append(f"  Pitcher Vulnerability: xwOBA_allowed + Barrel% + FB% + LA  |  "
+                 f"Batter Score: BRL/BIP + Pull + SweetSpot + xISO")
+    lines.append("=" * W)
 
-    # Summary table
-    lines.append(f"\n  {'PITCHER':<22} {'OPP':<5} {'SCORE':<7} {'TIER':<14} "
+    # ── Pitcher summary table ──
+    lines.append(f"\n  {'PITCHER':<22} {'OPP':<5} {'VULN':<6} {'TIER':<14} "
                  f"{'BRL_ALL':<8} {'xwOBA_ALL':<10} {'FB%_ALL':<8} {'ERA'}")
-    lines.append(f"  {'-'*74}")
+    lines.append(f"  {'-'*80}")
 
     for r in results:
         v = r["vuln"]
@@ -719,28 +760,26 @@ def format_hr_attack_board(results: list, game_date: str) -> str:
         fb       = f"{v['fb_pct_allowed']:.1f}%" if v['fb_pct_allowed'] else "  -  "
         era      = f"{v['era']:.2f}" if v['era'] else "  -"
         lines.append(
-            f"  {r['pitcher_name']:<22} {r['opp_team']:<5} {v['score']:<7.1f}"
+            f"  {r['pitcher_name']:<22} {r['opp_team']:<5} {v['score']:<6.1f}"
             f" {tier_sym} {v['tier']:<12} {barrel:<8} {xwoba:<10} {fb:<8} {era}"
         )
 
-    lines.append("\n" + "=" * 76)
-    lines.append("  TOP READS PER PITCHER")
-    lines.append("=" * 76)
+    lines.append("\n" + "=" * W)
+    lines.append("  BATTER MATCHUP REPORT  (BarrelScore · MatchupScore · xwOBAcon · SwStr% · HR/FB%)")
+    lines.append("=" * W)
 
     for r in results:
         v = r["vuln"]
         tier_sym = "★" if v["tier"] == "Attackable" else ("◎" if v["tier"] == "Neutral Lean" else "○")
         ptag_str = "  [" + ", ".join(r["pitcher_tags"]) + "]" if r["pitcher_tags"] else ""
 
+        p_throws = r.get("pitcher_throws", "R")
+        hand_note = (f"  [LHP — vs LHB ×0.91 | vs RHB ×1.09]"
+                     if p_throws == "L"
+                     else f"  [RHP — vs LHB ×1.09 | vs RHB ×0.91]")
+
         lines.append(f"\n  ┌─ {r['pitcher_name']} ({r['pitcher_team']})  vs {r['opp_team']}"
                      f"  │  {r['game']}")
-        p_throws = r.get("pitcher_throws", "R")
-        if p_throws == "L":
-            # LHP: same-hand LHB suppressed, opposite-hand RHB boosted
-            hand_note = f"  [LHP — vs LHB ×0.91 | vs RHB ×1.09]"
-        else:
-            # RHP: same-hand RHB suppressed, opposite-hand LHB boosted
-            hand_note = f"  [RHP — vs LHB ×1.09 | vs RHB ×0.91]"
         lines.append(f"  │  Vuln: {v['score']:.1f}  {tier_sym} {v['tier']}{ptag_str}{hand_note}")
         lines.append(f"  │  Barrel Allowed: {v['barrel_allowed']:.1f}%  "
                      f"xwOBA: {v['xwoba_allowed'] or '-'}  "
@@ -749,7 +788,6 @@ def format_hr_attack_board(results: list, game_date: str) -> str:
                      f"LA: {v['la_avg_allowed']:.1f}°  "
                      f"ERA: {v['era'] or '-'}")
 
-        # Arsenal
         arsenal_str = "  │  Arsenal: "
         for p in r["arsenal"]:
             arsenal_str += f"{p.get('pitch_name','?')} {p.get('usage_pct',0):.0f}%  "
@@ -759,28 +797,143 @@ def format_hr_attack_board(results: list, game_date: str) -> str:
             lines.append("  │  (no batter data)")
         else:
             lines.append(f"  │")
-            lines.append(f"  │  {'BATTER':<22} {'H':<2} {'SCORE':<6} {'HR%':<7} {'ODDS':<8} "
-                         f"{'ZF':<6} {'FORM':<7} {'NR':<3} {'EV':<5} {'DIST':<6} "
-                         f"{'BRL':<5} {'PULL':<5} TAGS")
-            lines.append(f"  │  {'-'*108}")
+            # Header row 1: scores + probability
+            lines.append(
+                f"  │  {'BATTER':<22} {'H':<2} {'BSCORE':<7} {'MSCORE':<7} "
+                f"{'HR%':<6} {'ODDS':<8} {'ZF':<6} {'FORM':<6} {'NR':<3}"
+            )
+            # Header row 2: detailed stat columns
+            lines.append(
+                f"  │  {'':22}    "
+                f"{'EV':<6} {'DIST':<5} {'BRL%':<6} {'PULL%':<6} {'FB%':<5} "
+                f"{'SWEET%':<7} {'HH%':<6} {'xwOBA':<7} {'xwOBAcon':<9} "
+                f"{'SwStr%':<7} {'HR/FB%':<7} {'ISO':<6} {'PulledBrl'}"
+            )
+            lines.append(f"  │  {'-'*112}")
+
             for b in r["top_batters"]:
-                tag_str  = " | ".join(b["tags"]) if b["tags"] else ""
-                form_str = (f"{b['hr_form_pct']}%{b['hr_form_trend']}"
-                            if b.get("hr_form_pct") is not None else " N/A")
-                brl_str  = f"{b['brl_bip']:.1f}%" if b.get('brl_bip') else "  - "
-                pull_str = f"{b['pull_pct']:.0f}%" if b.get('pull_pct') else "  - "
-                ev_str   = f"{b['exit_velo']:.1f}" if b.get("exit_velo") else "  - "
-                dist_str = f"{int(b['avg_dist'])}" if b.get("avg_dist") else "  - "
-                nr_str   = str(b.get("near_hr_L10")) if b.get("near_hr_L10") is not None else " ?"
-                hand     = b.get("bats", "R")
+                hand       = b.get("bats", "R")
+                bscore_s   = f"{b.get('barrel_score', 0):.1f}"
+                mscore_s   = f"{b.get('matchup_score', 0):.1f}"
+                form_str   = (f"{b['hr_form_pct']}%{b['hr_form_trend']}"
+                              if b.get("hr_form_pct") is not None else " N/A")
+                nr_str     = str(b.get("near_hr_L10")) if b.get("near_hr_L10") is not None else "?"
+
+                # Row 1: identity + scores + prob
                 lines.append(
-                    f"  │  {b['batter_name']:<22} {hand:<2} {b['hr_score']:<6.1f}"
-                    f" {b['hr_prob']:<7.1f}% {b['implied_odds']:<8}"
-                    f" {b['zone_fit']:.3f}  {form_str:<7} {nr_str:<3} {ev_str:<5} {dist_str:<6}"
-                    f" {brl_str:<5} {pull_str:<5} {tag_str}"
+                    f"  │  {b['batter_name']:<22} {hand:<2} {bscore_s:<7} {mscore_s:<7}"
+                    f" {b['hr_prob']:<6.1f}% {b['implied_odds']:<8}"
+                    f" {b['zone_fit']:.3f}  {form_str:<6} {nr_str:<3}"
                 )
 
-        lines.append("  └" + "─" * 74)
+                # Row 2: contact / power stats
+                ev_s    = _fmt(b.get("exit_velo"),  ".1f")
+                dist_s  = f"{int(b['avg_dist'])}" if b.get("avg_dist") else "  -"
+                brl_s   = _fmt(b.get("brl_bip"),    ".1f", "%")
+                pull_s  = _fmt(b.get("pull_pct"),   ".0f", "%")
+                fb_s    = _fmt(b.get("fb_pct"),     ".0f", "%")
+                sweet_s = _fmt(b.get("sweet_spot"), ".0f", "%")
+                hh_s    = _fmt(b.get("hh_pct"),     ".0f", "%")
+                xwoba_s = _fmt(b.get("xwoba"),      ".3f")
+                xwcon_s = _fmt(b.get("xwoba_con"),  ".3f")
+                swst_s  = _fmt(b.get("swstr_pct"),  ".1f", "%")
+                hrfb_s  = _fmt(b.get("hr_fb_pct"),  ".1f", "%")
+                iso_s   = _fmt(b.get("iso") or b.get("xiso"), ".3f")
+                pbrl_s  = _fmt(b.get("pulled_brl"), ".1f")
+                tag_str = " | ".join(b["tags"]) if b.get("tags") else ""
 
-    lines.append("\n" + "=" * 76)
+                lines.append(
+                    f"  │  {'':22}    "
+                    f"{ev_s:<6} {dist_s:<5} {brl_s:<6} {pull_s:<6} {fb_s:<5} "
+                    f"{sweet_s:<7} {hh_s:<6} {xwoba_s:<7} {xwcon_s:<9} "
+                    f"{swst_s:<7} {hrfb_s:<7} {iso_s:<6} {pbrl_s}"
+                    + (f"  ◄ {tag_str}" if tag_str else "")
+                )
+
+        lines.append("  └" + "─" * 80)
+
+    lines.append("\n" + "=" * W)
+    return "\n".join(lines)
+
+
+def format_batter_spotlight(results: list, game_date: str, min_matchup_score: float = 60.0) -> str:
+    """
+    Batter-centric view: lists every batter above min_matchup_score across all games,
+    ranked by matchup_score. Shows the full stat grid — not grouped by pitcher.
+    """
+    all_batters = []
+    for r in results:
+        for b in r["top_batters"]:
+            if b.get("matchup_score", 0) >= min_matchup_score:
+                all_batters.append({**b,
+                    "game": r["game"],
+                    "pitcher_name": r["pitcher_name"],
+                    "pitcher_throws": r.get("pitcher_throws", "R"),
+                    "vuln_score": r["vuln"]["score"],
+                    "vuln_tier": r["vuln"]["tier"],
+                })
+    all_batters.sort(key=lambda x: -(x.get("matchup_score") or 0))
+
+    if not all_batters:
+        return f"No batters above MatchupScore {min_matchup_score:.0f} today."
+
+    W = 90
+    lines = []
+    lines.append("=" * W)
+    lines.append(f"  BATTER SPOTLIGHT — {game_date}  (MatchupScore ≥ {min_matchup_score:.0f})")
+    lines.append(f"  Ranked by MatchupScore = HRScore×0.55 + ZoneFit×600×0.45")
+    lines.append("=" * W)
+    lines.append(
+        f"\n  {'BATTER':<22} {'H':<2} {'MSCORE':<7} {'BSCORE':<7} {'HR%':<6} {'ODDS':<8} "
+        f"{'ZF':<6} {'GAME':<12} {'PITCHER':<22} {'VULN':<5} {'TIER'}"
+    )
+    lines.append(
+        f"  {'':22}    "
+        f"{'EV':<6} {'DIST':<5} {'BRL%':<6} {'PULL%':<6} {'FB%':<5} "
+        f"{'SWEET%':<7} {'HH%':<6} {'xwOBA':<7} {'xwOBAcon':<9} "
+        f"{'SwStr%':<7} {'HR/FB%':<7} {'ISO':<6} {'PulledBrl'}"
+    )
+    lines.append(f"  {'-'*112}")
+
+    for b in all_batters:
+        hand       = b.get("bats", "R")
+        mscore_s   = f"{b.get('matchup_score', 0):.1f}"
+        bscore_s   = f"{b.get('barrel_score', 0):.1f}"
+        form_str   = (f"{b['hr_form_pct']}%{b['hr_form_trend']}"
+                      if b.get("hr_form_pct") is not None else " N/A")
+        ptch_hand  = "L" if b.get("pitcher_throws") == "L" else "R"
+        ptch_name  = f"{b['pitcher_name'][:20]} ({ptch_hand})"
+        tier_sym   = "★" if b["vuln_tier"] == "Attackable" else ("◎" if b["vuln_tier"] == "Neutral Lean" else "○")
+
+        lines.append(
+            f"  {b['batter_name']:<22} {hand:<2} {mscore_s:<7} {bscore_s:<7}"
+            f" {b['hr_prob']:<6.1f}% {b['implied_odds']:<8}"
+            f" {b['zone_fit']:.3f}  {b['game']:<12} {ptch_name:<22} {b['vuln_score']:<5.1f} {tier_sym}{b['vuln_tier']}"
+        )
+
+        ev_s    = _fmt(b.get("exit_velo"),  ".1f")
+        dist_s  = f"{int(b['avg_dist'])}" if b.get("avg_dist") else "  -"
+        brl_s   = _fmt(b.get("brl_bip"),    ".1f", "%")
+        pull_s  = _fmt(b.get("pull_pct"),   ".0f", "%")
+        fb_s    = _fmt(b.get("fb_pct"),     ".0f", "%")
+        sweet_s = _fmt(b.get("sweet_spot"), ".0f", "%")
+        hh_s    = _fmt(b.get("hh_pct"),     ".0f", "%")
+        xwoba_s = _fmt(b.get("xwoba"),      ".3f")
+        xwcon_s = _fmt(b.get("xwoba_con"),  ".3f")
+        swst_s  = _fmt(b.get("swstr_pct"),  ".1f", "%")
+        hrfb_s  = _fmt(b.get("hr_fb_pct"),  ".1f", "%")
+        iso_s   = _fmt(b.get("iso") or b.get("xiso"), ".3f")
+        pbrl_s  = _fmt(b.get("pulled_brl"), ".1f")
+        tag_str = " | ".join(b["tags"]) if b.get("tags") else ""
+
+        lines.append(
+            f"  {'':22}    "
+            f"{ev_s:<6} {dist_s:<5} {brl_s:<6} {pull_s:<6} {fb_s:<5} "
+            f"{sweet_s:<7} {hh_s:<6} {xwoba_s:<7} {xwcon_s:<9} "
+            f"{swst_s:<7} {hrfb_s:<7} {iso_s:<6} {pbrl_s}"
+            + (f"  ◄ {tag_str}" if tag_str else "")
+        )
+        lines.append("")
+
+    lines.append("=" * W)
     return "\n".join(lines)

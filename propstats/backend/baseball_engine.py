@@ -1284,7 +1284,7 @@ SAVANT_BATTER_HR_URL = (
     "https://baseballsavant.mlb.com/leaderboard/custom?year={year}&type=batter"
     "&filter=&sort=4&sortDir=desc&min=20"
     "&selections=barrel_batted_rate,brl_pa,pull_percent,flyballs_percent,"
-    "launch_angle_avg,sweet_spot_percent,iso,xiso,xwoba,xslg,avg_distance"
+    "launch_angle_avg,sweet_spot_percent,iso,xiso,xwoba,xwobacon,xslg,avg_distance,hr_fbpercent"
     "&csv=true"
 )
 SAVANT_PITCHER_HR_URL = (
@@ -1400,6 +1400,9 @@ def load_savant_batting(season: int = None) -> dict:
                 "max_ev":       _safe_float(row.get("max_hit_speed")),
                 "avg_distance": _safe_float(row.get("avg_distance")),
                 "avg_hr_dist":  _safe_float(row.get("avg_hr_distance")),
+                "xwoba_con":    _safe_float(row.get("xwobacon")),
+                "swstr_pct":    _safe_float(row.get("whiff_percent")),
+                "k_pct":        _safe_float(row.get("k_percent")),
             }
     if result:
         _savant_batting[season] = result
@@ -1648,7 +1651,9 @@ def load_savant_batter_hr(season: int = None) -> dict:
             "xiso":          _safe_float(row.get("xiso")),
             "xwoba":         _safe_float(row.get("xwoba")),
             "xslg":          _safe_float(row.get("xslg")),
+            "xwoba_con":     _safe_float(row.get("xwobacon")),
             "avg_distance":  _safe_float(row.get("avg_distance")),
+            "hr_fb_pct":     _safe_float(row.get("hr_fbpercent")),
         }
     if result:
         _savant_batter_hr[season] = result
