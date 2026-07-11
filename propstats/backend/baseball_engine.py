@@ -115,7 +115,7 @@ def get_today_games(game_date: str = None) -> list:
     data = _get(f"{MLB_API}/schedule", {
         "sportId": 1,
         "date": game_date,
-        "hydrate": "probablePitcher(note),linescore,team,venue,broadcasts,weather"
+        "hydrate": "probablePitcher(note,person),linescore,team,venue,broadcasts,weather"
     })
     if not data:
         return []
@@ -147,7 +147,8 @@ def get_today_games(game_date: str = None) -> list:
                         "id": away_pitcher.get("id"),
                         "name": away_pitcher.get("fullName", "TBD"),
                         "note": away_pitcher.get("note", ""),
-                    } if away_pitcher else {"id": None, "name": "TBD", "note": ""},
+                        "throws": away_pitcher.get("pitchHand", {}).get("code", "R"),
+                    } if away_pitcher else {"id": None, "name": "TBD", "note": "", "throws": "R"},
                 },
                 "home": {
                     "team_id": home_team.get("team", {}).get("id"),
@@ -158,7 +159,8 @@ def get_today_games(game_date: str = None) -> list:
                         "id": home_pitcher.get("id"),
                         "name": home_pitcher.get("fullName", "TBD"),
                         "note": home_pitcher.get("note", ""),
-                    } if home_pitcher else {"id": None, "name": "TBD", "note": ""},
+                        "throws": home_pitcher.get("pitchHand", {}).get("code", "R"),
+                    } if home_pitcher else {"id": None, "name": "TBD", "note": "", "throws": "R"},
                 },
                 "broadcasts": [b.get("name") for b in g.get("broadcasts", [])],
             })
@@ -1282,12 +1284,27 @@ SAVANT_BATTER_HR_URL = (
     "https://baseballsavant.mlb.com/leaderboard/custom?year={year}&type=batter"
     "&filter=&sort=4&sortDir=desc&min=20"
     "&selections=barrel_batted_rate,brl_pa,pull_percent,flyballs_percent,"
-    "launch_angle_avg,sweet_spot_percent,iso,xiso,xwoba,xslg"
+    "launch_angle_avg,sweet_spot_percent,iso,xiso,xwoba,xslg,avg_distance"
     "&csv=true"
 )
 SAVANT_PITCHER_HR_URL = (
     "https://baseballsavant.mlb.com/leaderboard/custom?year={year}&type=pitcher"
     "&filter=&sort=4&sortDir=desc&min=1"
+    "&selections=barrel_batted_rate,brl_pa,flyballs_percent,groundballs_percent,"
+    "launch_angle_avg,xwoba,xslg,era"
+    "&csv=true"
+)
+# Pitcher HR-vuln split by batter handedness (filter=hfBBL=L| or R|)
+SAVANT_PITCHER_HR_VS_LHB_URL = (
+    "https://baseballsavant.mlb.com/leaderboard/custom?year={year}&type=pitcher"
+    "&filter=hfBBL%3DL%7C&sort=4&sortDir=desc&min=1"
+    "&selections=barrel_batted_rate,brl_pa,flyballs_percent,groundballs_percent,"
+    "launch_angle_avg,xwoba,xslg,era"
+    "&csv=true"
+)
+SAVANT_PITCHER_HR_VS_RHB_URL = (
+    "https://baseballsavant.mlb.com/leaderboard/custom?year={year}&type=pitcher"
+    "&filter=hfBBL%3DR%7C&sort=4&sortDir=desc&min=1"
     "&selections=barrel_batted_rate,brl_pa,flyballs_percent,groundballs_percent,"
     "launch_angle_avg,xwoba,xslg,era"
     "&csv=true"
@@ -1302,6 +1319,8 @@ _savant_pitcher_arsenal:    dict = {}  # {season: {player_id: [pitch_entry, ...]
 _savant_batter_pitch_split: dict = {}  # {season: {player_id: {pitch_type: perf_dict}}}
 _savant_batter_hr:  dict = {}          # {season: {player_id: hr_profile_dict}}
 _savant_pitcher_hr: dict = {}          # {season: {player_id: hr_vuln_dict}}
+_savant_pitcher_hr_lhb: dict = {}      # {season: {player_id: hr_vuln_dict}} vs LHB
+_savant_pitcher_hr_rhb: dict = {}      # {season: {player_id: hr_vuln_dict}} vs RHB
 
 # ── Umpire K-rate tendency table ───────────────────────────────────────────────
 # K/game averages from Retrosheet/FanGraphs umpire scorecards (2022-2025).
@@ -1629,6 +1648,7 @@ def load_savant_batter_hr(season: int = None) -> dict:
             "xiso":          _safe_float(row.get("xiso")),
             "xwoba":         _safe_float(row.get("xwoba")),
             "xslg":          _safe_float(row.get("xslg")),
+            "avg_distance":  _safe_float(row.get("avg_distance")),
         }
     if result:
         _savant_batter_hr[season] = result
@@ -1664,6 +1684,53 @@ def load_savant_pitcher_hr(season: int = None) -> dict:
     return result
 
 
+_pitcher_throws_cache: dict = {}
+
+def get_pitcher_throws(pitcher_id: int) -> str:
+    """Return 'L' or 'R' for a pitcher's throwing arm. Cached."""
+    global _pitcher_throws_cache
+    pid = int(pitcher_id)
+    if pid in _pitcher_throws_cache:
+        return _pitcher_throws_cache[pid]
+    data = _get(f"{MLB_API}/people/{pid}")
+    hand = "R"
+    if data:
+        people = data.get("people", [{}])
+        hand = people[0].get("pitchHand", {}).get("code", "R") if people else "R"
+    _pitcher_throws_cache[pid] = hand
+    return hand
+
+
+def load_savant_pitcher_hr_vs_hand(season: int = None, side: str = "L") -> dict:
+    """HR-vuln metrics for pitchers split by batter handedness. side='L' or 'R'."""
+    global _savant_pitcher_hr_lhb, _savant_pitcher_hr_rhb
+    if not season:
+        season = datetime.now().year
+    cache = _savant_pitcher_hr_lhb if side == "L" else _savant_pitcher_hr_rhb
+    if season in cache:
+        return cache[season]
+    url_tmpl = SAVANT_PITCHER_HR_VS_LHB_URL if side == "L" else SAVANT_PITCHER_HR_VS_RHB_URL
+    rows = _fetch_savant_csv(url_tmpl.format(year=season))
+    if not rows and season == datetime.now().year:
+        rows = _fetch_savant_csv(url_tmpl.format(year=season - 1))
+    result = {}
+    for row in rows:
+        pid = str(row.get("player_id", "")).strip()
+        if not pid:
+            continue
+        result[pid] = {
+            "barrel_allowed":  _safe_float(row.get("barrel_batted_rate")),
+            "fb_pct_allowed":  _safe_float(row.get("flyballs_percent")),
+            "la_avg_allowed":  _safe_float(row.get("launch_angle_avg")),
+            "xwoba_allowed":   _safe_float(row.get("xwoba")),
+            "xslg_allowed":    _safe_float(row.get("xslg")),
+            "era":             _safe_float(row.get("era")),
+        }
+    if result:
+        cache[season] = result
+    return result
+
+
 def get_batter_game_log(batter_id: int, season: int = None, limit: int = 15) -> list:
     """Return last N game log entries for a batter (HR, AB, airOuts per game)."""
     if not season:
@@ -1680,23 +1747,27 @@ def get_batter_game_log(batter_id: int, season: int = None, limit: int = 15) -> 
     result = []
     for s in splits[-limit:]:
         st = s.get("stat", {})
+        hr = st.get("homeRuns", 0) or 0
+        air = st.get("airOuts", 0) or 0
         result.append({
             "date":      s.get("date", ""),
-            "hr":        st.get("homeRuns", 0),
+            "hr":        hr,
             "ab":        st.get("atBats", 0),
-            "air_outs":  st.get("airOuts", 0),
+            "air_outs":  air,
+            "near_hr":   max(0, air - hr),  # air balls that didn't leave park
             "hits":      st.get("hits", 0),
         })
     return result
 
 
 def get_team_roster_ids(team_id: int, season: int = None) -> list:
-    """Return list of {id, name, position} for active 40-man roster."""
+    """Return list of {id, name, pos, bats} for active roster (non-pitchers)."""
     if not season:
         season = datetime.now().year
     data = _get(f"{MLB_API}/teams/{team_id}/roster", {
         "rosterType": "active",
         "season": season,
+        "hydrate": "person",
     })
     if not data:
         return []
@@ -1705,10 +1776,12 @@ def get_team_roster_ids(team_id: int, season: int = None) -> list:
         person = p.get("person", {})
         pos = p.get("position", {}).get("abbreviation", "")
         if pos not in ("P", "TWP"):
+            bats = person.get("batSide", {}).get("code", "R")
             roster.append({
                 "id":   person.get("id"),
                 "name": person.get("fullName", ""),
                 "pos":  pos,
+                "bats": bats,
             })
     return roster
 
