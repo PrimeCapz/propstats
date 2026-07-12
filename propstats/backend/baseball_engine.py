@@ -1312,12 +1312,15 @@ SAVANT_PITCHER_HR_VS_RHB_URL = (
     "&csv=true"
 )
 
+SAVANT_SPRINT_SPEED_URL = "https://baseballsavant.mlb.com/leaderboard/sprint_speed?year={year}&type=all&min=0&csv=true"
+
 _savant_batting:    dict = {}
 _savant_pitching:   dict = {}
 _savant_pitcher_k:  dict = {}
 _savant_batter_k:   dict = {}
 _savant_xstats:     dict = {}
 _savant_bat_track:  dict = {}
+_savant_sprint_speed: dict = {}        # {season: {player_id: {ft_per_sec, percentile}}}
 _savant_pitcher_arsenal:    dict = {}  # {season: {player_id: [pitch_entry, ...]}}
 _savant_batter_pitch_split: dict = {}  # {season: {player_id: {pitch_type: perf_dict}}}
 _savant_batter_hr:  dict = {}          # {season: {player_id: hr_profile_dict}}
@@ -1527,6 +1530,32 @@ def load_bat_tracking(season: int = None) -> dict:
             }
     if result:
         _savant_bat_track[season] = result
+    return result
+
+
+def load_sprint_speed(season: int = None) -> dict:
+    """Load sprint speed (ft/sec) from Savant sprint speed leaderboard."""
+    global _savant_sprint_speed
+    if not season:
+        season = datetime.now().year
+    if season in _savant_sprint_speed:
+        return _savant_sprint_speed[season]
+    rows = _fetch_savant_csv(SAVANT_SPRINT_SPEED_URL.format(year=season))
+    if not rows and season == datetime.now().year:
+        rows = _fetch_savant_csv(SAVANT_SPRINT_SPEED_URL.format(year=season - 1))
+    result = {}
+    for row in rows:
+        pid = str(row.get("player_id", "")).strip()
+        if not pid:
+            pid = str(row.get("id", "")).strip()
+        if pid:
+            result[pid] = {
+                "sprint_speed":   _safe_float(row.get("r_sprint_speed_top50percent")),
+                "hp_to_1b":       _safe_float(row.get("hp_to_1b")),
+                "percentile":     _safe_float(row.get("sprint_speed_percentile")),
+            }
+    if result:
+        _savant_sprint_speed[season] = result
     return result
 
 
