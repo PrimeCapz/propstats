@@ -2,7 +2,17 @@
 Hitter Fantasy Engine — DK/FD/PrizePicks hitter scoring projection
 Personal use only.
 
-Fantasy Score (0-100) = Contact(35%) + Power(30%) + OBP(15%) + Matchup(20%)
+Fantasy Score (0-100):
+  Contact(30%) + Power(25%) + OBP(15%) + PitcherGrade(15%) + ArsenalMatch(15%)
+
+ArsenalMatch: weighted batter xwOBA vs the specific pitcher's pitch mix
+  — surfaces hidden gems by pitch-type-specific edge rather than raw talent alone
+
+Form signals (from season xwOBA + BA divergence, zero extra API calls):
+  HOT  = xwOBA ≥ 0.380 AND BA ≥ 0.280  (skill converting to results)
+  DUE  = xwOBA ≥ 0.360 AND BA < 0.240  (positive regression candidate — hidden gem)
+  COLD = xwOBA < 0.280 AND BA < 0.230  (genuinely struggling)
+  WARM = otherwise
 
 DK Scoring used for proj_pts:
   1B +3 | 2B +5 | 3B +8 | HR +10 | RBI +3.5 | R +3 | BB +3 | SB +6 | HBP +3
@@ -25,6 +35,8 @@ from baseball_engine import (
     load_savant_pitcher_k,
     load_savant_pitching,
     load_savant_batter_hr,
+    load_savant_pitcher_arsenal,
+    load_savant_batter_pitch_splits,
     PARK_FACTORS,
 )
 
@@ -92,6 +104,132 @@ def _pitcher_matchup_grade(pitcher_id: str,
         "bb_pct": bb_pct,
         "whiff_sw": whiff_sw,
     }
+
+
+# ── Arsenal-weighted contact matchup ──────────────────────────────────────────
+# Computes weighted batter xwOBA vs the pitcher's actual pitch mix.
+# This is what surfaces hidden gems — a lesser-known batter can have a
+# specific pitch-type edge (high xwOBA vs cutter/slider) against a pitcher
+# whose arsenal is heavy on exactly those pitches.
+
+def _arsenal_weighted_contact(pitcher_id: str, batter_id: str, batter_hand: str,
+                               pitcher_arsenal: dict,
+                               batter_pitch_splits: dict) -> dict:
+    """Return {score: 0-100, weighted_xwoba: float, top_edges: list[str], pitch_summary: str}
+
+    Uses batter handedness to reweight the pitcher's arsenal — pitchers throw
+    different pitch mixes to LHB vs RHB (e.g., Lopez: 61% FB to RHB, 51% to LHB).
+    Heuristic adjustments based on known pitcher tendencies by batter hand.
+    """
+    arsenal = pitcher_arsenal.get(pitcher_id, [])
+    b_splits = batter_pitch_splits.get(batter_id, {})
+
+    if not arsenal:
+        return {"score": 50.0, "weighted_xwoba": 0.0, "top_edges": [], "pitch_summary": ""}
+
+    # Hand-specific pitch type reweighting heuristics:
+    # LHB face more breaking balls from RHP (sweepers/sliders), fewer fastballs
+    # RHB face more fastballs from RHP
+    # Same-hand matchups: more offspeed, less FB dominance
+    is_lhb = batter_hand in ("L", "S")  # S = switch (assume worst case = RHP vs LHB)
+    hand_factor = {}
+    for pitch in arsenal:
+        pt = pitch.get("pitch_type", "").upper()
+        base_usage = _safe(pitch.get("usage_pct")) / 100.0
+        # RHP vs LHB: more SL/ST/SWP, less FC/SI; vs RHB: more FB, less breaking
+        if is_lhb:
+            if pt in ("SL", "ST", "CU", "KC"):      # breaking balls↑ vs LHB from RHP
+                hand_factor[pt] = base_usage * 1.15
+            elif pt in ("FF", "FC", "SI"):           # fastballs↓ vs LHB from RHP
+                hand_factor[pt] = base_usage * 0.90
+            else:
+                hand_factor[pt] = base_usage
+        else:
+            if pt in ("FF", "SI", "FC"):             # fastballs↑ vs RHB from RHP
+                hand_factor[pt] = base_usage * 1.08
+            elif pt in ("SL", "ST"):
+                hand_factor[pt] = base_usage * 0.92
+            else:
+                hand_factor[pt] = base_usage
+
+    # Normalize so weights sum to ~1
+    total_w = sum(hand_factor.values()) or 1.0
+    norm_factor = {pt: w / total_w for pt, w in hand_factor.items()}
+
+    weighted = 0.0
+    covered  = 0.0
+    edges    = []
+    pitch_parts = []
+
+    for pitch in sorted(arsenal, key=lambda x: _safe(x.get("usage_pct")), reverse=True):
+        pt    = pitch.get("pitch_type", "").upper()
+        usage = norm_factor.get(pt, _safe(pitch.get("usage_pct")) / 100.0)
+        if usage < 0.03 or not pt:
+            continue
+
+        bstat      = b_splits.get(pt, {})
+        b_xwoba    = _safe(bstat.get("xwoba"))
+        b_whiff    = _safe(bstat.get("whiff_pct"))
+        p_xwoba_ag = _safe(pitch.get("xwoba_against"))
+
+        if b_xwoba > 0 and p_xwoba_ag > 0:
+            eff_xwoba = b_xwoba * 0.60 + p_xwoba_ag * 0.40
+        elif b_xwoba > 0:
+            eff_xwoba = b_xwoba
+        elif p_xwoba_ag > 0:
+            eff_xwoba = p_xwoba_ag
+        else:
+            eff_xwoba = 0.320
+
+        weighted += usage * eff_xwoba
+        covered  += usage
+
+        # Pitch-type edge: high batter xwOBA + pitcher actually throws it ≥15%
+        if b_xwoba >= 0.390 and usage >= 0.12:
+            edges.append((b_xwoba, f"{pt}({b_xwoba:.3f})"))
+
+        # For pitch summary line — top 3 by usage
+        if len(pitch_parts) < 3:
+            pitch_parts.append(f"{pt}{usage*100:.0f}%")
+
+    if covered < 0.01:
+        return {"score": 50.0, "weighted_xwoba": 0.0, "top_edges": [], "pitch_summary": ""}
+
+    eff = weighted / covered
+    score = _scale(eff, 0.270, 0.340, 0.430)
+    score = max(0.0, min(100.0, score))
+
+    edges_sorted = [e[1] for e in sorted(edges, key=lambda x: x[0], reverse=True)][:3]
+
+    return {
+        "score":          round(score, 1),
+        "weighted_xwoba": round(eff, 3),
+        "top_edges":      edges_sorted,
+        "pitch_summary":  " | ".join(pitch_parts),
+    }
+
+
+# ── Form signal (season xwOBA + BA divergence — no extra API calls) ───────────
+# HOT  = high xwOBA + high BA: talent converting to results
+# DUE  = high xwOBA + low BA:  positive regression candidate — hidden gem
+# COLD = low xwOBA + low BA:   genuinely struggling
+# WARM = everything else
+
+def _form_signal(batter_id: str, xstats: dict) -> str:
+    xs   = xstats.get(batter_id, {})
+    xwoba = _safe(xs.get("xwoba"))
+    ba    = _safe(xs.get("ba"))
+
+    if xwoba < 0.01 or ba < 0.01:
+        return "—"
+
+    if xwoba >= 0.380 and ba >= 0.280:
+        return "HOT"
+    if xwoba >= 0.360 and ba < 0.240:
+        return "DUE"    # unlucky / positive regression candidate
+    if xwoba < 0.280 and ba < 0.230:
+        return "COLD"
+    return "WARM"
 
 
 # ── Batter component scores ────────────────────────────────────────────────────
@@ -285,8 +423,24 @@ def _proj_stats(batter_id: str, bats: str, pitcher_matchup: dict,
 # ── Tags ───────────────────────────────────────────────────────────────────────
 
 def _build_tags(proj: dict, contact_score: float, power_score: float,
-                obp_score: float, speed_sc: float) -> list:
+                obp_score: float, speed_sc: float,
+                form: str = "—", arsenal: dict = None) -> list:
     tags = []
+
+    # Form badges first — highest signal for hidden gems
+    if form == "HOT":
+        tags.append("🔥 HOT")
+    elif form == "DUE":
+        tags.append("📈 DUE")   # high xwOBA, low BA = positive regression pick
+    elif form == "COLD":
+        tags.append("❄ COLD")
+
+    # Pitch-type edges vs this specific pitcher — key hidden gem signal
+    if arsenal and arsenal.get("top_edges"):
+        edge_str = " ".join(arsenal["top_edges"])
+        tags.append(f"PITCH EDGE: {edge_str}")
+
+    # Standard performance tags
     if proj["proj_hits"] >= 0.80:
         tags.append("CONTACT MACHINE")
     if proj["proj_tb"] >= 1.20:
@@ -310,15 +464,17 @@ def build_hitter_fantasy_board(game_date: str) -> list:
     season = int(game_date[:4])
     games  = get_today_games(game_date)
 
-    # Pre-load all data
-    batting      = load_savant_batting(season)
-    xstats       = load_savant_xstats(season)
-    bat_track    = load_bat_tracking(season)
-    sprint_speed = load_sprint_speed(season)
-    batter_k     = load_savant_batter_k(season)
-    pitcher_k    = load_savant_pitcher_k(season)
-    pitching     = load_savant_pitching(season)
-    batter_hr    = load_savant_batter_hr(season)
+    # Pre-load all data (all batch CSVs — no per-player API calls)
+    batting          = load_savant_batting(season)
+    xstats           = load_savant_xstats(season)
+    bat_track        = load_bat_tracking(season)
+    sprint_speed     = load_sprint_speed(season)
+    batter_k         = load_savant_batter_k(season)
+    pitcher_k        = load_savant_pitcher_k(season)
+    pitching         = load_savant_pitching(season)
+    batter_hr        = load_savant_batter_hr(season)
+    pitcher_arsenal  = load_savant_pitcher_arsenal(season)
+    batter_splits    = load_savant_batter_pitch_splits(season)
 
     results = []
 
@@ -334,7 +490,7 @@ def build_hitter_fantasy_board(game_date: str) -> list:
             pitcher_info = opp_data.get("probable_pitcher", {})
             pitcher_id   = str(pitcher_info.get("id", "")) if pitcher_info else ""
             pitcher_name = pitcher_info.get("name", "TBD") if pitcher_info else "TBD"
-            pitcher_hand = "R"  # fetch separately if needed; default R
+            pitcher_hand = "R"
 
             if not team_id:
                 continue
@@ -351,39 +507,53 @@ def build_hitter_fantasy_board(game_date: str) -> list:
                 proj = _proj_stats(bid, bats, matchup, batting, xstats,
                                    batter_k, batter_hr, sprint_speed, venue)
 
-                cs = _contact_score(bid, batting, xstats, batter_k)
-                ps = _power_score(bid, batting, xstats, batter_hr, bat_track)
+                cs  = _contact_score(bid, batting, xstats, batter_k)
+                ps  = _power_score(bid, batting, xstats, batter_hr, bat_track)
                 os_ = _obp_score(bid, batter_k, xstats)
-                sp = _speed_score(bid, sprint_speed)
+                sp  = _speed_score(bid, sprint_speed)
 
+                # Arsenal-weighted contact: batter xwOBA vs pitcher's specific pitch mix
+                # Hand-adjusted: RHP throws different mix to LHB vs RHB
+                arsenal = _arsenal_weighted_contact(
+                    pitcher_id, bid, bats, pitcher_arsenal, batter_splits
+                )
+
+                # Form signal: xwOBA vs BA divergence (no extra API calls)
+                form = _form_signal(bid, xstats)
+
+                # FantasyScore — 5 components; arsenal match reduces big-name bias
+                # by rewarding specific pitch-type edges over raw season talent
                 fantasy_score = (
-                    cs  * 0.35
-                    + ps  * 0.30
-                    + os_ * 0.15
-                    + matchup["grade"] * 0.20
+                    cs             * 0.30
+                    + ps           * 0.25
+                    + os_          * 0.15
+                    + matchup["grade"] * 0.15
+                    + arsenal["score"] * 0.15
                 )
                 fantasy_score = round(max(0.0, min(100.0, fantasy_score)), 1)
 
-                tags = _build_tags(proj, cs, ps, os_, sp)
+                tags = _build_tags(proj, cs, ps, os_, sp, form=form, arsenal=arsenal)
 
                 results.append({
-                    "batter_id":    bid,
-                    "name":         name,
-                    "bats":         bats,
-                    "pos":          pos,
-                    "team":         team_abv,
-                    "opp":          opp_abv,
-                    "pitcher_name": pitcher_name,
-                    "pitcher_hand": pitcher_hand,
-                    "pitcher_id":   pitcher_id,
-                    "venue":        venue,
-                    "game_str":     f"{game.get('away', {}).get('team_abbr', '')}@{game.get('home', {}).get('team_abbr', '')}",
+                    "batter_id":     bid,
+                    "name":          name,
+                    "bats":          bats,
+                    "pos":           pos,
+                    "team":          team_abv,
+                    "opp":           opp_abv,
+                    "pitcher_name":  pitcher_name,
+                    "pitcher_hand":  pitcher_hand,
+                    "pitcher_id":    pitcher_id,
+                    "venue":         venue,
+                    "game_str":      f"{game.get('away', {}).get('team_abbr', '')}@{game.get('home', {}).get('team_abbr', '')}",
                     "fantasy_score": fantasy_score,
                     "contact_score": cs,
                     "power_score":   ps,
                     "obp_score":     os_,
                     "speed_score":   sp,
                     "matchup":       matchup,
+                    "arsenal":       arsenal,
+                    "form":          form,
                     "proj":          proj,
                     "tags":          tags,
                 })
@@ -396,17 +566,18 @@ def build_hitter_fantasy_board(game_date: str) -> list:
 
 def format_hitter_fantasy_board(results: list, game_date: str,
                                  top_n: int = 5) -> str:
-    """Top overall hitters ranked by FantasyScore."""
+    """Top hitters per team ranked by FantasyScore, with arsenal match + form."""
     lines = []
-    w = 106
+    w = 120
     lines.append("=" * w)
     lines.append(f"  HITTER FANTASY BOARD — {game_date}")
-    lines.append(f"  FantasyScore: Contact(35%) + Power(30%) + OBP(15%) + Matchup(20%)")
+    lines.append(f"  FantasyScore: Contact(30%) + Power(25%) + OBP(15%) + PitcherGrade(15%) + ArsenalMatch(15%)")
+    lines.append(f"  ArsenalMatch = batter xwOBA vs pitcher's actual pitch mix (hand-adjusted)")
+    lines.append(f"  Form: HOT=converting | DUE=positive regression gem | COLD=struggling")
     lines.append(f"  Proj DK Pts: 1B×3 | 2B×5 | HR×10 | RBI×3.5 | R×3 | BB×3 | SB×6")
     lines.append("=" * w)
     lines.append("")
 
-    # Group by game_str, then by team within game
     games_seen = {}
     for r in results:
         g = r["game_str"]
@@ -426,20 +597,20 @@ def format_hitter_fantasy_board(results: list, game_date: str,
         home_batters = sorted(team_dict.get(home_abv, []),
                               key=lambda x: x["fantasy_score"], reverse=True)
 
-        # Pitcher names from matchup (pitcher facing this team = opp pitcher)
-        away_pitcher_str = (away_batters[0]["pitcher_name"]
-                            if away_batters else "TBD")
-        home_pitcher_str = (home_batters[0]["pitcher_name"]
-                            if home_batters else "TBD")
-        away_matchup = away_batters[0]["matchup"] if away_batters else {"grade": 0.0, "tier": ""}
-        home_matchup = home_batters[0]["matchup"] if home_batters else {"grade": 0.0, "tier": ""}
+        away_pitcher = away_batters[0]["pitcher_name"] if away_batters else "TBD"
+        home_pitcher = home_batters[0]["pitcher_name"] if home_batters else "TBD"
+        away_mq = away_batters[0]["matchup"] if away_batters else {"grade": 0.0, "tier": ""}
+        home_mq = home_batters[0]["matchup"] if home_batters else {"grade": 0.0, "tier": ""}
 
         lines.append(f"  ┌─ {game_str}")
-        lines.append(f"  │  {away_abv} faces {home_pitcher_str}  │  Matchup Grade: {away_matchup['grade']:.1f} {away_matchup['tier']}")
-        lines.append(f"  │  {home_abv} faces {away_pitcher_str}  │  Matchup Grade: {home_matchup['grade']:.1f} {home_matchup['tier']}")
+        lines.append(f"  │  {away_abv} faces {home_pitcher}  │  PitcherGrade: {away_mq['grade']:.0f} {away_mq['tier']}")
+        lines.append(f"  │  {home_abv} faces {away_pitcher}  │  PitcherGrade: {home_mq['grade']:.0f} {home_mq['tier']}")
         lines.append(f"  │")
-        lines.append(f"  │  {'BATTER':<24} {'H':1} {'POS':3} {'FS':5} {'CS':5} {'PS':5} {'OBP':5} {'DK':5}  {'xBA':5}  {'xSLG':5}  {'xwOBA':5}  {'HITS':4}  {'TB':4}  {'HR%':5}  {'BB':4}  {'SB':4}  TAGS")
-        lines.append(f"  │  {'─'*100}")
+        hdr = (f"  │  {'BATTER':<22} {'H':1} {'FORM':4} {'FS':5} {'CS':5} {'PS':5} "
+               f"{'OBP':5} {'ARM':5} {'DK':5}  {'AxWOB':5}  {'xBA':5}  {'xSLG':5}  "
+               f"{'HITS':4}  {'TB':4}  {'HR%':5}  {'BB':4}  TAGS / PITCH EDGES")
+        lines.append(hdr)
+        lines.append(f"  │  {'─'*113}")
 
         for side_batters, label in [(away_batters, away_abv), (home_batters, home_abv)]:
             if not side_batters:
@@ -447,18 +618,24 @@ def format_hitter_fantasy_board(results: list, game_date: str,
             lines.append(f"  │  ── {label} ──")
             for b in side_batters[:top_n]:
                 p = b["proj"]
+                ar = b.get("arsenal", {})
+                form_str = b.get("form", "—")
                 tag_str = " | ".join(b["tags"]) if b["tags"] else ""
+                pitch_summ = ar.get("pitch_summary", "")
                 lines.append(
-                    f"  │  {b['name']:<24} {b['bats']:1} {b['pos']:3} "
+                    f"  │  {b['name']:<22} {b['bats']:1} {form_str:<4} "
                     f"{b['fantasy_score']:5.1f} {b['contact_score']:5.1f} "
                     f"{b['power_score']:5.1f} {b['obp_score']:5.1f} "
-                    f"{p['proj_dk']:5.1f}  "
-                    f"{p['xba']:.3f}  {p['xslg']:.3f}  {p['xwoba']:.3f}  "
+                    f"{ar.get('score', 50.0):5.1f} {p['proj_dk']:5.1f}  "
+                    f"{ar.get('weighted_xwoba', 0.0):.3f}  {p['xba']:.3f}  {p['xslg']:.3f}  "
                     f"{p['proj_hits']:.2f}  {p['proj_tb']:.2f}  "
-                    f"{p['proj_hr']*100:4.1f}%  {p['proj_bb']:.2f}  {p['proj_sb']:.2f}  "
+                    f"{p['proj_hr']*100:4.1f}%  {p['proj_bb']:.2f}  "
                     f"{tag_str}"
                 )
-        lines.append(f"  └{'─'*100}")
+                if pitch_summ:
+                    lines.append(f"  │  {'':22}   {'':4}       {'':5} {'':5} {'':5} "
+                                 f"{'':5} {'':5} {'':5}  pitch mix: {pitch_summ}")
+        lines.append(f"  └{'─'*113}")
         lines.append("")
 
     lines.append("=" * w)
@@ -468,16 +645,18 @@ def format_hitter_fantasy_board(results: list, game_date: str,
 def format_hitter_fantasy_spotlight(results: list, game_date: str,
                                      min_score: float = 70.0,
                                      top_n: int = 40) -> str:
-    """Ranked overall best fantasy plays across the full slate."""
+    """Ranked overall best fantasy plays across the full slate — with form + pitch edges."""
     lines = []
-    w = 118
+    w = 130
     lines.append("=" * w)
     lines.append(f"  HITTER FANTASY SPOTLIGHT — {game_date}  (FantasyScore ≥ {min_score:.0f})")
-    lines.append(f"  Ranked by FantasyScore | Proj DK Pts shown")
+    lines.append(f"  Ranked by FantasyScore  |  ARM = ArsenalMatch (batter xwOBA vs pitcher's mix, hand-adjusted)")
+    lines.append(f"  DUE = positive regression gem (high xwOBA, low BA — unlucky, about to break out)")
     lines.append("=" * w)
     lines.append(
-        f"  {'BATTER':<24} {'H':1} {'FS':5} {'DK':5}  {'xBA':5}  {'xSLG':5}  {'xwOBA':5}  "
-        f"{'HITS':4}  {'TB':4}  {'HR%':5}  {'BB':4}  {'SB':4}  {'GAME':<14} {'PITCHER':<24} {'MATCHUP'}"
+        f"  {'BATTER':<22} {'H':1} {'FRM':4} {'FS':5} {'ARM':5} {'DK':5}  "
+        f"{'AxWOB':5}  {'xBA':5}  {'xSLG':5}  {'HITS':4}  {'TB':4}  {'HR%':5}  "
+        f"{'GAME':<14} {'PITCHER':<24} {'GRADE'}"
     )
     lines.append("  " + "─" * (w - 2))
 
@@ -487,18 +666,21 @@ def format_hitter_fantasy_spotlight(results: list, game_date: str,
             continue
         if shown >= top_n:
             break
-        p = r["proj"]
-        m = r["matchup"]
-        tag_str = " | ".join(r["tags"]) if r["tags"] else ""
+        p  = r["proj"]
+        m  = r["matchup"]
+        ar = r.get("arsenal", {})
+        form_str = r.get("form", "—")
+        tag_str  = " | ".join(r["tags"]) if r["tags"] else ""
         lines.append(
-            f"  {r['name']:<24} {r['bats']:1} {r['fantasy_score']:5.1f} {p['proj_dk']:5.1f}  "
-            f"{p['xba']:.3f}  {p['xslg']:.3f}  {p['xwoba']:.3f}  "
+            f"  {r['name']:<22} {r['bats']:1} {form_str:<4} "
+            f"{r['fantasy_score']:5.1f} {ar.get('score', 50.0):5.1f} {p['proj_dk']:5.1f}  "
+            f"{ar.get('weighted_xwoba', 0.0):.3f}  {p['xba']:.3f}  {p['xslg']:.3f}  "
             f"{p['proj_hits']:.2f}  {p['proj_tb']:.2f}  "
-            f"{p['proj_hr']*100:4.1f}%  {p['proj_bb']:.2f}  {p['proj_sb']:.2f}  "
+            f"{p['proj_hr']*100:4.1f}%  "
             f"{r['game_str']:<14} {r['pitcher_name']:<24} {m['grade']:.0f} {m['tier']}"
         )
         if tag_str:
-            lines.append(f"  {'':24}   {'':5} {'':5}  {tag_str}")
+            lines.append(f"  {'':22}   {'':4}       {'':5}        {tag_str}")
         shown += 1
 
     lines.append("=" * w)
@@ -516,30 +698,36 @@ def format_hitter_prop_targets(results: list, game_date: str) -> str:
     # Hits Over 0.5 — sorted by proj_hits
     hits_sorted = sorted(results, key=lambda x: x["proj"]["proj_hits"], reverse=True)
     lines.append("\n  ── HITS OVER 0.5  (proj hits ≥ 0.65) ──")
-    lines.append(f"  {'BATTER':<24} {'H':1} {'HITS':5}  {'xBA':5}  {'xwOBA':5}  {'K%':5}  {'GAME':<14} {'PITCHER':<24} {'MATCHUP'}")
-    lines.append("  " + "─" * 90)
+    lines.append(f"  {'BATTER':<22} {'H':1} {'FRM':4} {'HITS':5}  {'AxWOB':5}  {'xBA':5}  {'xwOBA':5}  {'K%':5}  {'GAME':<14} {'PITCHER':<24} {'GRADE'}")
+    lines.append("  " + "─" * 100)
     for r in hits_sorted:
-        p = r["proj"]
+        p  = r["proj"]
+        ar = r.get("arsenal", {})
         if p["proj_hits"] < 0.65:
             break
         m = r["matchup"]
+        form_str = r.get("form", "—")
         lines.append(
-            f"  {r['name']:<24} {r['bats']:1} {p['proj_hits']:5.2f}  {p['xba']:.3f}  {p['xwoba']:.3f}  "
+            f"  {r['name']:<22} {r['bats']:1} {form_str:<4} {p['proj_hits']:5.2f}  "
+            f"{ar.get('weighted_xwoba', 0.0):.3f}  {p['xba']:.3f}  {p['xwoba']:.3f}  "
             f"{p['k_pct']:4.1f}%  {r['game_str']:<14} {r['pitcher_name']:<24} {m['grade']:.0f} {m['tier']}"
         )
 
     # Total Bases Over 1.5
     tb_sorted = sorted(results, key=lambda x: x["proj"]["proj_tb"], reverse=True)
     lines.append("\n  ── TOTAL BASES OVER 1.5  (proj TB ≥ 1.05) ──")
-    lines.append(f"  {'BATTER':<24} {'H':1} {'TB':5}  {'xSLG':5}  {'BRL%':5}  {'HH%':5}  {'GAME':<14} {'PITCHER':<24} {'MATCHUP'}")
-    lines.append("  " + "─" * 90)
+    lines.append(f"  {'BATTER':<22} {'H':1} {'FRM':4} {'TB':5}  {'ARM':5}  {'xSLG':5}  {'BRL%':5}  {'HH%':5}  {'GAME':<14} {'PITCHER':<24} {'GRADE'}")
+    lines.append("  " + "─" * 100)
     for r in tb_sorted:
-        p = r["proj"]
+        p  = r["proj"]
+        ar = r.get("arsenal", {})
         if p["proj_tb"] < 1.05:
             break
         m = r["matchup"]
+        form_str = r.get("form", "—")
         lines.append(
-            f"  {r['name']:<24} {r['bats']:1} {p['proj_tb']:5.2f}  {p['xslg']:.3f}  "
+            f"  {r['name']:<22} {r['bats']:1} {form_str:<4} {p['proj_tb']:5.2f}  "
+            f"{ar.get('score', 50.0):5.1f}  {p['xslg']:.3f}  "
             f"{p['barrel_pct']:4.1f}%  {p['hard_hit']:4.1f}%  {r['game_str']:<14} "
             f"{r['pitcher_name']:<24} {m['grade']:.0f} {m['tier']}"
         )
@@ -547,15 +735,18 @@ def format_hitter_prop_targets(results: list, game_date: str) -> str:
     # HR plays
     hr_sorted = sorted(results, key=lambda x: x["proj"]["proj_hr"], reverse=True)
     lines.append("\n  ── HR OVER 0.5  (proj HR rate ≥ 5.0%) ──")
-    lines.append(f"  {'BATTER':<24} {'H':1} {'HR%':6}  {'xSLG':5}  {'BRL%':5}  {'GAME':<14} {'PITCHER':<24} {'MATCHUP'}")
-    lines.append("  " + "─" * 90)
+    lines.append(f"  {'BATTER':<22} {'H':1} {'FRM':4} {'HR%':6}  {'ARM':5}  {'xSLG':5}  {'BRL%':5}  {'GAME':<14} {'PITCHER':<24} {'GRADE'}")
+    lines.append("  " + "─" * 100)
     for r in hr_sorted:
-        p = r["proj"]
+        p  = r["proj"]
+        ar = r.get("arsenal", {})
         if p["proj_hr"] < 0.05:
             break
         m = r["matchup"]
+        form_str = r.get("form", "—")
         lines.append(
-            f"  {r['name']:<24} {r['bats']:1} {p['proj_hr']*100:5.1f}%  {p['xslg']:.3f}  "
+            f"  {r['name']:<22} {r['bats']:1} {form_str:<4} {p['proj_hr']*100:5.1f}%  "
+            f"{ar.get('score', 50.0):5.1f}  {p['xslg']:.3f}  "
             f"{p['barrel_pct']:4.1f}%  {r['game_str']:<14} "
             f"{r['pitcher_name']:<24} {m['grade']:.0f} {m['tier']}"
         )
