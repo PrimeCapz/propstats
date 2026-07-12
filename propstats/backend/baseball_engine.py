@@ -1270,8 +1270,10 @@ SAVANT_BATTING_URL  = "https://baseballsavant.mlb.com/leaderboard/statcast?type=
 SAVANT_PITCHING_URL = "https://baseballsavant.mlb.com/leaderboard/statcast?type=pitcher&year={year}&position=&team=&min=1&csv=true"
 SAVANT_XSTATS_URL   = "https://baseballsavant.mlb.com/leaderboard/expected_statistics?type=batter&year={year}&position=&team=&min=10&csv=true"
 SAVANT_BAT_TRACK_URL = "https://baseballsavant.mlb.com/leaderboard/bat-tracking?type=batter&year={year}&min=10&csv=true"
-# Custom leaderboard: pitcher whiff% and K% (CSW% often unavailable via API)
-SAVANT_PITCHER_K_URL = "https://baseballsavant.mlb.com/leaderboard/custom?year={year}&type=pitcher&filter=&sort=4&sortDir=desc&min=20&selections=k_percent,bb_percent,whiff_percent,csw&csv=true"
+# Custom leaderboard: pitcher whiff% and K% (CSW% not available in custom CSV)
+SAVANT_PITCHER_K_URL = "https://baseballsavant.mlb.com/leaderboard/custom?year={year}&type=pitcher&filter=&sort=4&sortDir=desc&min=20&selections=k_percent,bb_percent,whiff_percent&csv=true"
+# Custom leaderboard: batter K% and whiff% (not in statcast leaderboard CSV)
+SAVANT_BATTER_K_URL  = "https://baseballsavant.mlb.com/leaderboard/custom?year={year}&type=batter&filter=&sort=4&sortDir=desc&min=20&selections=k_percent,bb_percent,whiff_percent&csv=true"
 
 # Pitch arsenal leaderboards — per pitch-type stats for pitchers and batters
 # pitcher view: how effective each pitch type is (whiff%, wOBA against, run value)
@@ -1313,6 +1315,7 @@ SAVANT_PITCHER_HR_VS_RHB_URL = (
 _savant_batting:    dict = {}
 _savant_pitching:   dict = {}
 _savant_pitcher_k:  dict = {}
+_savant_batter_k:   dict = {}
 _savant_xstats:     dict = {}
 _savant_bat_track:  dict = {}
 _savant_pitcher_arsenal:    dict = {}  # {season: {player_id: [pitch_entry, ...]}}
@@ -1433,7 +1436,7 @@ def load_savant_pitching(season: int = None) -> dict:
 
 
 def load_savant_pitcher_k(season: int = None) -> dict:
-    """Load pitcher SwStr% (whiff_percent) and K% from Savant custom leaderboard."""
+    """Load pitcher whiff%/swing and K% from Savant custom leaderboard."""
     global _savant_pitcher_k
     if not season:
         season = datetime.now().year
@@ -1445,13 +1448,36 @@ def load_savant_pitcher_k(season: int = None) -> dict:
         pid = row.get("player_id", "").strip()
         if pid:
             result[pid] = {
-                "swstr_pct": _safe_float(row.get("whiff_percent")),
+                "swstr_pct": _safe_float(row.get("whiff_percent")),  # whiff% per swing
                 "k_pct":     _safe_float(row.get("k_percent")),
                 "bb_pct":    _safe_float(row.get("bb_percent")),
-                "csw_pct":   _safe_float(row.get("csw")),
             }
     if result:
         _savant_pitcher_k[season] = result
+    return result
+
+
+def load_savant_batter_k(season: int = None) -> dict:
+    """Load batter K% and whiff%/swing from Savant custom leaderboard."""
+    global _savant_batter_k
+    if not season:
+        season = datetime.now().year
+    if season in _savant_batter_k:
+        return _savant_batter_k[season]
+    rows = _fetch_savant_csv(SAVANT_BATTER_K_URL.format(year=season))
+    if not rows and season == datetime.now().year:
+        rows = _fetch_savant_csv(SAVANT_BATTER_K_URL.format(year=season - 1))
+    result = {}
+    for row in rows:
+        pid = row.get("player_id", "").strip()
+        if pid:
+            result[pid] = {
+                "k_pct":     _safe_float(row.get("k_percent")),
+                "bb_pct":    _safe_float(row.get("bb_percent")),
+                "swstr_pct": _safe_float(row.get("whiff_percent")),  # whiff% per swing
+            }
+    if result:
+        _savant_batter_k[season] = result
     return result
 
 
