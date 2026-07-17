@@ -39,6 +39,7 @@ from baseball_engine import (
     load_savant_batting,
     load_bat_tracking,
     PARK_FACTORS,
+    PULL_WALLS,
 )
 
 LEAGUE_HR_PA   = 0.034   # MLB avg HR/PA 2025-26
@@ -65,6 +66,50 @@ def _safe(v, default=0.0):
         return float(v) if v not in (None, "", "-") else default
     except Exception:
         return default
+
+
+# ── Park Fit ─────────────────────────────────────────────────────────────────
+
+def _park_fit_score(brl_bip: float, pull_pct: float, pulled_air_pct: float,
+                    blast: float, bats: str, venue: str) -> tuple:
+    """
+    Returns (park_fit_score 0-100, pull_wall_dist int, pull_wall_label str).
+
+    Pull wall favorability (40%) + Pulled barrel rate proxy (30%)
+      + Blast% bat tracking (20%) + Pulled air% (10%)
+
+    RHB pulls to LF → lf_dist; LHB pulls to RF → rf_dist; Switch → best side.
+    Short wall (302 ft) → 100; Neutral (330 ft) → 50; Deep (355 ft) → 0.
+    """
+    walls = None
+    venue_lower = venue.lower()
+    for park, w in PULL_WALLS.items():
+        if park.lower() in venue_lower or venue_lower in park.lower():
+            walls = w
+            break
+    if walls is None:
+        walls = {"lf": 330, "rf": 330}
+
+    if bats == "R":
+        dist = walls["lf"]
+        pull_wall_label = f"{dist}-ft LF line"
+    elif bats == "L":
+        dist = walls["rf"]
+        pull_wall_label = f"{dist}-ft RF line"
+    else:
+        dist = min(walls["lf"], walls["rf"])
+        side = "LF" if walls["lf"] <= walls["rf"] else "RF"
+        pull_wall_label = f"{dist}-ft {side} line"
+
+    # _scale(355 - dist): 355-302=53→100, 355-330=25→50, 355-355=0→0
+    wall_score     = _scale(355 - dist, 0, 25, 53)
+    pulled_brl     = brl_bip * pull_pct / 100.0 if brl_bip and pull_pct else 0.0
+    brl_score      = _scale(pulled_brl,    0.0, 3.5, 9.0)
+    blast_score    = _scale(blast,         0.02, 0.04, 0.07) if blast else 0.0
+    air_score      = _scale(pulled_air_pct, 0.0, 15.0, 35.0) if pulled_air_pct else 0.0
+
+    score = wall_score * 0.40 + brl_score * 0.30 + blast_score * 0.20 + air_score * 0.10
+    return round(score, 1), int(dist), pull_wall_label
 
 
 # ── Pitcher vulnerability ────────────────────────────────────────────────────
@@ -500,19 +545,22 @@ def _quick_batter_entry(batter_id: int, batter_name: str, bats: str,
     pid  = str(batter_id)
     d    = batter_hr_data.get(pid, {})
     ev   = savant_batting.get(pid, {})
+    bt   = bat_track.get(pid, {})
 
-    brl_bip   = _safe(d.get("brl_per_bip"))
-    pull_pct  = _safe(d.get("pull_pct"))
-    fb_pct    = _safe(d.get("fb_pct"))
-    la_avg    = _safe(d.get("la_avg"))
-    sweet     = _safe(d.get("sweet_spot_pct"))
-    xiso      = _safe(d.get("xiso"))
-    iso       = _safe(d.get("iso"))
-    xwoba     = _safe(d.get("xwoba"))
-    hr_fb_pct = _safe(d.get("hr_fb_pct"))
-    hh_pct    = _safe(ev.get("hard_hit_pct"))
-    exit_velo = _safe(ev.get("exit_velo"))
-    avg_dist  = _safe(d.get("avg_distance"))
+    brl_bip      = _safe(d.get("brl_per_bip"))
+    pull_pct     = _safe(d.get("pull_pct"))
+    fb_pct       = _safe(d.get("fb_pct"))
+    la_avg       = _safe(d.get("la_avg"))
+    sweet        = _safe(d.get("sweet_spot_pct"))
+    xiso         = _safe(d.get("xiso"))
+    iso          = _safe(d.get("iso"))
+    xwoba        = _safe(d.get("xwoba"))
+    hr_fb_pct    = _safe(d.get("hr_fb_pct"))
+    hh_pct       = _safe(ev.get("hard_hit_pct"))
+    exit_velo    = _safe(ev.get("exit_velo"))
+    avg_dist     = _safe(d.get("avg_distance"))
+    pulled_air_pct = _safe(d.get("pulled_air_pct"))
+    blast_raw    = _safe(bt.get("blast_per_swing"))
 
     # xwOBAcon — prefer batter_hr_data (custom leaderboard), fall back to savant_batting
     xwoba_con = _safe(d.get("xwoba_con")) or _safe(ev.get("xwoba_con"))
@@ -532,9 +580,25 @@ def _quick_batter_entry(batter_id: int, batter_name: str, bats: str,
         hr_fb_pct = round((xiso * 0.22) / (fb_pct / 100.0) * 100.0, 1)
 
     hr_score     = _batter_hr_score(batter_hr_data, savant_batting, bat_track, batter_id)
-    barrel_score = _scale(brl_bip, 2.0, 7.0, 16.0)   # 0-100 barrel-only power score
+    barrel_score = _scale(brl_bip, 2.0, 7.0, 16.0)
     zone_fit     = _zone_fit(batter_id, pitcher_id, batter_pitch_splits, pitcher_arsenal)
     matchup_score = min(100.0, hr_score * 0.55 + zone_fit * 600 * 0.45)
+
+    # Park fit
+    park_fit, pull_wall_dist, pull_wall_label = _park_fit_score(
+        brl_bip, pull_pct, pulled_air_pct, blast_raw, bats, venue_name
+    )
+
+    # Signal Lane + Discovery
+    if hr_score >= 65.0 and park_fit >= 55.0:
+        signal_lane = "Elite HR Profile"
+        discovery   = "Signal + park fit"
+    elif park_fit >= 50.0 and hr_score >= 45.0:
+        signal_lane = "No signal"
+        discovery   = "Park-Fit Watch"
+    else:
+        signal_lane = "No signal"
+        discovery   = "-"
 
     # Use platoon-adjusted vuln score for this batter
     vuln_score = _hand_vuln_score(pitcher_vuln, bats, pitcher_throws)
@@ -551,7 +615,9 @@ def _quick_batter_entry(batter_id: int, batter_name: str, bats: str,
         odds = (f"-{round((p/(1-p))*100)}" if p >= 0.50
                 else f"+{round(((1-p)/p)*100)}")
 
-    pulled_brl = round(brl_bip * pull_pct / 100, 1) if brl_bip and pull_pct else 0.0
+    pulled_brl     = round(brl_bip * pull_pct / 100, 1) if brl_bip and pull_pct else 0.0
+    pulled_brl_pct = pulled_brl  # proxy; real pulled_brl% would need separate Statcast field
+    blast_pct      = round(blast_raw * 100, 1) if 0 < blast_raw <= 1 else round(blast_raw, 1)
 
     tags = []
     if brl_bip >= 10.0:
@@ -566,38 +632,46 @@ def _quick_batter_entry(batter_id: int, batter_name: str, bats: str,
         tags.append("HR/FB ELITE")
 
     return {
-        "batter_id":     batter_id,
-        "batter_name":   batter_name,
-        "bats":          bats,
-        "hr_score":      hr_score,
-        "barrel_score":  round(barrel_score, 1),
-        "matchup_score": round(matchup_score, 1),
-        "hr_prob":       prob,
-        "implied_odds":  odds,
-        "zone_fit":      zone_fit,
-        "hr_form_pct":   None,
-        "hr_form_trend": "?",
-        "near_hr_L10":   None,      # N/A in fast mode (no game log)
-        "exit_velo":     round(exit_velo, 1) if exit_velo else None,
-        "avg_dist":      round(avg_dist, 0) if avg_dist else None,
-        "brl_bip":       brl_bip,
-        "pull_pct":      pull_pct,
-        "fb_pct":        fb_pct,
-        "la_avg":        la_avg,
-        "sweet_spot":    sweet,
-        "hh_pct":        hh_pct,
-        "xiso":          xiso,
-        "iso":           iso,
-        "xwoba":         xwoba,
-        "xwoba_con":     xwoba_con,
-        "swstr_pct":     swstr_pct,
-        "hr_fb_pct":     hr_fb_pct,
-        "pulled_brl":    pulled_brl,
+        "batter_id":      batter_id,
+        "batter_name":    batter_name,
+        "bats":           bats,
+        "hr_score":       hr_score,
+        "barrel_score":   round(barrel_score, 1),
+        "matchup_score":  round(matchup_score, 1),
+        "hr_prob":        prob,
+        "implied_odds":   odds,
+        "zone_fit":       zone_fit,
+        "hr_form_pct":    None,
+        "hr_form_trend":  "?",
+        "near_hr_L10":    None,
+        "exit_velo":      round(exit_velo, 1) if exit_velo else None,
+        "avg_dist":       round(avg_dist, 0) if avg_dist else None,
+        "brl_bip":        brl_bip,
+        "pull_pct":       pull_pct,
+        "fb_pct":         fb_pct,
+        "la_avg":         la_avg,
+        "sweet_spot":     sweet,
+        "hh_pct":         hh_pct,
+        "xiso":           xiso,
+        "iso":            iso,
+        "xwoba":          xwoba,
+        "xwoba_con":      xwoba_con,
+        "swstr_pct":      swstr_pct,
+        "hr_fb_pct":      hr_fb_pct,
+        "pulled_brl":     pulled_brl,
+        "pulled_brl_pct": pulled_brl_pct,
+        "pulled_air_pct": pulled_air_pct,
+        "blast_pct":      blast_pct,
+        "park_fit":       park_fit,
+        "pull_wall_dist": pull_wall_dist,
+        "pull_wall_label": pull_wall_label,
+        "signal_lane":    signal_lane,
+        "discovery":      discovery,
         "park_hr_factor": park_hr,
-        "vuln_used":     round(vuln_score, 1),
-        "venue":         venue_name,
-        "tags":          tags,
-        "pitcher_name":  pitcher_name,
+        "vuln_used":      round(vuln_score, 1),
+        "venue":          venue_name,
+        "tags":           tags,
+        "pitcher_name":   pitcher_name,
     }
 
 
@@ -935,5 +1009,84 @@ def format_batter_spotlight(results: list, game_date: str, min_matchup_score: fl
         )
         lines.append("")
 
+    lines.append("=" * W)
+    return "\n".join(lines)
+
+
+def format_park_fit_board(results: list, game_date: str, min_park_fit: float = 40.0) -> str:
+    """
+    Park Fit HR board — batter-centric view ranked by Park Fit score.
+
+    Columns: Player | Team | Bats | Park Fit | Signal Lane | Discovery
+             | Blast% | Barrel% | Pulled Air% | Pulled Brl% | HH% | LA | Pull Wall
+    """
+    all_batters = []
+    for r in results:
+        for b in r["top_batters"]:
+            if b.get("park_fit", 0) >= min_park_fit:
+                all_batters.append({
+                    **b,
+                    "team":          r["opp_team"],
+                    "game":          r["game"],
+                    "pitcher_name":  r["pitcher_name"],
+                    "pitcher_throws": r.get("pitcher_throws", "R"),
+                    "vuln_score":    r["vuln"]["score"],
+                })
+    all_batters.sort(key=lambda x: -(x.get("park_fit") or 0))
+
+    W = 120
+    lines = []
+    lines.append("=" * W)
+    lines.append(f"  PARK FIT HR BOARD — {game_date}  (Park Fit ≥ {min_park_fit:.0f})")
+    lines.append(f"  Park Fit = Pull Wall Dist (40%) + Pulled Barrel Rate (30%) + Blast% (20%) + Pulled Air% (10%)")
+    lines.append("=" * W)
+
+    if not all_batters:
+        lines.append(f"  No batters with Park Fit ≥ {min_park_fit:.0f} today.")
+        return "\n".join(lines)
+
+    # Header
+    lines.append(
+        f"\n  {'PLAYER':<22} {'TEAM':<5} {'H':<2} {'PARK FIT':<9} "
+        f"{'SIGNAL LANE':<18} {'DISCOVERY':<18} "
+        f"{'BLAST%':<7} {'BARREL%':<8} {'P.AIR%':<8} {'P.BRL%':<8} "
+        f"{'HH%':<6} {'LA':<6} {'PULL WALL'}"
+    )
+    lines.append(f"  {'-'*118}")
+
+    for b in all_batters:
+        pf      = b.get("park_fit", 0.0)
+        signal  = b.get("signal_lane", "No signal")
+        disc    = b.get("discovery", "-")
+        blast   = b.get("blast_pct", 0.0)
+        barrel  = b.get("brl_bip", 0.0)
+        p_air   = b.get("pulled_air_pct", 0.0)
+        p_brl   = b.get("pulled_brl_pct", 0.0)
+        hh      = b.get("hh_pct", 0.0)
+        la      = b.get("la_avg", 0.0)
+        wall    = b.get("pull_wall_label", "-")
+
+        # Tier marker for Park Fit
+        pf_marker = "★" if pf >= 65 else ("◆" if pf >= 50 else " ")
+
+        blast_s  = f"{blast:.1f}%" if blast else "   -"
+        barrel_s = f"{barrel:.1f}%" if barrel else "   -"
+        p_air_s  = f"{p_air:.1f}%" if p_air else "   -"
+        p_brl_s  = f"{p_brl:.1f}%" if p_brl else "   -"
+        hh_s     = f"{hh:.1f}%" if hh else "  -"
+        la_s     = f"{la:.1f}°" if la else "  -"
+
+        lines.append(
+            f"  {b['batter_name']:<22} {b['team']:<5} {b.get('bats','?'):<2} "
+            f"{pf_marker}{pf:<8.1f} {signal:<18} {disc:<18} "
+            f"{blast_s:<7} {barrel_s:<8} {p_air_s:<8} {p_brl_s:<8} "
+            f"{hh_s:<6} {la_s:<6} {wall}"
+        )
+
+    lines.append("\n" + "=" * W)
+    lines.append("  LEGEND:  ★ Park Fit ≥ 65  ◆ Park Fit ≥ 50")
+    lines.append("  Signal Lane: 'Elite HR Profile' = HRScore≥65 AND ParkFit≥55")
+    lines.append("  Discovery:   'Signal + park fit' = top tier  |  'Park-Fit Watch' = park favorable, profile building")
+    lines.append("  Pulled Air% = % fly balls pulled (Statcast); Pulled Brl% = barrel rate × pull% proxy")
     lines.append("=" * W)
     return "\n".join(lines)

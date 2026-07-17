@@ -87,6 +87,41 @@ PARK_FACTORS = {
     "Sutter Health Park": {"run": 1.45, "hr": 1.48, "hit": 1.20, "description": "Extreme hitter's park (AAA bandbox, Sacramento heat)"},
 }
 
+# Pull-side wall distances (feet) per park — LF = LHB pull target, RF = RHB pull target
+PULL_WALLS: dict = {
+    "Yankee Stadium":               {"lf": 318, "rf": 314},
+    "Fenway Park":                  {"lf": 310, "rf": 302},
+    "Wrigley Field":                {"lf": 355, "rf": 353},
+    "Great American Ball Park":     {"lf": 328, "rf": 325},
+    "Coors Field":                  {"lf": 347, "rf": 350},
+    "Oracle Park":                  {"lf": 339, "rf": 309},
+    "Dodger Stadium":               {"lf": 330, "rf": 330},
+    "Petco Park":                   {"lf": 334, "rf": 322},
+    "T-Mobile Park":                {"lf": 331, "rf": 326},
+    "Tropicana Field":              {"lf": 315, "rf": 322},
+    "Globe Life Field":             {"lf": 329, "rf": 326},
+    "Minute Maid Park":             {"lf": 315, "rf": 326},
+    "Target Field":                 {"lf": 339, "rf": 328},
+    "Progressive Field":            {"lf": 325, "rf": 325},
+    "PNC Park":                     {"lf": 325, "rf": 320},
+    "Guaranteed Rate Field":        {"lf": 330, "rf": 335},
+    "Busch Stadium":                {"lf": 336, "rf": 335},
+    "Oriole Park at Camden Yards":  {"lf": 333, "rf": 318},
+    "Citizens Bank Park":           {"lf": 329, "rf": 330},
+    "Citi Field":                   {"lf": 335, "rf": 330},
+    "Nationals Park":               {"lf": 336, "rf": 335},
+    "Truist Park":                  {"lf": 335, "rf": 325},
+    "American Family Field":        {"lf": 344, "rf": 345},
+    "Chase Field":                  {"lf": 330, "rf": 334},
+    "Kauffman Stadium":             {"lf": 330, "rf": 330},
+    "Comerica Park":                {"lf": 345, "rf": 330},
+    "Angel Stadium":                {"lf": 330, "rf": 330},
+    "Rogers Centre":                {"lf": 328, "rf": 328},
+    "loanDepot park":               {"lf": 340, "rf": 335},
+    "Las Vegas Ballpark":           {"lf": 328, "rf": 328},
+    "Sutter Health Park":           {"lf": 330, "rf": 330},
+}
+
 PITCH_TYPE_NAMES = {
     "FF": "4-Seam Fastball", "SI": "Sinker", "FC": "Cutter", "FS": "Splitter",
     "SL": "Slider", "CU": "Curveball", "KC": "Knuckle-Curve", "CH": "Changeup",
@@ -1286,7 +1321,8 @@ SAVANT_BATTER_HR_URL = (
     "https://baseballsavant.mlb.com/leaderboard/custom?year={year}&type=batter"
     "&filter=&sort=4&sortDir=desc&min=20"
     "&selections=barrel_batted_rate,brl_pa,pull_percent,flyballs_percent,"
-    "launch_angle_avg,sweet_spot_percent,iso,xiso,xwoba,xwobacon,xslg,avg_distance,hr_fbpercent"
+    "launch_angle_avg,sweet_spot_percent,iso,xiso,xwoba,xwobacon,xslg,avg_distance,hr_fbpercent,"
+    "pull_flyballs_percent"
     "&csv=true"
 )
 SAVANT_PITCHER_HR_URL = (
@@ -1708,8 +1744,9 @@ def load_savant_batter_hr(season: int = None) -> dict:
             "xwoba":         _safe_float(row.get("xwoba")),
             "xslg":          _safe_float(row.get("xslg")),
             "xwoba_con":     _safe_float(row.get("xwobacon")),
-            "avg_distance":  _safe_float(row.get("avg_distance")),
-            "hr_fb_pct":     _safe_float(row.get("hr_fbpercent")),
+            "avg_distance":     _safe_float(row.get("avg_distance")),
+            "hr_fb_pct":        _safe_float(row.get("hr_fbpercent")),
+            "pulled_air_pct":   _safe_float(row.get("pull_flyballs_percent")),
         }
     if result:
         _savant_batter_hr[season] = result
