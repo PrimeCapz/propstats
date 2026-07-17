@@ -38,6 +38,7 @@ from baseball_engine import (
     load_savant_batter_pitch_splits,
     load_savant_batting,
     load_bat_tracking,
+    load_savant_pitcher_velo,
     PARK_FACTORS,
     PULL_WALLS,
 )
@@ -294,6 +295,178 @@ def _zone_fit(batter_id: int, pitcher_id: int,
     return round(zf, 3)
 
 
+def _hr_pitch_analysis(batter_id: int, pitcher_id: int,
+                       batter_pitch_splits: dict, pitcher_arsenal: dict,
+                       pitcher_velo_data: dict = None,
+                       bat_track_data: dict = None) -> dict:
+    """
+    Per-pitch-type HR matchup breakdown.
+
+    Returns:
+      hr_edges     – list of pitches where batter has power advantage
+                     (pitcher uses ≥12%, batter xwOBA ≥0.380 OR HH% ≥45%)
+      weak_spots   – list of pitches where pitcher has strikeout edge
+                     (pitcher uses ≥12%, batter whiff% ≥28% AND xwOBA <0.290)
+      suppressors  – pitcher pitches that kill barrels
+                     (pitcher uses ≥12%, xwOBA_against <0.280 AND put_away ≥22%)
+      pitch_table  – full per-pitch breakdown for display
+      hr_zone_score – 0-100 composite: arsenal-weighted (batter xwOBA×HH bonus)
+                      boosted by HH%, penalized by weak-spot exposure
+    """
+    pid_p   = str(pitcher_id)
+    pid_b   = str(batter_id)
+    arsenal = pitcher_arsenal.get(pid_p, [])
+    b_splits= batter_pitch_splits.get(pid_b, {})
+
+    hr_edges   = []
+    weak_spots = []
+    suppressors= []
+    pitch_table= []
+
+    total_usage = sum(p.get("usage_pct") or 0 for p in arsenal)
+    if not arsenal or total_usage == 0:
+        return {"hr_edges": [], "weak_spots": [], "suppressors": [],
+                "pitch_table": [], "hr_zone_score": 0.0}
+
+    raw_score  = 0.0
+    weak_penalty = 0.0
+
+    for pitch in arsenal:
+        pt    = pitch.get("pitch_type","")
+        usage = _safe(pitch.get("usage_pct"))
+        if usage < 1.0:
+            continue
+
+        # Batter performance vs this pitch type
+        bs        = b_splits.get(pt, {})
+        b_xwoba   = _safe(bs.get("xwoba"))
+        b_hh      = _safe(bs.get("hard_hit_pct"))
+        b_whiff   = _safe(bs.get("whiff_pct"))
+        b_rv100   = _safe(bs.get("run_value_per100"))
+
+        # Pitcher effectiveness with this pitch
+        p_xwoba_ag= _safe(pitch.get("xwoba_against"))
+        p_put_away= _safe(pitch.get("put_away_pct"))
+        p_hh_ag   = _safe(pitch.get("hard_hit_pct"))
+        p_whiff   = _safe(pitch.get("whiff_pct"))
+        p_rv100   = _safe(pitch.get("run_value_per100"))
+
+        # HR zone score component: excess xwOBA × hard-hit bonus
+        excess = max(0.0, b_xwoba - 0.320) if b_xwoba else 0.0
+        hh_mult = 1.0 + max(0.0, (b_hh - 40.0)) / 100.0 if b_hh else 1.0
+        raw_score += (usage / 100.0) * excess * hh_mult
+
+        # Weak spot: pitcher throws it often, batter struggles
+        if usage >= 12.0 and b_xwoba and b_whiff:
+            if b_whiff >= 28.0 and b_xwoba < 0.290:
+                weak_spots.append({
+                    "pitch_type": pt,
+                    "usage": usage,
+                    "b_xwoba": b_xwoba,
+                    "b_whiff": b_whiff,
+                    "label": f"{pt}({b_whiff:.0f}%WHF·{b_xwoba:.3f})",
+                })
+                weak_penalty += (usage / 100.0) * (0.290 - b_xwoba)
+
+        # HR edge: batter makes powerful contact on pitcher's pitch
+        if usage >= 12.0 and (b_xwoba >= 0.380 or b_hh >= 45.0):
+            hr_edges.append({
+                "pitch_type": pt,
+                "usage": usage,
+                "b_xwoba": b_xwoba,
+                "b_hh": b_hh,
+                "label": f"{pt}({b_xwoba:.3f}xwOBA·{b_hh:.0f}%HH)" if b_hh else f"{pt}({b_xwoba:.3f}xwOBA)",
+            })
+
+        # Suppressor: pitcher pitch that kills hard contact
+        if usage >= 12.0 and p_xwoba_ag and p_xwoba_ag < 0.280:
+            suppressors.append({
+                "pitch_type": pt,
+                "usage": usage,
+                "p_xwoba_ag": p_xwoba_ag,
+                "p_put_away": p_put_away,
+                "p_whiff": p_whiff,
+                "label": f"{pt}({p_xwoba_ag:.3f}xwOBA·{p_put_away:.0f}%PA)" if p_put_away else f"{pt}({p_xwoba_ag:.3f}xwOBA)",
+            })
+
+        if b_xwoba or b_hh or b_whiff:
+            pitch_table.append({
+                "pitch_type": pt,
+                "usage": usage,
+                "b_xwoba": b_xwoba,
+                "b_hh": b_hh,
+                "b_whiff": b_whiff,
+                "b_rv100": b_rv100,
+                "p_xwoba_ag": p_xwoba_ag,
+                "p_whiff": p_whiff,
+                "p_put_away": p_put_away,
+            })
+
+    # Normalize and apply weak-spot penalty
+    hr_edges.sort(key=lambda x: -(x.get("b_xwoba") or 0))
+    suppressors.sort(key=lambda x: (x.get("p_xwoba_ag") or 1))
+    weak_spots.sort(key=lambda x: -(x.get("b_whiff") or 0))
+    pitch_table.sort(key=lambda x: -(x.get("usage") or 0))
+
+    # 0-100 scale: raw_score typical range 0.0-0.12
+    hr_zone_score = min(100.0, (raw_score - weak_penalty * 0.5) * 800)
+    hr_zone_score = max(0.0, round(hr_zone_score, 1))
+
+    # ── Velocity vs bat speed mismatch ────────────────────────────────────────
+    velo_signal    = None
+    velo_edge      = None
+    ff_velo        = 0.0
+    bat_speed      = 0.0
+
+    if pitcher_velo_data:
+        pv     = pitcher_velo_data.get(str(pitcher_id), {})
+        ff_velo= _safe(pv.get("ff_velo")) or _safe(pv.get("fb_velo"))
+
+    if bat_track_data:
+        bv     = bat_track_data.get(str(batter_id), {})
+        bat_speed = _safe(bv.get("avg_bat_speed"))
+
+    if ff_velo >= 93.0 and bat_speed > 0:
+        # Reaction time advantage: bat speed < 70 vs 95+ velo is a mismatch
+        # Rule of thumb: every 1 mph of FF velo = ~0.7 mph bat speed equivalent
+        adj_velo = ff_velo * 0.72
+        if bat_speed >= adj_velo:
+            velo_edge = f"BAT SPD EDGE ({bat_speed:.1f}mph bat vs {ff_velo:.1f}mph FF)"
+        elif bat_speed < adj_velo - 2.5:
+            velo_signal = f"VELO MISMATCH ({ff_velo:.1f}mph FF vs {bat_speed:.1f}mph bat)"
+
+    # ── Chase rate signal ─────────────────────────────────────────────────────
+    chase_signal = None
+    pitcher_chase_pct = 0.0
+    if pitcher_velo_data:
+        pv = pitcher_velo_data.get(str(pitcher_id), {})
+        pitcher_chase_pct = _safe(pv.get("chase_pct"))
+
+    # Batter overall chase% from weighted whiff across splits
+    batter_chase_pct = 0.0
+    if bat_track_data:
+        bv = bat_track_data.get(str(batter_id), {})
+        # hard_swing_rate is a proxy for aggressiveness
+        batter_chase_pct = _safe(bv.get("hard_swing_rate")) * 100 if _safe(bv.get("hard_swing_rate")) <= 1 else _safe(bv.get("hard_swing_rate"))
+
+    if pitcher_chase_pct >= 30.0:
+        chase_signal = f"CHASE THREAT ({pitcher_chase_pct:.0f}% chase rate induced)"
+
+    return {
+        "hr_edges":           hr_edges,
+        "weak_spots":         weak_spots,
+        "suppressors":        suppressors,
+        "pitch_table":        pitch_table,
+        "hr_zone_score":      hr_zone_score,
+        "velo_signal":        velo_signal,
+        "velo_edge":          velo_edge,
+        "chase_signal":       chase_signal,
+        "ff_velo":            ff_velo,
+        "bat_speed":          bat_speed,
+        "pitcher_chase_pct":  pitcher_chase_pct,
+    }
+
+
 def _hr_form(batter_id: int, season_hr: int, season_pa: int,
              game_log: list) -> dict:
     """
@@ -531,6 +704,9 @@ def _hand_vuln_score(pitcher_vuln: dict, bats: str, pitcher_throws: str = "R") -
     return _platoon_vuln(base, bats, pitcher_throws)
 
 
+_pitcher_velo_cache: dict = {}  # module-level, populated by build_hr_attack_board
+
+
 def _quick_batter_entry(batter_id: int, batter_name: str, bats: str,
                         pitcher_id: int, pitcher_name: str, venue_name: str,
                         pitcher_vuln: dict, pitcher_throws: str,
@@ -582,23 +758,55 @@ def _quick_batter_entry(batter_id: int, batter_name: str, bats: str,
     hr_score     = _batter_hr_score(batter_hr_data, savant_batting, bat_track, batter_id)
     barrel_score = _scale(brl_bip, 2.0, 7.0, 16.0)
     zone_fit     = _zone_fit(batter_id, pitcher_id, batter_pitch_splits, pitcher_arsenal)
-    matchup_score = min(100.0, hr_score * 0.55 + zone_fit * 600 * 0.45)
+
+    # Pitch-type matchup analysis: HR edges, weak spots, suppressors, velo/bat mismatch
+    pitch_analysis = _hr_pitch_analysis(
+        batter_id, pitcher_id, batter_pitch_splits, pitcher_arsenal,
+        pitcher_velo_data=_pitcher_velo_cache,
+        bat_track_data=bat_track,
+    )
+    hr_zone_score     = pitch_analysis["hr_zone_score"]
+    hr_edges          = pitch_analysis["hr_edges"]
+    weak_spots        = pitch_analysis["weak_spots"]
+    suppressors       = pitch_analysis["suppressors"]
+    pitch_table       = pitch_analysis["pitch_table"]
+    velo_signal       = pitch_analysis.get("velo_signal")
+    velo_edge         = pitch_analysis.get("velo_edge")
+    chase_signal      = pitch_analysis.get("chase_signal")
+    ff_velo           = pitch_analysis.get("ff_velo", 0.0)
+    bat_speed         = pitch_analysis.get("bat_speed", 0.0)
+    pitcher_chase_pct = pitch_analysis.get("pitcher_chase_pct", 0.0)
+
+    # matchup_score: blend general HR profile + pitch-type zone score
+    # When pitch data available, incorporate hr_zone_score; else fall back to zone_fit
+    if hr_zone_score > 0:
+        matchup_score = min(100.0, hr_score * 0.50 + hr_zone_score * 0.30 + zone_fit * 600 * 0.20)
+    else:
+        matchup_score = min(100.0, hr_score * 0.55 + zone_fit * 600 * 0.45)
 
     # Park fit
     park_fit, pull_wall_dist, pull_wall_label = _park_fit_score(
         brl_bip, pull_pct, pulled_air_pct, blast_raw, bats, venue_name
     )
 
-    # Signal Lane + Discovery
+    # Signal Lane + Discovery — now also considers pitch matchup
+    has_hr_edge  = len(hr_edges) > 0
+    has_weak_spot= len(weak_spots) > 0
+    has_suppress = len(suppressors) >= 2  # pitcher has multiple HR-killing weapons
+
     if hr_score >= 65.0 and park_fit >= 55.0:
         signal_lane = "Elite HR Profile"
-        discovery   = "Signal + park fit"
+        discovery   = "Signal + park fit" + (" + PITCH EDGE" if has_hr_edge else "")
     elif park_fit >= 50.0 and hr_score >= 45.0:
         signal_lane = "No signal"
         discovery   = "Park-Fit Watch"
     else:
         signal_lane = "No signal"
         discovery   = "-"
+
+    # Warning flag if pitcher has suppressor pitches that counter batter's profile
+    if has_suppress and not has_hr_edge:
+        discovery = (discovery + " ⚠ SUPPRESSED").strip()
 
     # Use platoon-adjusted vuln score for this batter
     vuln_score = _hand_vuln_score(pitcher_vuln, bats, pitcher_throws)
@@ -630,6 +838,18 @@ def _quick_batter_entry(batter_id: int, batter_name: str, bats: str,
         tags.append("SWEET SPOT")
     if hr_fb_pct >= 18.0:
         tags.append("HR/FB ELITE")
+    if hr_edges:
+        tags.append(f"HR EDGE: {' '.join(e['pitch_type'] for e in hr_edges[:2])}")
+    if weak_spots:
+        tags.append(f"WEAK: {' '.join(w['pitch_type'] for w in weak_spots[:2])}")
+    if suppressors and not hr_edges:
+        tags.append(f"SUPPRESSED: {suppressors[0]['pitch_type']}")
+    if velo_edge:
+        tags.append(velo_edge)
+    if velo_signal:
+        tags.append(velo_signal)
+    if chase_signal:
+        tags.append(chase_signal)
 
     return {
         "batter_id":      batter_id,
@@ -641,6 +861,7 @@ def _quick_batter_entry(batter_id: int, batter_name: str, bats: str,
         "hr_prob":        prob,
         "implied_odds":   odds,
         "zone_fit":       zone_fit,
+        "hr_zone_score":  hr_zone_score,
         "hr_form_pct":    None,
         "hr_form_trend":  "?",
         "near_hr_L10":    None,
@@ -659,6 +880,16 @@ def _quick_batter_entry(batter_id: int, batter_name: str, bats: str,
         "swstr_pct":      swstr_pct,
         "hr_fb_pct":      hr_fb_pct,
         "pulled_brl":     pulled_brl,
+        "hr_edges":       hr_edges,
+        "weak_spots":     weak_spots,
+        "suppressors":    suppressors,
+        "pitch_table":    pitch_table,
+        "velo_signal":    velo_signal,
+        "velo_edge":      velo_edge,
+        "chase_signal":   chase_signal,
+        "ff_velo":        ff_velo,
+        "bat_speed":      bat_speed,
+        "pitcher_chase_pct": pitcher_chase_pct,
         "pulled_brl_pct": pulled_brl_pct,
         "pulled_air_pct": pulled_air_pct,
         "blast_pct":      blast_pct,
@@ -684,6 +915,8 @@ def build_hr_attack_board(game_date: str) -> list:
     season = int(game_date[:4])
     games  = get_today_games(game_date)
 
+    global _pitcher_velo_cache
+
     # Load all Savant data once (cached after first call)
     batter_hr_data      = load_savant_batter_hr(season)
     pitcher_hr_data     = load_savant_pitcher_hr(season)
@@ -693,6 +926,7 @@ def build_hr_attack_board(game_date: str) -> list:
     batter_pitch_splits = load_savant_batter_pitch_splits(season)
     savant_batting      = load_savant_batting(season)
     bat_track           = load_bat_tracking(season)
+    _pitcher_velo_cache = load_savant_pitcher_velo(season)
 
     results = []
 
@@ -874,7 +1108,7 @@ def format_hr_attack_board(results: list, game_date: str) -> str:
             # Header row 1: scores + probability
             lines.append(
                 f"  │  {'BATTER':<22} {'H':<2} {'BSCORE':<7} {'MSCORE':<7} "
-                f"{'HR%':<6} {'ODDS':<8} {'ZF':<6} {'FORM':<6} {'NR':<3}"
+                f"{'HZS':<7} {'HR%':<6} {'ODDS':<8} {'ZF':<6} {'FORM':<6} {'NR':<3}"
             )
             # Header row 2: detailed stat columns
             lines.append(
@@ -883,12 +1117,14 @@ def format_hr_attack_board(results: list, game_date: str) -> str:
                 f"{'SWEET%':<7} {'HH%':<6} {'xwOBA':<7} {'xwOBAcon':<9} "
                 f"{'SwStr%':<7} {'HR/FB%':<7} {'ISO':<6} {'PulledBrl'}"
             )
+            lines.append(f"  │  {'':22}    ★ HR EDGE=batter power vs pitch  ⚠ WEAK=batter struggles  ○ SUPPRESSOR=pitcher kills barrels")
             lines.append(f"  │  {'-'*112}")
 
             for b in r["top_batters"]:
                 hand       = b.get("bats", "R")
                 bscore_s   = f"{b.get('barrel_score', 0):.1f}"
                 mscore_s   = f"{b.get('matchup_score', 0):.1f}"
+                hzs_s      = f"{b.get('hr_zone_score', 0):.1f}"
                 form_str   = (f"{b['hr_form_pct']}%{b['hr_form_trend']}"
                               if b.get("hr_form_pct") is not None else " N/A")
                 nr_str     = str(b.get("near_hr_L10")) if b.get("near_hr_L10") is not None else "?"
@@ -896,7 +1132,7 @@ def format_hr_attack_board(results: list, game_date: str) -> str:
                 # Row 1: identity + scores + prob
                 lines.append(
                     f"  │  {b['batter_name']:<22} {hand:<2} {bscore_s:<7} {mscore_s:<7}"
-                    f" {b['hr_prob']:<6.1f}% {b['implied_odds']:<8}"
+                    f" {hzs_s:<7} {b['hr_prob']:<6.1f}% {b['implied_odds']:<8}"
                     f" {b['zone_fit']:.3f}  {form_str:<6} {nr_str:<3}"
                 )
 
@@ -914,7 +1150,12 @@ def format_hr_attack_board(results: list, game_date: str) -> str:
                 hrfb_s  = _fmt(b.get("hr_fb_pct"),  ".1f", "%")
                 iso_s   = _fmt(b.get("iso") or b.get("xiso"), ".3f")
                 pbrl_s  = _fmt(b.get("pulled_brl"), ".1f")
-                tag_str = " | ".join(b["tags"]) if b.get("tags") else ""
+
+                # Only include profile/power tags (not pitch edge tags — those go on row 3)
+                base_tags  = [t for t in (b.get("tags") or [])
+                              if not t.startswith("HR EDGE") and not t.startswith("WEAK")
+                                 and not t.startswith("SUPPRESSED")]
+                tag_str = " | ".join(base_tags) if base_tags else ""
 
                 lines.append(
                     f"  │  {'':22}    "
@@ -923,6 +1164,30 @@ def format_hr_attack_board(results: list, game_date: str) -> str:
                     f"{swst_s:<7} {hrfb_s:<7} {iso_s:<6} {pbrl_s}"
                     + (f"  ◄ {tag_str}" if tag_str else "")
                 )
+
+                # Row 3: pitch matchup edges / weak spots / suppressors / velo
+                detail_parts = []
+                if b.get("hr_edges"):
+                    parts = [f"{e['pitch_type']}({e.get('b_xwoba',0):.3f}·{e.get('b_hh',0):.0f}%HH)"
+                             for e in b["hr_edges"][:3]]
+                    detail_parts.append("★ HR EDGE: " + " | ".join(parts))
+                if b.get("weak_spots"):
+                    parts = [f"{w['pitch_type']}({w.get('b_whiff',0):.0f}%WHF·{w.get('b_xwoba',0):.3f})"
+                             for w in b["weak_spots"][:2]]
+                    detail_parts.append("⚠ WEAK: " + " | ".join(parts))
+                if b.get("suppressors") and not b.get("hr_edges"):
+                    parts = [f"{s['pitch_type']}({s.get('p_xwoba_ag',0):.3f}·{s.get('p_put_away',0):.0f}%PA)"
+                             for s in b["suppressors"][:2]]
+                    detail_parts.append("○ SUPPRESS: " + " | ".join(parts))
+                if b.get("velo_edge"):
+                    detail_parts.append(f"⚡ {b['velo_edge']}")
+                elif b.get("velo_signal"):
+                    detail_parts.append(f"⚡ {b['velo_signal']}")
+                if b.get("chase_signal"):
+                    detail_parts.append(f"↯ {b['chase_signal']}")
+
+                if detail_parts:
+                    lines.append(f"  │  {'':22}   {'  ·  '.join(detail_parts)}")
 
         lines.append("  └" + "─" * 80)
 

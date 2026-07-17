@@ -1350,6 +1350,14 @@ SAVANT_PITCHER_HR_VS_RHB_URL = (
 
 SAVANT_SPRINT_SPEED_URL = "https://baseballsavant.mlb.com/leaderboard/sprint_speed?year={year}&type=all&min=0&csv=true"
 
+# Pitcher primary fastball velocity (ff_avg_speed = 4-seam avg mph)
+SAVANT_PITCHER_VELO_URL = (
+    "https://baseballsavant.mlb.com/leaderboard/custom?year={year}&type=pitcher"
+    "&filter=&sort=4&sortDir=desc&min=1"
+    "&selections=ff_avg_speed,fastball_avg_speed,k_percent,bb_percent,chase_percent,whiff_percent"
+    "&csv=true"
+)
+
 _savant_batting:    dict = {}
 _savant_pitching:   dict = {}
 _savant_pitcher_k:  dict = {}
@@ -1363,6 +1371,7 @@ _savant_batter_hr:  dict = {}          # {season: {player_id: hr_profile_dict}}
 _savant_pitcher_hr: dict = {}          # {season: {player_id: hr_vuln_dict}}
 _savant_pitcher_hr_lhb: dict = {}      # {season: {player_id: hr_vuln_dict}} vs LHB
 _savant_pitcher_hr_rhb: dict = {}      # {season: {player_id: hr_vuln_dict}} vs RHB
+_savant_pitcher_velo: dict = {}        # {season: {player_id: {ff_velo, fb_velo, chase_pct, whiff_pct}}}
 
 # ── Umpire K-rate tendency table ───────────────────────────────────────────────
 # K/game averages from Retrosheet/FanGraphs umpire scorecards (2022-2025).
@@ -1826,6 +1835,39 @@ def load_savant_pitcher_hr_vs_hand(season: int = None, side: str = "L") -> dict:
         }
     if result:
         cache[season] = result
+    return result
+
+
+def load_savant_pitcher_velo(season: int = None) -> dict:
+    """
+    Pitcher primary velocity + chase rate from Savant custom leaderboard.
+    Fields: ff_velo (4-seam mph), fb_velo (all fastballs), chase_pct, whiff_pct, k_pct, bb_pct
+    """
+    global _savant_pitcher_velo
+    if not season:
+        season = datetime.now().year
+    if season in _savant_pitcher_velo:
+        return _savant_pitcher_velo[season]
+    rows = _fetch_savant_csv(SAVANT_PITCHER_VELO_URL.format(year=season))
+    if not rows and season == datetime.now().year:
+        rows = _fetch_savant_csv(SAVANT_PITCHER_VELO_URL.format(year=season - 1))
+    result = {}
+    for row in rows:
+        pid = str(row.get("player_id", "")).strip()
+        if not pid:
+            continue
+        ff  = _safe_float(row.get("ff_avg_speed"))
+        fb  = _safe_float(row.get("fastball_avg_speed"))
+        result[pid] = {
+            "ff_velo":    ff,
+            "fb_velo":    fb if fb else ff,
+            "chase_pct":  _safe_float(row.get("chase_percent")),
+            "whiff_pct":  _safe_float(row.get("whiff_percent")),
+            "k_pct":      _safe_float(row.get("k_percent")),
+            "bb_pct":     _safe_float(row.get("bb_percent")),
+        }
+    if result:
+        _savant_pitcher_velo[season] = result
     return result
 
 
