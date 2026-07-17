@@ -37,6 +37,7 @@ from baseball_engine import (
     load_savant_batter_hr,
     load_savant_pitcher_arsenal,
     load_savant_batter_pitch_splits,
+    get_pitcher_recent_form,
     PARK_FACTORS,
 )
 
@@ -67,29 +68,39 @@ def _scale(val, lo, mid, hi):
 
 def _pitcher_matchup_grade(pitcher_id: str,
                            pitcher_k_data: dict,
-                           pitching_data: dict) -> dict:
+                           pitching_data: dict,
+                           recent_form: dict = None) -> dict:
     pk = pitcher_k_data.get(pitcher_id, {})
     pd = pitching_data.get(pitcher_id, {})
 
-    k_pct     = _safe(pk.get("k_pct"))      # pitcher K% — penalty for batter
-    bb_pct    = _safe(pk.get("bb_pct"))      # pitcher BB% — bonus for batter OBP
-    whiff_sw  = _safe(pk.get("swstr_pct"))   # pitcher whiff/swing
-    ev_against = _safe(pd.get("exit_velo_against"))  # lower = pitcher suppresses contact
+    k_pct     = _safe(pk.get("k_pct"))
+    bb_pct    = _safe(pk.get("bb_pct"))
+    whiff_sw  = _safe(pk.get("swstr_pct"))
+    ev_against = _safe(pd.get("exit_velo_against"))
     hh_against = _safe(pd.get("hard_hit_pct_against"))
 
-    # Invert pitcher dominance → batter opportunity score
-    # High K% pitcher = low contact opportunity
-    s_contact_opp = _scale(30.0 - k_pct,   -5.0, 8.0, 20.0)   # 22% K = neutral, <15% = soft
-    s_walk_opp    = _scale(bb_pct,           2.0, 7.0, 14.0)    # high BB% pitcher = OBP gift
-    s_contact_q   = _scale(ev_against,      85.0, 88.5, 92.0)   # higher EV against = softer pitcher
-    s_hh_opp      = _scale(hh_against,       5.0, 12.0, 20.0)   # more hard contact allowed = softer
+    s_contact_opp = _scale(30.0 - k_pct,   -5.0, 8.0, 20.0)
+    s_walk_opp    = _scale(bb_pct,           2.0, 7.0, 14.0)
+    s_contact_q   = _scale(ev_against,      85.0, 88.5, 92.0)
+    s_hh_opp      = _scale(hh_against,       5.0, 12.0, 20.0)
 
     if ev_against == 0.0:
         s_contact_q = 50.0
         s_hh_opp = 50.0
 
-    grade = s_contact_opp * 0.40 + s_walk_opp * 0.20 + s_contact_q * 0.25 + s_hh_opp * 0.15
-    grade = max(0.0, min(100.0, grade))
+    season_grade = s_contact_opp * 0.40 + s_walk_opp * 0.20 + s_contact_q * 0.25 + s_hh_opp * 0.15
+    season_grade = max(0.0, min(100.0, season_grade))
+
+    # Blend with recent form (L3 starts) — 35% weight post-ASB
+    # Recent grade is already 0-100 (high = hitter-friendly)
+    if recent_form and recent_form.get("starts_used", 0) >= 2:
+        blended = season_grade * 0.65 + recent_form["recent_grade"] * 0.35
+        recent_era_str = f"L{recent_form['starts_used']} ERA {recent_form['era']:.2f}"
+    else:
+        blended = season_grade
+        recent_era_str = ""
+
+    grade = max(0.0, min(100.0, blended))
 
     tier = (
         "★ Soft Arm" if grade >= 68 else
@@ -98,11 +109,14 @@ def _pitcher_matchup_grade(pitcher_id: str,
     )
 
     return {
-        "grade": round(grade, 1),
-        "tier": tier,
-        "k_pct": k_pct,
-        "bb_pct": bb_pct,
-        "whiff_sw": whiff_sw,
+        "grade":          round(grade, 1),
+        "season_grade":   round(season_grade, 1),
+        "tier":           tier,
+        "k_pct":          k_pct,
+        "bb_pct":         bb_pct,
+        "whiff_sw":       whiff_sw,
+        "recent_era_str": recent_era_str,
+        "recent_k_pct":   recent_form.get("k_pct", 0.0) if recent_form else 0.0,
     }
 
 
@@ -495,7 +509,15 @@ def build_hitter_fantasy_board(game_date: str) -> list:
             if not team_id:
                 continue
 
-            matchup = _pitcher_matchup_grade(pitcher_id, pitcher_k, pitching)
+            # Fetch pitcher L3 recent form (one API call per pitcher per game)
+            recent_form = None
+            if pitcher_id:
+                try:
+                    recent_form = get_pitcher_recent_form(int(pitcher_id), season, starts=3)
+                except Exception:
+                    recent_form = None
+
+            matchup = _pitcher_matchup_grade(pitcher_id, pitcher_k, pitching, recent_form)
             roster  = get_team_roster_ids(team_id, season)
 
             for batter in roster:
@@ -602,9 +624,11 @@ def format_hitter_fantasy_board(results: list, game_date: str,
         away_mq = away_batters[0]["matchup"] if away_batters else {"grade": 0.0, "tier": ""}
         home_mq = home_batters[0]["matchup"] if home_batters else {"grade": 0.0, "tier": ""}
 
+        away_recent = f"  {away_mq.get('recent_era_str','')}" if away_mq.get('recent_era_str') else ""
+        home_recent = f"  {home_mq.get('recent_era_str','')}" if home_mq.get('recent_era_str') else ""
         lines.append(f"  ┌─ {game_str}")
-        lines.append(f"  │  {away_abv} faces {home_pitcher}  │  PitcherGrade: {away_mq['grade']:.0f} {away_mq['tier']}")
-        lines.append(f"  │  {home_abv} faces {away_pitcher}  │  PitcherGrade: {home_mq['grade']:.0f} {home_mq['tier']}")
+        lines.append(f"  │  {away_abv} faces {home_pitcher}  │  Grade: {away_mq['grade']:.0f} {away_mq['tier']}{away_recent}")
+        lines.append(f"  │  {home_abv} faces {away_pitcher}  │  Grade: {home_mq['grade']:.0f} {home_mq['tier']}{home_recent}")
         lines.append(f"  │")
         hdr = (f"  │  {'BATTER':<22} {'H':1} {'FORM':4} {'FS':5} {'CS':5} {'PS':5} "
                f"{'OBP':5} {'ARM':5} {'DK':5}  {'AxWOB':5}  {'xBA':5}  {'xSLG':5}  "

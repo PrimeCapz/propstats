@@ -1820,6 +1820,62 @@ def get_batter_game_log(batter_id: int, season: int = None, limit: int = 15) -> 
     return result
 
 
+def get_pitcher_recent_form(pitcher_id: int, season: int = None, starts: int = 3) -> dict:
+    """Last N starts for a pitcher — ERA, K%, BB%, H/9, recent grade (0-100, high = hitter-friendly).
+
+    Used post-ASB to capture rust/hotness vs season-long averages.
+    Returns neutral defaults if data unavailable.
+    """
+    if not season:
+        season = datetime.now().year
+    data = _get(f"{MLB_API}/people/{pitcher_id}/stats", {
+        "stats": "gameLog",
+        "group": "pitching",
+        "season": season,
+        "limit": starts + 2,
+    })
+    if not data:
+        return {"era": 4.50, "k_pct": 22.0, "bb_pct": 8.0, "recent_grade": 50.0, "starts_used": 0}
+
+    splits = data.get("stats", [{}])[0].get("splits", [])
+    # Filter to actual starts (IP >= 1.0)
+    start_logs = [s for s in splits if _safe_float(s.get("stat", {}).get("inningsPitched", 0)) >= 1.0]
+    recent = start_logs[-starts:] if len(start_logs) >= starts else start_logs
+
+    if not recent:
+        return {"era": 4.50, "k_pct": 22.0, "bb_pct": 8.0, "recent_grade": 50.0, "starts_used": 0}
+
+    total_er = total_ip = total_k = total_bb = total_bf = 0
+    for s in recent:
+        st = s.get("stat", {})
+        ip  = _safe_float(st.get("inningsPitched", 0))
+        er  = st.get("earnedRuns", 0) or 0
+        k   = st.get("strikeOuts", 0) or 0
+        bb  = st.get("baseOnBalls", 0) or 0
+        bf  = st.get("battersFaced", 0) or 0
+        if bf == 0:
+            bf = max(1, int(ip * 3) + k + bb)
+        total_ip += ip; total_er += er; total_k += k; total_bb += bb; total_bf += bf
+
+    era    = (total_er / total_ip * 9) if total_ip > 0 else 4.50
+    k_pct  = (total_k / total_bf * 100) if total_bf > 0 else 22.0
+    bb_pct = (total_bb / total_bf * 100) if total_bf > 0 else 8.0
+
+    # Grade: high = hitter-friendly (high ERA, low K%, high BB%)
+    s_era  = max(0.0, min(100.0, (era - 2.0) / (7.0 - 2.0) * 100))
+    s_k    = max(0.0, min(100.0, (30.0 - k_pct) / (30.0 - 8.0) * 100))
+    s_bb   = max(0.0, min(100.0, (bb_pct - 3.0) / (15.0 - 3.0) * 100))
+    recent_grade = s_era * 0.50 + s_k * 0.30 + s_bb * 0.20
+
+    return {
+        "era":          round(era, 2),
+        "k_pct":        round(k_pct, 1),
+        "bb_pct":       round(bb_pct, 1),
+        "recent_grade": round(recent_grade, 1),
+        "starts_used":  len(recent),
+    }
+
+
 def get_team_roster_ids(team_id: int, season: int = None) -> list:
     """Return list of {id, name, pos, bats} for active roster (non-pitchers)."""
     if not season:
