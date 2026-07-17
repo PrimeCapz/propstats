@@ -39,6 +39,8 @@ from baseball_engine import (
     load_savant_batting,
     load_bat_tracking,
     load_savant_pitcher_velo,
+    load_savant_pitcher_release,
+    get_h2h_stats,
     PARK_FACTORS,
     PULL_WALLS,
 )
@@ -111,6 +113,53 @@ def _park_fit_score(brl_bip: float, pull_pct: float, pulled_air_pct: float,
 
     score = wall_score * 0.40 + brl_score * 0.30 + blast_score * 0.20 + air_score * 0.10
     return round(score, 1), int(dist), pull_wall_label
+
+
+# ── Arm slot / release helpers ───────────────────────────────────────────────
+
+def _arm_slot_label(degrees: float) -> str:
+    if degrees <= 0:
+        return ""
+    if degrees < 20:
+        return "Submarine"
+    if degrees < 35:
+        return "Sidearm"
+    if degrees < 50:
+        return "Low 3/4"
+    if degrees < 65:
+        return "3/4"
+    if degrees < 80:
+        return "High 3/4"
+    return "Over-Top"
+
+
+def _arm_slot_deception_mult(degrees: float, bats: str, pitcher_throws: str) -> float:
+    """
+    Low arm slots are more deceptive against same-handed batters.
+    Returns multiplier applied to matchup_score (< 1.0 hurts batter, > 1.0 helps).
+    """
+    if degrees <= 0:
+        return 1.0
+    same_hand = (bats == pitcher_throws and bats != "S")
+    if degrees < 20:    # Submarine
+        return 0.75 if same_hand else 1.05
+    if degrees < 35:    # Sidearm
+        return 0.82 if same_hand else 1.02
+    if degrees < 50:    # Low 3/4
+        return 0.92 if same_hand else 1.0
+    return 1.0          # 3/4 and above: neutral
+
+
+def _velo_tier(ff_velo: float) -> str:
+    if ff_velo <= 0:
+        return ""
+    if ff_velo < 91:
+        return "Soft"
+    if ff_velo < 94:
+        return "Average"
+    if ff_velo < 97:
+        return "Hard"
+    return "Elite"
 
 
 # ── Pitcher vulnerability ────────────────────────────────────────────────────
@@ -435,6 +484,20 @@ def _hr_pitch_analysis(batter_id: int, pitcher_id: int,
         elif bat_speed < adj_velo - 2.5:
             velo_signal = f"VELO MISMATCH ({ff_velo:.1f}mph FF vs {bat_speed:.1f}mph bat)"
 
+    # ── Count sequencing: 2-strike put-away pitch analysis ───────────────────
+    count_seq_signal = None
+    eligible_putaway = [p for p in arsenal
+                        if _safe(p.get("usage_pct")) >= 12.0
+                        and _safe(p.get("put_away_pct")) > 0]
+    if eligible_putaway:
+        pa_pitch = max(eligible_putaway, key=lambda x: _safe(x.get("put_away_pct")))
+        pt_pa    = pa_pitch.get("pitch_type", "")
+        pa_pct   = _safe(pa_pitch.get("put_away_pct"))
+        if any(w["pitch_type"] == pt_pa for w in weak_spots):
+            count_seq_signal = f"2-STK RISK: {pt_pa} ({pa_pct:.0f}%PA put-away)"
+        elif any(e["pitch_type"] == pt_pa for e in hr_edges):
+            count_seq_signal = f"2-STK EDGE: {pt_pa} ({pa_pct:.0f}%PA put-away)"
+
     # ── Chase rate signal ─────────────────────────────────────────────────────
     chase_signal = None
     pitcher_chase_pct = 0.0
@@ -461,6 +524,7 @@ def _hr_pitch_analysis(batter_id: int, pitcher_id: int,
         "velo_signal":        velo_signal,
         "velo_edge":          velo_edge,
         "chase_signal":       chase_signal,
+        "count_seq_signal":   count_seq_signal,
         "ff_velo":            ff_velo,
         "bat_speed":          bat_speed,
         "pitcher_chase_pct":  pitcher_chase_pct,
@@ -704,7 +768,8 @@ def _hand_vuln_score(pitcher_vuln: dict, bats: str, pitcher_throws: str = "R") -
     return _platoon_vuln(base, bats, pitcher_throws)
 
 
-_pitcher_velo_cache: dict = {}  # module-level, populated by build_hr_attack_board
+_pitcher_velo_cache: dict = {}     # module-level, populated by build_hr_attack_board
+_pitcher_release_cache: dict = {}  # {player_id: {arm_angle, release_ext}}
 
 
 def _quick_batter_entry(batter_id: int, batter_name: str, bats: str,
@@ -773,6 +838,7 @@ def _quick_batter_entry(batter_id: int, batter_name: str, bats: str,
     velo_signal       = pitch_analysis.get("velo_signal")
     velo_edge         = pitch_analysis.get("velo_edge")
     chase_signal      = pitch_analysis.get("chase_signal")
+    count_seq_signal  = pitch_analysis.get("count_seq_signal")
     ff_velo           = pitch_analysis.get("ff_velo", 0.0)
     bat_speed         = pitch_analysis.get("bat_speed", 0.0)
     pitcher_chase_pct = pitch_analysis.get("pitcher_chase_pct", 0.0)
@@ -783,6 +849,17 @@ def _quick_batter_entry(batter_id: int, batter_name: str, bats: str,
         matchup_score = min(100.0, hr_score * 0.50 + hr_zone_score * 0.30 + zone_fit * 600 * 0.20)
     else:
         matchup_score = min(100.0, hr_score * 0.55 + zone_fit * 600 * 0.45)
+
+    # Arm slot deception
+    arm_data  = _pitcher_release_cache.get(str(pitcher_id), {})
+    arm_angle = _safe(arm_data.get("arm_angle"))
+    arm_slot  = _arm_slot_label(arm_angle)
+    arm_mult  = _arm_slot_deception_mult(arm_angle, bats, pitcher_throws)
+    if arm_mult != 1.0:
+        matchup_score = min(100.0, max(0.0, matchup_score * arm_mult))
+
+    # Velocity tier
+    velo_tier = _velo_tier(ff_velo)
 
     # Park fit
     park_fit, pull_wall_dist, pull_wall_label = _park_fit_score(
@@ -850,6 +927,12 @@ def _quick_batter_entry(batter_id: int, batter_name: str, bats: str,
         tags.append(velo_signal)
     if chase_signal:
         tags.append(chase_signal)
+    if count_seq_signal:
+        tags.append(count_seq_signal)
+    if velo_tier:
+        tags.append(f"VELO: {velo_tier} ({ff_velo:.1f}mph)")
+    if arm_slot and arm_mult != 1.0:
+        tags.append(f"ARM: {arm_slot} (×{arm_mult:.2f})")
 
     return {
         "batter_id":      batter_id,
@@ -898,11 +981,18 @@ def _quick_batter_entry(batter_id: int, batter_name: str, bats: str,
         "pull_wall_label": pull_wall_label,
         "signal_lane":    signal_lane,
         "discovery":      discovery,
-        "park_hr_factor": park_hr,
-        "vuln_used":      round(vuln_score, 1),
-        "venue":          venue_name,
-        "tags":           tags,
-        "pitcher_name":   pitcher_name,
+        "park_hr_factor":    park_hr,
+        "vuln_used":         round(vuln_score, 1),
+        "venue":             venue_name,
+        "tags":              tags,
+        "pitcher_name":      pitcher_name,
+        "count_seq_signal":  count_seq_signal,
+        "arm_slot":          arm_slot,
+        "arm_angle":         arm_angle,
+        "arm_mult":          arm_mult,
+        "velo_tier":         velo_tier,
+        "h2h":               {},
+        "h2h_signal":        None,
     }
 
 
@@ -915,18 +1005,19 @@ def build_hr_attack_board(game_date: str) -> list:
     season = int(game_date[:4])
     games  = get_today_games(game_date)
 
-    global _pitcher_velo_cache
+    global _pitcher_velo_cache, _pitcher_release_cache
 
     # Load all Savant data once (cached after first call)
-    batter_hr_data      = load_savant_batter_hr(season)
-    pitcher_hr_data     = load_savant_pitcher_hr(season)
-    pitcher_hr_lhb      = load_savant_pitcher_hr_vs_hand(season, "L")
-    pitcher_hr_rhb      = load_savant_pitcher_hr_vs_hand(season, "R")
-    pitcher_arsenal     = load_savant_pitcher_arsenal(season)
-    batter_pitch_splits = load_savant_batter_pitch_splits(season)
-    savant_batting      = load_savant_batting(season)
-    bat_track           = load_bat_tracking(season)
-    _pitcher_velo_cache = load_savant_pitcher_velo(season)
+    batter_hr_data        = load_savant_batter_hr(season)
+    pitcher_hr_data       = load_savant_pitcher_hr(season)
+    pitcher_hr_lhb        = load_savant_pitcher_hr_vs_hand(season, "L")
+    pitcher_hr_rhb        = load_savant_pitcher_hr_vs_hand(season, "R")
+    pitcher_arsenal       = load_savant_pitcher_arsenal(season)
+    batter_pitch_splits   = load_savant_batter_pitch_splits(season)
+    savant_batting        = load_savant_batting(season)
+    bat_track             = load_bat_tracking(season)
+    _pitcher_velo_cache   = load_savant_pitcher_velo(season)
+    _pitcher_release_cache= load_savant_pitcher_release(season)
 
     results = []
 
@@ -1034,6 +1125,38 @@ def enrich_top_reads(results: list, game_date: str, top_n_pitchers: int = 6) -> 
     return results
 
 
+def enrich_with_h2h(results: list) -> list:
+    """
+    Post-build enrichment: adds career H2H (2020+) stats per batter vs their pitcher.
+    Fires OWNS PITCHER / DOMINATED signals at ≥10 PA.
+    Call after build_hr_attack_board() — makes ~1 API call per batter-pitcher pair (cached).
+    """
+    for r in results:
+        pitcher_id = r["pitcher_id"]
+        for b in r["top_batters"]:
+            batter_id = b["batter_id"]
+            try:
+                h2h = get_h2h_stats(batter_id, pitcher_id)
+            except Exception:
+                h2h = {}
+            h2h_signal = None
+            if h2h.get("pa", 0) >= 10:
+                if h2h.get("hr", 0) >= 2 and h2h.get("avg", 0) >= 0.280:
+                    h2h_signal = (f"OWNS PITCHER ({h2h['hr']}HR·"
+                                  f"{h2h['avg']:.3f}AVG in {h2h['pa']}PA)")
+                elif h2h.get("avg", 0) < 0.200 and h2h.get("k_pct", 0) >= 28.0:
+                    h2h_signal = (f"DOMINATED ({h2h['avg']:.3f}AVG·"
+                                  f"{h2h['k_pct']:.0f}%K in {h2h['pa']}PA)")
+            b["h2h"]       = h2h
+            b["h2h_signal"] = h2h_signal
+            if h2h_signal:
+                tags = b.setdefault("tags", [])
+                if h2h_signal not in tags:
+                    tags.append(h2h_signal)
+            time.sleep(0.08)
+    return results
+
+
 # ── Formatting ───────────────────────────────────────────────────────────────
 
 def _fmt(val, fmt=".1f", suffix="", none_str="  -"):
@@ -1095,6 +1218,21 @@ def format_hr_attack_board(results: list, game_date: str) -> str:
                      f"FB%: {v['fb_pct_allowed']:.1f}%  "
                      f"LA: {v['la_avg_allowed']:.1f}°  "
                      f"ERA: {v['era'] or '-'}")
+
+        # Arm angle / velo tier for pitcher
+        p_release = _pitcher_release_cache.get(str(r.get("pitcher_id", "")), {})
+        p_arm_angle = p_release.get("arm_angle", 0.0)
+        p_arm_slot  = _arm_slot_label(p_arm_angle) if p_arm_angle else ""
+        p_velo_data = _pitcher_velo_cache.get(str(r.get("pitcher_id", "")), {})
+        p_ff_velo   = _safe(p_velo_data.get("ff_velo")) or _safe(p_velo_data.get("fb_velo"))
+        p_velo_tier = _velo_tier(p_ff_velo)
+        arm_velo_str = ""
+        if p_arm_slot:
+            arm_velo_str += f"  │  Arm Slot: {p_arm_slot} ({p_arm_angle:.1f}°)"
+        if p_velo_tier and p_ff_velo:
+            arm_velo_str += f"  │  FB Velo: {p_velo_tier} ({p_ff_velo:.1f}mph)"
+        if arm_velo_str:
+            lines.append(arm_velo_str)
 
         arsenal_str = "  │  Arsenal: "
         for p in r["arsenal"]:
@@ -1185,6 +1323,17 @@ def format_hr_attack_board(results: list, game_date: str) -> str:
                     detail_parts.append(f"⚡ {b['velo_signal']}")
                 if b.get("chase_signal"):
                     detail_parts.append(f"↯ {b['chase_signal']}")
+                if b.get("count_seq_signal"):
+                    detail_parts.append(f"⏱ {b['count_seq_signal']}")
+                if b.get("h2h_signal"):
+                    detail_parts.append(f"🆚 {b['h2h_signal']}")
+                arm_slot = b.get("arm_slot", "")
+                arm_mult = b.get("arm_mult", 1.0)
+                if arm_slot and arm_mult != 1.0:
+                    adj = "↓ deceptive" if arm_mult < 1.0 else "↑ batter-friendly"
+                    detail_parts.append(f"〽 ARM: {arm_slot} ({adj} ×{arm_mult:.2f})")
+                if b.get("velo_tier") and b.get("ff_velo", 0) > 0:
+                    detail_parts.append(f"🔥 VELO: {b['velo_tier']} ({b['ff_velo']:.1f}mph)")
 
                 if detail_parts:
                     lines.append(f"  │  {'':22}   {'  ·  '.join(detail_parts)}")

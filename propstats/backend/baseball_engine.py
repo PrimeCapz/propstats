@@ -1358,6 +1358,13 @@ SAVANT_PITCHER_VELO_URL = (
     "&csv=true"
 )
 
+SAVANT_PITCHER_RELEASE_URL: str = (
+    "https://baseballsavant.mlb.com/leaderboard/custom?year={year}&type=pitcher"
+    "&filter=&sort=4&sortDir=desc&min=1"
+    "&selections=arm_angle,release_extension"
+    "&csv=true"
+)
+
 _savant_batting:    dict = {}
 _savant_pitching:   dict = {}
 _savant_pitcher_k:  dict = {}
@@ -1372,6 +1379,8 @@ _savant_pitcher_hr: dict = {}          # {season: {player_id: hr_vuln_dict}}
 _savant_pitcher_hr_lhb: dict = {}      # {season: {player_id: hr_vuln_dict}} vs LHB
 _savant_pitcher_hr_rhb: dict = {}      # {season: {player_id: hr_vuln_dict}} vs RHB
 _savant_pitcher_velo: dict = {}        # {season: {player_id: {ff_velo, fb_velo, chase_pct, whiff_pct}}}
+_savant_pitcher_release: dict = {}    # {season: {player_id: {arm_angle, release_ext}}}
+_h2h_cache: dict = {}                 # {(batter_id, pitcher_id): stats_dict}
 
 # ── Umpire K-rate tendency table ───────────────────────────────────────────────
 # K/game averages from Retrosheet/FanGraphs umpire scorecards (2022-2025).
@@ -1868,6 +1877,91 @@ def load_savant_pitcher_velo(season: int = None) -> dict:
         }
     if result:
         _savant_pitcher_velo[season] = result
+    return result
+
+
+def load_savant_pitcher_release(season: int = None) -> dict:
+    """
+    Pitcher arm angle + release extension from Savant custom leaderboard.
+    arm_angle: degrees (0=submarine, 90=over-the-top).
+    """
+    global _savant_pitcher_release
+    if not season:
+        season = datetime.now().year
+    if season in _savant_pitcher_release:
+        return _savant_pitcher_release[season]
+    rows = _fetch_savant_csv(SAVANT_PITCHER_RELEASE_URL.format(year=season))
+    if not rows and season == datetime.now().year:
+        rows = _fetch_savant_csv(SAVANT_PITCHER_RELEASE_URL.format(year=season - 1))
+    result = {}
+    for row in rows:
+        pid = str(row.get("player_id", "")).strip()
+        if not pid:
+            continue
+        result[pid] = {
+            "arm_angle":   _safe_float(row.get("arm_angle")),
+            "release_ext": _safe_float(row.get("release_extension")),
+        }
+    if result:
+        _savant_pitcher_release[season] = result
+    return result
+
+
+def get_h2h_stats(batter_id: int, pitcher_id: int) -> dict:
+    """
+    Career head-to-head splits for batter vs pitcher (2020+ seasons only).
+    Returns aggregate: pa, hr, avg, obp, slg, ops, k_pct, bb_pct.
+    Returns {} if <5 PA or API error.
+    """
+    key = (batter_id, pitcher_id)
+    if key in _h2h_cache:
+        return _h2h_cache[key]
+    data = _get(f"{MLB_API}/people/{batter_id}/stats", {
+        "stats":             "vsPlayer",
+        "group":             "hitting",
+        "opposingPlayerId":  pitcher_id,
+        "sportId":           1,
+    })
+    if not data:
+        _h2h_cache[key] = {}
+        return {}
+    splits = []
+    for stat_group in data.get("stats", []):
+        for split in stat_group.get("splits", []):
+            year = int(split.get("season", 0) or 0)
+            if year >= 2020:
+                splits.append(split.get("stat", {}))
+    if not splits:
+        _h2h_cache[key] = {}
+        return {}
+    total_pa = sum(int(s.get("plateAppearances", 0) or 0) for s in splits)
+    total_ab = sum(int(s.get("atBats", 0) or 0) for s in splits)
+    total_hr = sum(int(s.get("homeRuns", 0) or 0) for s in splits)
+    total_h  = sum(int(s.get("hits", 0) or 0) for s in splits)
+    total_bb = sum(int(s.get("baseOnBalls", 0) or 0) for s in splits)
+    total_k  = sum(int(s.get("strikeOuts", 0) or 0) for s in splits)
+    total_tb = sum(int(s.get("totalBases", 0) or 0) for s in splits)
+    if total_pa < 5:
+        _h2h_cache[key] = {}
+        return {}
+    avg = total_h / total_ab if total_ab > 0 else 0.0
+    obp = (total_h + total_bb) / total_pa if total_pa > 0 else 0.0
+    slg = total_tb / total_ab if total_ab > 0 else 0.0
+    result = {
+        "pa":     total_pa,
+        "ab":     total_ab,
+        "hr":     total_hr,
+        "h":      total_h,
+        "bb":     total_bb,
+        "k":      total_k,
+        "avg":    round(avg, 3),
+        "obp":    round(obp, 3),
+        "slg":    round(slg, 3),
+        "ops":    round(obp + slg, 3),
+        "k_pct":  round(total_k / total_pa * 100 if total_pa else 0, 1),
+        "bb_pct": round(total_bb / total_pa * 100 if total_pa else 0, 1),
+    }
+    _h2h_cache[key] = result
     return result
 
 
