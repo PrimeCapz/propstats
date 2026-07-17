@@ -38,6 +38,7 @@ from baseball_engine import (
     load_savant_pitcher_arsenal,
     load_savant_batter_pitch_splits,
     get_pitcher_recent_form,
+    get_pitcher_throws,
     PARK_FACTORS,
 )
 
@@ -509,9 +510,13 @@ def build_hitter_fantasy_board(game_date: str) -> list:
             if not team_id:
                 continue
 
-            # Fetch pitcher L3 recent form (one API call per pitcher per game)
+            # Pitcher hand + L3 recent form (cached API calls per pitcher)
             recent_form = None
             if pitcher_id:
+                try:
+                    pitcher_hand = get_pitcher_throws(int(pitcher_id))
+                except Exception:
+                    pitcher_hand = "R"
                 try:
                     recent_form = get_pitcher_recent_form(int(pitcher_id), season, starts=3)
                 except Exception:
@@ -556,6 +561,12 @@ def build_hitter_fantasy_board(game_date: str) -> list:
 
                 tags = _build_tags(proj, cs, ps, os_, sp, form=form, arsenal=arsenal)
 
+                bt     = bat_track.get(bid, {})
+                hr_d   = batter_hr.get(bid, {})
+                bd     = batting.get(bid, {})
+                blast  = _safe(bt.get("blast_per_swing"))
+                squp   = _safe(bt.get("squared_up_swing"))
+
                 results.append({
                     "batter_id":     bid,
                     "name":          name,
@@ -578,6 +589,15 @@ def build_hitter_fantasy_board(game_date: str) -> list:
                     "form":          form,
                     "proj":          proj,
                     "tags":          tags,
+                    # Statcast / bat-tracking fields for game-card display
+                    "ev":        round(_safe(bd.get("exit_velo")), 1),
+                    "avg_dist":  round(_safe(hr_d.get("avg_distance")), 0),
+                    "hh_pct":    round(_safe(bd.get("hard_hit_pct")), 1),
+                    "brl_bip":   round(_safe(hr_d.get("brl_per_bip")), 1),
+                    "hr_fb_pct": round(_safe(hr_d.get("hr_fb_pct")), 1),
+                    "bat_speed": round(_safe(bt.get("avg_bat_speed")), 1),
+                    "blast_pct": round(blast * 100, 1) if 0 < blast <= 1 else round(blast, 1),
+                    "squp_pct":  round(squp  * 100, 1) if 0 < squp  <= 1 else round(squp,  1),
                 })
 
     results.sort(key=lambda x: x["fantasy_score"], reverse=True)
@@ -776,4 +796,176 @@ def format_hitter_prop_targets(results: list, game_date: str) -> str:
         )
 
     lines.append("\n" + "=" * w)
+    return "\n".join(lines)
+
+
+# ── Full Slate Game-Card Breakdown ─────────────────────────────────────────────
+
+_PITCH_FULL = {
+    "FF": "4-Seam FB",  "SI": "Sinker   ", "FC": "Cutter   ",
+    "SL": "Slider   ",  "ST": "Sweeper  ", "CH": "Changeup ",
+    "CU": "Curveball",  "FS": "Split-Fgr", "KC": "KnucklCrv",
+}
+
+
+def format_full_slate_game_breakdown(results: list, game_date: str,
+                                      pitcher_arsenal_data: dict) -> str:
+    """
+    Per-game card format — pitch arsenal table + full batter Statcast breakdown.
+
+    Shows for each pitcher side:
+      1. Pitch arsenal: TYPE  USE%  VELO  WHIFF%  K%  xwOBA  RV/100  FLAG
+      2. Batter table:  NAME  H  FORM  ARM  FS  EV  DIST  BRL%  HH%  BATSPD  BLAST%  SQUP%  EDGES
+    """
+    from collections import defaultdict
+
+    W = 132
+    lines = []
+    lines.append(f"{'═' * W}")
+    lines.append(f"  FULL SLATE GAME BREAKDOWN — {game_date}")
+    lines.append(f"  Per-game pitcher arsenal + batter Statcast (EV/DIST/BRL%/HH%/BATSPD/BLAST%/SQUP%)")
+    lines.append(f"  NEAR HR = avg_dist ≥ 315 ft  |  PITCH EDGE = batter xwOBA ≥ 0.390 vs that pitch type")
+    lines.append(f"{'═' * W}")
+
+    # Group results: game_str → pitcher_key → [batter_results]
+    games_dict: dict = defaultdict(lambda: defaultdict(list))
+    for r in results:
+        game_key    = r["game_str"]
+        pitcher_key = (r["pitcher_id"], r["pitcher_name"], r["pitcher_hand"],
+                       r["opp"], r["team"])
+        games_dict[game_key][pitcher_key].append(r)
+
+    # Sort games by best pitcher matchup grade (most hitter-friendly first)
+    def _game_best_grade(game_pitchers):
+        return max(
+            (b["matchup"]["grade"] for batters in game_pitchers.values() for b in batters),
+            default=0.0
+        )
+
+    for game_str, pitchers_batters in sorted(
+        games_dict.items(), key=lambda kv: -_game_best_grade(kv[1])
+    ):
+        for pitcher_key, batters in sorted(
+            pitchers_batters.items(),
+            key=lambda kv: -kv[1][0]["matchup"]["grade"] if kv[1] else 0
+        ):
+            if not batters:
+                continue
+            pid, p_name, p_hand, opp_abv, team_abv = pitcher_key
+            matchup = batters[0]["matchup"]
+            grade   = matchup["grade"]
+            tier    = matchup["tier"]
+            recent  = matchup.get("recent_era_str", "")
+            rec_str = f"  {recent}" if recent else ""
+
+            lines.append(f"\n  {'─' * (W - 2)}")
+            lines.append(
+                f"  {game_str}  ·  {p_name} ({p_hand}HP)  vs  {team_abv}"
+                f"    │  Grade: {grade:.0f} {tier}{rec_str}"
+            )
+            lines.append(f"  {'─' * (W - 2)}")
+
+            # ── Pitch Arsenal Table ─────────────────────────────────────────────
+            arsenal_list = sorted(
+                pitcher_arsenal_data.get(pid, []),
+                key=lambda x: x.get("usage_pct", 0), reverse=True
+            )[:5]
+
+            if arsenal_list:
+                lines.append(
+                    f"  {'PITCH ARSENAL':14}  {'USE%':>5}  {'VELO':>5}  "
+                    f"{'WHIFF%':>7}  {'K%':>6}  {'xwOBA':>6}  {'RV/100':>7}  FLAG"
+                )
+                lines.append(
+                    f"  {'─'*14}  {'─'*5}  {'─'*5}  {'─'*7}  {'─'*6}  {'─'*6}  {'─'*7}  {'─'*16}"
+                )
+                for p in arsenal_list:
+                    pt    = p.get("pitch_type", "")
+                    pname = _PITCH_FULL.get(pt, f"{pt:<9}")
+                    use   = p.get("usage_pct", 0.0)
+                    velo  = p.get("avg_speed", 0.0)
+                    whiff = p.get("whiff_pct", 0.0)
+                    k_p   = p.get("k_pct", 0.0)
+                    xwoba = p.get("xwoba_against", 0.0)
+                    rv    = p.get("run_value_per100", 0.0)
+                    put   = p.get("put_away_pct", 0.0)
+
+                    velo_s = f"{velo:.1f}" if velo > 0 else "  —  "
+                    rv_s   = f"{rv:+.2f}" if rv != 0.0 else "   —  "
+
+                    flag = ""
+                    if rv < -1.5 and use > 10:     flag = "★ DOMINANT"
+                    elif whiff >= 38 and use > 8:  flag = "◆ WHIFF WEAPON"
+                    elif put >= 30 and use > 8:    flag = "◆ PUTAWAY"
+                    elif xwoba > 0.350 and use > 10: flag = "▲ HITTABLE"
+                    elif xwoba < 0.260 and use > 10: flag = "◆ SUPPRESSOR"
+
+                    lines.append(
+                        f"  {pname:14}  {use:>4.1f}%  {velo_s:>5}  "
+                        f"{whiff:>6.1f}%  {k_p:>5.1f}%  {xwoba:>6.3f}  {rv_s:>7}  {flag}"
+                    )
+
+            lines.append(f"  {'·' * (W - 2)}")
+
+            # ── Batter Table ────────────────────────────────────────────────────
+            lines.append(
+                f"  BATTER TARGETS — {team_abv}"
+                f"  (sorted by Arsenal Match Score)"
+            )
+            lines.append(
+                f"  {'BATTER':<22} {'H':1}  {'FORM':5}  {'ARM':>5} {'FS':>5}"
+                f"  {'EV':>5} {'DIST':>5}  {'BRL%':>5} {'HH%':>5}"
+                f"  {'BATSPD':>6} {'BLAST%':>7} {'SQUP%':>6}  PITCH EDGES / SIGNALS"
+            )
+            lines.append(
+                f"  {'─'*22} {'─':1}  {'─'*5}  {'─'*5} {'─'*5}"
+                f"  {'─'*5} {'─'*5}  {'─'*5} {'─'*5}"
+                f"  {'─'*6} {'─'*7} {'─'*6}  {'─'*30}"
+            )
+
+            form_label = {"HOT": "🔥HOT", "DUE": "📈DUE", "COLD": "❄CLO", "WARM": "WARM", "—": " —  "}
+
+            for b in sorted(batters, key=lambda x: x["arsenal"]["score"], reverse=True):
+                name   = b["name"][:22]
+                hand   = b["bats"]
+                form   = b.get("form", "—")
+                arm    = b["arsenal"]["score"]
+                fs     = b["fantasy_score"]
+                ev     = b.get("ev", 0.0)
+                dist   = b.get("avg_dist", 0.0)
+                brl    = b.get("brl_bip", 0.0)
+                hh     = b.get("hh_pct", 0.0)
+                bat_sp = b.get("bat_speed", 0.0)
+                blast  = b.get("blast_pct", 0.0)
+                squp   = b.get("squp_pct", 0.0)
+                edges  = " ".join(b["arsenal"].get("top_edges", []))
+
+                ev_s   = f"{ev:.1f}"   if ev    > 0 else "  —  "
+                dist_s = f"{dist:.0f}" if dist  > 0 else "  — "
+                brl_s  = f"{brl:.1f}%" if brl   > 0 else "  — "
+                hh_s   = f"{hh:.1f}%"  if hh    > 0 else " — "
+                sp_s   = f"{bat_sp:.1f}" if bat_sp > 0 else "  — "
+                bl_s   = f"{blast:.1f}%" if blast > 0 else "  — "
+                sq_s   = f"{squp:.1f}%"  if squp  > 0 else " — "
+
+                flab = form_label.get(form, form[:5])
+
+                signals = []
+                if edges:
+                    signals.append(f"PITCH EDGE: {edges}")
+                if dist >= 315 and brl >= 8:
+                    signals.append("◄ NEAR HR")
+                if form == "DUE":
+                    signals.append("(regression gem)")
+                if bat_sp >= 76:
+                    signals.append("ELITE BAT SPD")
+                signal_str = " | ".join(signals)
+
+                lines.append(
+                    f"  {name:<22} {hand:1}  {flab:<5}  {arm:>5.1f} {fs:>5.1f}"
+                    f"  {ev_s:>5} {dist_s:>5}  {brl_s:>5} {hh_s:>5}"
+                    f"  {sp_s:>6} {bl_s:>7} {sq_s:>6}  {signal_str}"
+                )
+
+    lines.append(f"\n{'═' * W}")
     return "\n".join(lines)

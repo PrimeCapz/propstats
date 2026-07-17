@@ -1605,15 +1605,16 @@ def load_savant_pitcher_arsenal(season: int = None) -> dict:
             "pitch_type":      pitch_type,
             "pitch_name":      row.get("pitch_name", pitch_type),
             "usage_pct":       _safe_float(row.get("pitch_usage")),
-            "whiff_pct":       _safe_float(row.get("whiff_percent")),   # swing-and-miss per swing
-            "k_pct":           _safe_float(row.get("k_percent")),       # K% with this pitch
-            "put_away_pct":    _safe_float(row.get("put_away")),        # K% in 2-strike counts
-            "woba_against":    _safe_float(row.get("woba")),            # wOBA allowed
-            "xwoba_against":   _safe_float(row.get("est_woba")),        # xwOBA allowed (luck-neutral)
-            "ba_against":      _safe_float(row.get("ba")),              # BA allowed
-            "slg_against":     _safe_float(row.get("slg")),             # SLG allowed
-            "hard_hit_pct":    _safe_float(row.get("hard_hit_percent")),# hard hit% allowed
-            "run_value_per100": _safe_float(row.get("run_value_per_100")),  # negative = good for pitcher
+            "avg_speed":       _safe_float(row.get("avg_speed")),
+            "whiff_pct":       _safe_float(row.get("whiff_percent")),
+            "k_pct":           _safe_float(row.get("k_percent")),
+            "put_away_pct":    _safe_float(row.get("put_away")),
+            "woba_against":    _safe_float(row.get("woba")),
+            "xwoba_against":   _safe_float(row.get("est_woba")),
+            "ba_against":      _safe_float(row.get("ba")),
+            "slg_against":     _safe_float(row.get("slg")),
+            "hard_hit_pct":    _safe_float(row.get("hard_hit_percent")),
+            "run_value_per100": _safe_float(row.get("run_value_per_100")),
         }
         if pid not in result:
             result[pid] = []
