@@ -40,6 +40,64 @@ LEAGUE_K_PCT  = 22.0   # MLB avg K% (%)
 LEAGUE_BF_SP  = 25.0   # avg starter batters faced per game
 LEAGUE_SWSTR  = 11.0   # avg SwStr%
 
+# ── Recent pitcher form (last 3 starts) ──────────────────────────────────────
+
+def _pitcher_recent_form(pitcher_id: int, lookback: int = 3) -> dict:
+    """
+    Fetch pitcher's last `lookback` starts from MLB API game log.
+    Returns adjusted proj_bf multiplier and form label.
+    ERA > 5: shorten outing expectation. Recent IP/GS < 4.5: early-exit risk.
+    """
+    try:
+        url = (f"{MLB_API}/people/{pitcher_id}/stats"
+               f"?stats=gameLog&group=pitching&season=2026&sportId=1")
+        data = _get(url)
+        splits = (data.get("stats") or [{}])[0].get("splits", [])
+        # Filter to starts only (IP > 1.0 typically, or GS marker)
+        starts = [s for s in splits
+                  if _safe(s.get("stat", {}).get("inningsPitched")) >= 1.0][-lookback:]
+        if not starts:
+            return {"bf_mult": 1.0, "form_label": "", "recent_era": None, "recent_ip_pg": None}
+
+        total_er = sum(_safe(s["stat"].get("earnedRuns")) for s in starts)
+        total_ip = sum(_safe(s["stat"].get("inningsPitched")) for s in starts)
+        n = len(starts)
+        recent_era = (total_er / total_ip * 9) if total_ip > 0 else 0.0
+        recent_ip_pg = total_ip / n if n > 0 else 5.0
+
+        # BF multiplier: fewer expected BF when ERA high or outings short
+        bf_mult = 1.0
+        if recent_era >= 7.0:
+            bf_mult = 0.75  # likely pulled by 4th inning
+        elif recent_era >= 5.0:
+            bf_mult = 0.85  # early exit risk
+        elif recent_era <= 2.50 and recent_ip_pg >= 6.0:
+            bf_mult = 1.05  # going deep, more BF
+
+        # Short recent outings regardless of ERA
+        if recent_ip_pg < 4.5 and bf_mult > 0.80:
+            bf_mult = min(bf_mult, 0.82)
+
+        # Form label for display
+        if recent_era >= 7.0:
+            form_label = f"⚠ SHAKY({recent_era:.2f}ERA/{recent_ip_pg:.1f}IP)"
+        elif recent_era >= 5.0:
+            form_label = f"↓ SOFT({recent_era:.2f}ERA/{recent_ip_pg:.1f}IP)"
+        elif recent_era <= 2.50:
+            form_label = f"↑ HOT({recent_era:.2f}ERA/{recent_ip_pg:.1f}IP)"
+        else:
+            form_label = f"→ STABLE({recent_era:.2f}ERA/{recent_ip_pg:.1f}IP)"
+
+        return {
+            "bf_mult":      round(bf_mult, 3),
+            "form_label":   form_label,
+            "recent_era":   round(recent_era, 2),
+            "recent_ip_pg": round(recent_ip_pg, 1),
+            "n_starts":     n,
+        }
+    except Exception:
+        return {"bf_mult": 1.0, "form_label": "", "recent_era": None, "recent_ip_pg": None}
+
 # ── Scoring helpers ──────────────────────────────────────────────────────────
 
 def _scale(val, lo, mid, hi):
@@ -132,9 +190,10 @@ def _pitcher_k_score(pitcher_id: int, pitcher_k_data: dict, pitcher_arsenal: dic
 
 
 def _proj_k_line(pitcher_k_data: dict, pitcher_id: int, opp_k_pct: float,
-                 proj_bf: float = LEAGUE_BF_SP) -> dict:
+                 proj_bf: float = LEAGUE_BF_SP, bf_mult: float = 1.0) -> dict:
     """
     Project K count and nearest prop line with Poisson over/under %.
+    bf_mult adjusts expected batters faced based on pitcher recent form.
     """
     pid = str(pitcher_id)
     d = pitcher_k_data.get(pid, {})
@@ -144,7 +203,8 @@ def _proj_k_line(pitcher_k_data: dict, pitcher_id: int, opp_k_pct: float,
     opp = opp_k_pct if opp_k_pct > 0 else LEAGUE_K_PCT
     blended_k_pct = (p_k_pct * 0.65 + opp * 0.35) / 100.0
 
-    lam = blended_k_pct * proj_bf  # expected K count (λ for Poisson)
+    effective_bf = proj_bf * bf_mult
+    lam = blended_k_pct * effective_bf  # expected K count (λ for Poisson)
     lam = max(0.5, lam)
 
     # Nearest standard prop line (0.5 below projection)
@@ -187,6 +247,7 @@ def _proj_k_line(pitcher_k_data: dict, pitcher_id: int, opp_k_pct: float,
         "blended_k_pct": round(blended_k_pct * 100, 1),
         "pitcher_k_pct": round(p_k_pct, 1),
         "opp_k_pct": round(opp, 1),
+        "effective_bf":  round(effective_bf, 1),
     }
 
 
@@ -337,6 +398,10 @@ def build_k_board(game_date: str) -> list:
 
             k_score_data = _pitcher_k_score(pitcher_id, pitcher_k_data, pitcher_arsenal)
 
+            # Recent pitcher form — adjusts expected BF for early-exit risk
+            recent_form = _pitcher_recent_form(pitcher_id)
+            time.sleep(0.10)
+
             # Opposing roster
             roster = get_team_roster_ids(opp_team_id, season)
             time.sleep(0.15)
@@ -350,7 +415,8 @@ def build_k_board(game_date: str) -> list:
                     opp_k_pcts.append(bk)
             opp_k_pct = round(sum(opp_k_pcts) / len(opp_k_pcts), 1) if opp_k_pcts else LEAGUE_K_PCT
 
-            proj = _proj_k_line(pitcher_k_data, pitcher_id, opp_k_pct)
+            proj = _proj_k_line(pitcher_k_data, pitcher_id, opp_k_pct,
+                                bf_mult=recent_form.get("bf_mult", 1.0))
 
             # Arsenal display (top 3 by usage)
             arsenal_raw = pitcher_arsenal.get(str(pitcher_id), [])
@@ -386,6 +452,7 @@ def build_k_board(game_date: str) -> list:
                 "k_score":        k_score_data,
                 "proj":           proj,
                 "opp_k_pct":      opp_k_pct,
+                "recent_form":    recent_form,
                 "arsenal":        arsenal_display,
                 "top_k_batters":  top_k_batters,
             })
@@ -479,6 +546,8 @@ def format_k_board(results: list, game_date: str) -> str:
             f"K%: {_fmt(ks['k_pct'],'.1f','%')}  Whiff/Swing: {_fmt(ks['swstr_pct'],'.1f','%')}  "
             f"BB%: {_fmt(ks['bb_pct'],'.1f','%')}"
         )
+        rf = r.get("recent_form", {})
+        rf_label = rf.get("form_label", "")
         lines.append(
             f"  │  Proj K: {proj['proj_k']}  Line: {proj['line']:.1f}  "
             f"Over: {proj['over_pct']}% ({proj['over_odds']})  "
@@ -488,7 +557,8 @@ def format_k_board(results: list, game_date: str) -> str:
         lines.append(
             f"  │  Opp {r['opp_team']} lineup K%: {_fmt(r['opp_k_pct'],'.1f','%')}  "
             f"Blended K%: {_fmt(proj['blended_k_pct'],'.1f','%')}  "
-            f"{hand_note}"
+            f"EffBF: {proj.get('effective_bf', LEAGUE_BF_SP):.1f}  "
+            f"{hand_note}  {rf_label}"
         )
         if ars_str:
             lines.append(f"  │  Arsenal: {ars_str}")

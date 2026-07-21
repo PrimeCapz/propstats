@@ -48,6 +48,49 @@ from baseball_engine import (
 LEAGUE_HR_PA   = 0.034   # MLB avg HR/PA 2025-26
 MARKET_VIG_BEP = 0.524
 
+# ── Team recent offensive form ────────────────────────────────────────────────
+
+def _team_recent_runs(team_id: int, game_date: str, days: int = 7) -> dict:
+    """
+    Returns team's average runs/game and HR/game over the last `days` calendar days.
+    Hot teams (>5 R/G) get a matchup_score boost for their batters.
+    """
+    try:
+        from datetime import datetime, timedelta
+        end_dt   = datetime.strptime(game_date, "%Y-%m-%d")
+        start_dt = end_dt - timedelta(days=days)
+        start    = start_dt.strftime("%Y-%m-%d")
+        end      = (end_dt - timedelta(days=1)).strftime("%Y-%m-%d")
+        url = (f"{MLB_API}/schedule?sportId=1&teamId={team_id}"
+               f"&startDate={start}&endDate={end}"
+               f"&hydrate=linescore&gameType=R")
+        data = _get(url)
+        runs_list, hr_list = [], []
+        for date in data.get("dates", []):
+            for gm in date.get("games", []):
+                st = gm.get("status", {}).get("abstractGameState", "")
+                if st != "Final":
+                    continue
+                t = gm.get("teams", {})
+                for s in ("away", "home"):
+                    td = t.get(s, {})
+                    if td.get("team", {}).get("id") == team_id:
+                        runs_list.append(td.get("score", 0) or 0)
+        if not runs_list:
+            return {"rpg": 0.0, "hot": False, "mult": 1.0, "label": ""}
+        rpg = sum(runs_list) / len(runs_list)
+        if rpg >= 6.5:
+            mult, label = 1.10, f"🔥 HOT OFFENSE ({rpg:.1f}R/G)"
+        elif rpg >= 5.5:
+            mult, label = 1.05, f"↑ ACTIVE ({rpg:.1f}R/G)"
+        elif rpg <= 3.0:
+            mult, label = 0.95, f"↓ COLD ({rpg:.1f}R/G)"
+        else:
+            mult, label = 1.00, f"→ AVG ({rpg:.1f}R/G)"
+        return {"rpg": round(rpg, 2), "hot": rpg >= 5.5, "mult": round(mult, 3), "label": label}
+    except Exception:
+        return {"rpg": 0.0, "hot": False, "mult": 1.0, "label": ""}
+
 
 # ── Scoring helpers ──────────────────────────────────────────────────────────
 
@@ -1045,6 +1088,11 @@ def build_hr_attack_board(game_date: str) -> list:
             arsenal_display = sorted(arsenal_raw, key=lambda x: x.get("usage_pct") or 0,
                                      reverse=True)[:3]
 
+            # Team recent offensive form — boost batters from hot-hitting lineups
+            opp_offense = _team_recent_runs(opp_team_id, game_date)
+            off_mult = opp_offense.get("mult", 1.0)
+            time.sleep(0.10)
+
             # Roster — one API call per opposing team
             roster = get_team_roster_ids(opp_team_id, season)
             time.sleep(0.15)
@@ -1062,6 +1110,11 @@ def build_hr_attack_board(game_date: str) -> list:
                     batter_hr_data, savant_batting,
                     bat_track, pitcher_arsenal, batter_pitch_splits,
                 )
+                # Apply team hot-streak multiplier to matchup_score and hr_prob
+                if off_mult != 1.0:
+                    entry["matchup_score"] = min(99.9, entry["matchup_score"] * off_mult)
+                    entry["hr_prob"]       = min(65.0, entry["hr_prob"] * off_mult)
+                    entry["offense_label"] = opp_offense.get("label", "")
                 # Rank by combined hr_score + zone_fit
                 rank_key = entry["hr_score"] * 0.55 + (entry["zone_fit"] * 600) * 0.45
                 batter_entries.append((rank_key, entry))
@@ -1083,6 +1136,7 @@ def build_hr_attack_board(game_date: str) -> list:
                 "pitcher_tags":   ptags,
                 "arsenal":        arsenal_display,
                 "top_batters":    top_batters,
+                "opp_offense":    opp_offense,
             })
 
     results.sort(key=lambda x: -(x["vuln"]["score"]))
