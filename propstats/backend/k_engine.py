@@ -65,7 +65,12 @@ def _pitcher_recent_form(pitcher_id: int, lookback: int = 3) -> dict:
         recent_era = (total_er / total_ip * 9) if total_ip > 0 else 0.0
         recent_ip_pg = total_ip / n if n > 0 else 5.0
 
-        # BF multiplier: fewer expected BF when ERA high or outings short
+        # BF multiplier: fewer expected BF when ERA high or outings short.
+        # High-SwStr% pitchers (whiff generators) exit less often from ERA alone —
+        # their runs come from hard contact/HRs, not from losing bat-missing ability.
+        # We fetch SwStr% separately in build_k_board and pass it back; here we
+        # use a sentinel value of None (not yet known at form-fetch time).
+        # The caller may override bf_mult post-hoc via _apply_swstr_guard().
         bf_mult = 1.0
         if recent_era >= 7.0:
             bf_mult = 0.75  # likely pulled by 4th inning
@@ -97,6 +102,27 @@ def _pitcher_recent_form(pitcher_id: int, lookback: int = 3) -> dict:
         }
     except Exception:
         return {"bf_mult": 1.0, "form_label": "", "recent_era": None, "recent_ip_pg": None}
+
+def _apply_swstr_guard(bf_mult: float, recent_era: float | None,
+                       recent_ip_pg: float | None, swstr_pct: float) -> float:
+    """
+    High-SwStr% pitchers (whiff generators) tend to keep getting Ks even when
+    ERA is elevated from hard contact / home runs — their early-exit risk is
+    lower than ERA alone implies.  Apply a softer BF penalty when SwStr% ≥ 11.5.
+    """
+    if swstr_pct < 11.5 or recent_era is None:
+        return bf_mult
+    # Only relax if the penalty was purely ERA-driven (not short-outing driven)
+    if recent_ip_pg is not None and recent_ip_pg < 4.5:
+        return bf_mult  # short outings stand regardless of whiff rate
+    if recent_era >= 7.0 and bf_mult <= 0.76:
+        # Whiff arm: soften the extreme pull (0.75→0.88)
+        bf_mult = max(bf_mult, 0.88)
+    elif recent_era >= 5.0 and bf_mult <= 0.86:
+        # Whiff arm: soften moderate pull (0.85→0.94)
+        bf_mult = max(bf_mult, 0.94)
+    return round(bf_mult, 3)
+
 
 # ── Scoring helpers ──────────────────────────────────────────────────────────
 
@@ -190,10 +216,12 @@ def _pitcher_k_score(pitcher_id: int, pitcher_k_data: dict, pitcher_arsenal: dic
 
 
 def _proj_k_line(pitcher_k_data: dict, pitcher_id: int, opp_k_pct: float,
-                 proj_bf: float = LEAGUE_BF_SP, bf_mult: float = 1.0) -> dict:
+                 proj_bf: float = LEAGUE_BF_SP, bf_mult: float = 1.0,
+                 k_score: float = 0.0, swstr_pct: float = 0.0) -> dict:
     """
     Project K count and nearest prop line with Poisson over/under %.
     bf_mult adjusts expected batters faced based on pitcher recent form.
+    k_score and swstr_pct used to apply confidence floor guards.
     """
     pid = str(pitcher_id)
     d = pitcher_k_data.get(pid, {})
@@ -234,6 +262,18 @@ def _proj_k_line(pitcher_k_data: dict, pitcher_id: int, opp_k_pct: float,
     elif under_pct >= 54:
         confidence = "LEAN UNDER"
     else:
+        confidence = "PUSH ZONE"
+
+    # Guard 1: K ELITE arms (score ≥ 65) can't be LEAN/STRONG UNDER.
+    # These pitchers genuinely miss bats — any "under" signal is noise from
+    # a reduced BF estimate, not from lost bat-missing ability.
+    if k_score >= 65 and "UNDER" in confidence:
+        confidence = "PUSH ZONE"
+
+    # Guard 2: High-SwStr% arms (≥ league avg 11%) blocked from LEAN UNDER.
+    # If a pitcher whiffs batters at or above league average, the under call
+    # requires more than just a BF-reduction from high ERA.
+    if swstr_pct >= LEAGUE_SWSTR and confidence == "LEAN UNDER":
         confidence = "PUSH ZONE"
 
     return {
@@ -397,9 +437,19 @@ def build_k_board(game_date: str) -> list:
             time.sleep(0.10)
 
             k_score_data = _pitcher_k_score(pitcher_id, pitcher_k_data, pitcher_arsenal)
+            swstr_pct    = k_score_data.get("swstr_pct", 0.0)
 
-            # Recent pitcher form — adjusts expected BF for early-exit risk
+            # Recent pitcher form — adjusts expected BF for early-exit risk.
+            # Apply SwStr% guard: whiff generators shouldn't be penalized as
+            # heavily for ERA-driven outing-length estimates.
             recent_form = _pitcher_recent_form(pitcher_id)
+            guarded_bf_mult = _apply_swstr_guard(
+                recent_form.get("bf_mult", 1.0),
+                recent_form.get("recent_era"),
+                recent_form.get("recent_ip_pg"),
+                swstr_pct,
+            )
+            recent_form["bf_mult"] = guarded_bf_mult
             time.sleep(0.10)
 
             # Opposing roster
@@ -415,8 +465,12 @@ def build_k_board(game_date: str) -> list:
                     opp_k_pcts.append(bk)
             opp_k_pct = round(sum(opp_k_pcts) / len(opp_k_pcts), 1) if opp_k_pcts else LEAGUE_K_PCT
 
-            proj = _proj_k_line(pitcher_k_data, pitcher_id, opp_k_pct,
-                                bf_mult=recent_form.get("bf_mult", 1.0))
+            proj = _proj_k_line(
+                pitcher_k_data, pitcher_id, opp_k_pct,
+                bf_mult=recent_form.get("bf_mult", 1.0),
+                k_score=k_score_data.get("score", 0.0),
+                swstr_pct=swstr_pct,
+            )
 
             # Arsenal display (top 3 by usage)
             arsenal_raw = pitcher_arsenal.get(str(pitcher_id), [])
