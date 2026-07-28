@@ -337,6 +337,7 @@ def _batter_hr_score(batter_hr: dict, savant_batting: dict, bat_track: dict, bat
     la_avg     = _safe(d.get("la_avg"))           # 12° = neutral
     hh_pct     = _safe(ev.get("hard_hit_pct"))    # from batting leaderboard
     blast      = _safe(bt.get("blast_per_swing")) # bat tracking quality
+    hr_fb_pct  = _safe(d.get("hr_fb_pct"))        # season HR/FB% — in-year conversion rate
 
     s_brl    = _scale(brl_bip,    2.0,  7.0,  16.0)
     s_pull   = _scale(pull_pct,   25.0, 40.0, 55.0)
@@ -345,13 +346,16 @@ def _batter_hr_score(batter_hr: dict, savant_batting: dict, bat_track: dict, bat
     s_la     = _scale(la_avg,     4.0,  14.0, 24.0)
     s_hh     = _scale(hh_pct,     30.0, 43.0, 56.0)
     s_blast  = _scale(blast,      0.02, 0.04, 0.07) if blast else 0.0
+    # HR/FB%: 6%=low, 14%=avg, 26%=elite — rewards batters actually converting this season
+    s_hrfb   = _scale(hr_fb_pct,  6.0,  14.0, 26.0) if hr_fb_pct > 0 else 0.0
 
     if hh_pct and blast:
-        score = (s_brl * 0.32 + s_pull * 0.18 + s_sweet * 0.16
-                 + s_xiso * 0.14 + s_la * 0.08 + s_hh * 0.08 + s_blast * 0.04)
+        score = (s_brl * 0.26 + s_pull * 0.16 + s_sweet * 0.14
+                 + s_xiso * 0.12 + s_la * 0.07 + s_hh * 0.08 + s_blast * 0.04
+                 + s_hrfb * 0.13)
     else:
-        score = (s_brl * 0.35 + s_pull * 0.25 + s_sweet * 0.20
-                 + s_xiso * 0.15 + s_la * 0.05)
+        score = (s_brl * 0.30 + s_pull * 0.22 + s_sweet * 0.18
+                 + s_xiso * 0.14 + s_la * 0.06 + s_hrfb * 0.10)
 
     return round(score, 1)
 
@@ -886,12 +890,20 @@ def _quick_batter_entry(batter_id: int, batter_name: str, bats: str,
     bat_speed         = pitch_analysis.get("bat_speed", 0.0)
     pitcher_chase_pct = pitch_analysis.get("pitcher_chase_pct", 0.0)
 
-    # matchup_score: blend general HR profile + pitch-type zone score
-    # When pitch data available, incorporate hr_zone_score; else fall back to zone_fit
+    # matchup_score: batter profile + pitch-type zone fit + raw pitcher vulnerability
+    # Pitcher vuln added at 25% so mid-tier batters in prime spots compete with elite bats in avg spots
+    vuln_raw = pitcher_vuln.get("score", 50.0)
     if hr_zone_score > 0:
-        matchup_score = min(100.0, hr_score * 0.50 + hr_zone_score * 0.30 + zone_fit * 600 * 0.20)
+        matchup_score = min(100.0,
+            hr_score * 0.35 +
+            hr_zone_score * 0.30 +
+            zone_fit * 600 * 0.10 +
+            vuln_raw * 0.25)
     else:
-        matchup_score = min(100.0, hr_score * 0.55 + zone_fit * 600 * 0.45)
+        matchup_score = min(100.0,
+            hr_score * 0.40 +
+            zone_fit * 600 * 0.35 +
+            vuln_raw * 0.25)
 
     # Arm slot deception
     arm_data  = _pitcher_release_cache.get(str(pitcher_id), {})
@@ -1115,8 +1127,8 @@ def build_hr_attack_board(game_date: str) -> list:
                     entry["matchup_score"] = min(99.9, entry["matchup_score"] * off_mult)
                     entry["hr_prob"]       = min(65.0, entry["hr_prob"] * off_mult)
                     entry["offense_label"] = opp_offense.get("label", "")
-                # Rank by combined hr_score + zone_fit
-                rank_key = entry["hr_score"] * 0.55 + (entry["zone_fit"] * 600) * 0.45
+                # Rank by matchup_score — already includes vuln + zone fit + hr profile
+                rank_key = entry["matchup_score"]
                 batter_entries.append((rank_key, entry))
 
             batter_entries.sort(key=lambda x: -x[0])
@@ -1140,6 +1152,80 @@ def build_hr_attack_board(game_date: str) -> list:
             })
 
     results.sort(key=lambda x: -(x["vuln"]["score"]))
+    return results
+
+
+def enrich_recent_hr_form(results: list, game_date: str, top_n: int = 60) -> list:
+    """
+    Post-build: for the top-N batters by matchup_score (across all games), pull a
+    short game log (last 10 games) and tag HOT/DUE based on recent HR production.
+    Adds 'recent_l5_hr', 'hot_bat' fields and boosts matchup_score by up to 8%.
+    Call after build_hr_attack_board() but before final ranking.
+    """
+    season = int(game_date[:4])
+
+    # Collect all batters with matchup_score, deduplicate by batter_id
+    all_entries = []
+    for r in results:
+        for b in r["top_batters"]:
+            all_entries.append((b["matchup_score"], b["batter_id"], b, r))
+    all_entries.sort(key=lambda x: -x[0])
+
+    seen_ids: set = set()
+    to_enrich: list = []
+    for ms, bid, b, r in all_entries:
+        if bid not in seen_ids and len(to_enrich) < top_n:
+            seen_ids.add(bid)
+            to_enrich.append((bid, b, r))
+
+    enriched_map: dict = {}  # batter_id -> recent data
+    for bid, b, r in to_enrich:
+        try:
+            log = get_batter_game_log(bid, season, limit=10)
+            l5  = log[-5:] if len(log) >= 5 else log
+            l5_hr  = sum(g.get("hr", 0) for g in l5)
+            l5_ab  = sum(g.get("ab", 0) for g in l5)
+            # Season rate from xiso proxy
+            xiso   = b.get("xiso", 0.0) or 0.0
+            season_hr_rate = xiso * 0.22 if xiso > 0 else LEAGUE_HR_PA
+            l5_rate = l5_hr / l5_ab if l5_ab > 0 else season_hr_rate
+
+            # Recent momentum signal
+            if l5_hr >= 3:
+                tag, boost = "🔥 FIRE (3+ HR L5)", 0.08
+            elif l5_hr == 2:
+                tag, boost = "🔥 HOT (2 HR L5)", 0.05
+            elif l5_hr == 1:
+                tag, boost = "✓ ACTIVE (1 HR L5)", 0.02
+            else:
+                # Check near misses: if season hr_rate high but cold lately — "due"
+                if season_hr_rate >= 0.038 and l5_hr == 0 and l5_ab >= 15:
+                    tag, boost = "📈 DUE (0 HR L5 / elite profile)", 0.03
+                else:
+                    tag, boost = "", 0.0
+
+            enriched_map[bid] = {"l5_hr": l5_hr, "l5_ab": l5_ab,
+                                 "tag": tag, "boost": boost}
+            time.sleep(0.08)
+        except Exception:
+            enriched_map[bid] = {"l5_hr": 0, "l5_ab": 0, "tag": "", "boost": 0.0}
+
+    # Apply boosts and tags back to all results
+    for r in results:
+        for b in r["top_batters"]:
+            info = enriched_map.get(b["batter_id"])
+            if not info:
+                continue
+            b["recent_l5_hr"] = info["l5_hr"]
+            b["hot_bat"]      = info["l5_hr"] >= 2
+            if info["tag"]:
+                tags = b.setdefault("tags", [])
+                if info["tag"] not in tags:
+                    tags.insert(0, info["tag"])
+            if info["boost"] > 0:
+                b["matchup_score"] = min(99.9,
+                    b["matchup_score"] * (1.0 + info["boost"]))
+
     return results
 
 
