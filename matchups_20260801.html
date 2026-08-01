@@ -1,0 +1,1594 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Today's Matchups — Aug 1, 2026</title>
+<style>
+/* ── Tokens ── */
+:root {
+  --bg:        #EEF1F6;
+  --card:      #FFFFFF;
+  --body-area: #F7F9FC;
+  --txt:       #0C1520;
+  --txt2:      #3A5068;
+  --txt3:      #7A90A6;
+  --border:    #D8E2EC;
+  --score-bg:  #0C1520;
+  --score-txt: #FFFFFF;
+  --div:       #D8E2EC;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg:        #07101C;
+    --card:      #0D1829;
+    --body-area: #0B1524;
+    --txt:       #E0EAF5;
+    --txt2:      #7A9AB8;
+    --txt3:      #445A70;
+    --border:    #1A2E48;
+    --score-bg:  #E0EAF5;
+    --score-txt: #07101C;
+    --div:       #1A2E48;
+  }
+}
+:root[data-theme="dark"] {
+  --bg:#07101C; --card:#0D1829; --body-area:#0B1524;
+  --txt:#E0EAF5; --txt2:#7A9AB8; --txt3:#445A70;
+  --border:#1A2E48; --score-bg:#E0EAF5; --score-txt:#07101C; --div:#1A2E48;
+}
+:root[data-theme="light"] {
+  --bg:#EEF1F6; --card:#FFFFFF; --body-area:#F7F9FC;
+  --txt:#0C1520; --txt2:#3A5068; --txt3:#7A90A6;
+  --border:#D8E2EC; --score-bg:#0C1520; --score-txt:#FFFFFF; --div:#D8E2EC;
+}
+
+/* ── Reset ── */
+*,*::before,*::after{ box-sizing:border-box; margin:0; padding:0; }
+body { background:var(--bg); font-family:system-ui,-apple-system,"Segoe UI",Arial,sans-serif; color:var(--txt); -webkit-font-smoothing:antialiased; }
+
+/* ── Page header ── */
+.page-header {
+  background:#07101C;
+  color:#E0EAF5;
+  text-align:center;
+  padding:32px 16px 24px;
+  border-bottom:3px solid #C8920A;
+}
+.page-eyebrow {
+  font-family:"Arial Narrow","Helvetica Neue",Arial,sans-serif;
+  font-size:11px;
+  font-weight:700;
+  letter-spacing:.18em;
+  text-transform:uppercase;
+  color:#C8920A;
+  margin-bottom:6px;
+}
+.page-title {
+  font-family:"Arial Narrow","Helvetica Neue",Arial,sans-serif;
+  font-size:clamp(32px,7vw,58px);
+  font-weight:900;
+  letter-spacing:.05em;
+  text-transform:uppercase;
+  line-height:1;
+}
+.page-date {
+  margin-top:6px;
+  font-size:clamp(13px,2.5vw,18px);
+  font-weight:500;
+  color:#7A9AB8;
+  letter-spacing:.04em;
+}
+
+/* ── Legend ── */
+.legend {
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  justify-content:center;
+  gap:6px 18px;
+  padding:12px 16px;
+  background:#07101C;
+  border-bottom:1px solid #1A2E48;
+}
+.legend-label {
+  font-size:10px;
+  font-weight:700;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+  color:#445A70;
+  margin-right:4px;
+}
+.legend-item {
+  display:flex;
+  align-items:center;
+  gap:5px;
+  font-family:"SF Mono",Consolas,"Liberation Mono",monospace;
+  font-size:10px;
+  color:#7A9AB8;
+}
+.lbadge {
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:16px; height:16px;
+  border-radius:3px;
+  font-weight:900;
+  font-size:10px;
+  font-family:"Arial Narrow",Arial,sans-serif;
+}
+
+/* ── Grid ── */
+.grid {
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(340px,1fr));
+  gap:12px;
+  padding:14px;
+  max-width:1380px;
+  margin:0 auto;
+}
+
+/* ── Card ── */
+.game-card {
+  background:var(--card);
+  border-radius:8px;
+  overflow:hidden;
+  box-shadow:0 2px 10px rgba(0,0,0,.10);
+  border:1px solid var(--border);
+  display:flex;
+  flex-direction:column;
+}
+
+/* ── Split header ── */
+.card-header {
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  height:62px;
+  position:relative;
+  flex-shrink:0;
+}
+.team-half {
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  padding:6px 10px;
+  gap:2px;
+}
+.team-abbr {
+  font-family:"Arial Narrow","Helvetica Neue",Arial,sans-serif;
+  font-size:22px;
+  font-weight:900;
+  color:#fff;
+  letter-spacing:.04em;
+  line-height:1;
+  text-shadow:0 1px 3px rgba(0,0,0,.35);
+}
+.team-pitcher {
+  font-size:9px;
+  font-weight:600;
+  color:rgba(255,255,255,.65);
+  letter-spacing:.04em;
+  text-transform:uppercase;
+  white-space:nowrap;
+}
+.at-bubble {
+  position:absolute;
+  left:50%; top:50%;
+  transform:translate(-50%,-50%);
+  width:22px; height:22px;
+  background:#fff;
+  border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  font-size:10px; font-weight:900;
+  color:#07101C;
+  z-index:2;
+  box-shadow:0 1px 6px rgba(0,0,0,.30);
+}
+
+/* ── Card body ── */
+.card-body {
+  display:flex;
+  flex:1;
+  background:var(--body-area);
+}
+.team-col {
+  flex:1;
+  padding:10px 9px 10px;
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  min-width:0;
+}
+.col-div {
+  width:1px;
+  background:var(--div);
+  margin:8px 0;
+  flex-shrink:0;
+}
+
+/* ── Player row ── */
+.player-row {
+  display:flex;
+  align-items:flex-start;
+  gap:6px;
+}
+.tier-mark {
+  width:17px; height:17px;
+  border-radius:3px;
+  display:flex; align-items:center; justify-content:center;
+  font-family:"Arial Narrow","Helvetica Neue",Arial,sans-serif;
+  font-size:11px; font-weight:900;
+  flex-shrink:0;
+  margin-top:1px;
+}
+.player-body {
+  flex:1;
+  min-width:0;
+  display:flex;
+  flex-direction:column;
+  gap:2px;
+}
+.player-name-line {
+  display:flex;
+  align-items:baseline;
+  gap:3px;
+  flex-wrap:wrap;
+}
+.pname {
+  font-size:12px;
+  font-weight:700;
+  color:var(--txt);
+  line-height:1.2;
+}
+.ppos {
+  font-size:10px;
+  font-weight:500;
+  color:var(--txt3);
+  font-variant-numeric:tabular-nums;
+}
+.player-note {
+  font-size:10px;
+  color:var(--txt2);
+  line-height:1.35;
+}
+.player-pills {
+  display:flex;
+  flex-direction:column;
+  align-items:flex-end;
+  gap:3px;
+  flex-shrink:0;
+}
+.pill {
+  font-family:"SF Mono",Consolas,"Liberation Mono",monospace;
+  font-size:9px;
+  font-weight:700;
+  padding:2px 5px;
+  border-radius:3px;
+  white-space:nowrap;
+  font-variant-numeric:tabular-nums;
+}
+.pill-score { background:var(--score-bg); color:var(--score-txt); }
+.pill-hr    { background:#C0282B; color:#fff; }
+.pill-xw    { background:#1A3A8A; color:#C8D8F0; }
+
+/* ── Venue footer ── */
+.card-venue {
+  font-size:9px;
+  font-weight:600;
+  letter-spacing:.06em;
+  text-transform:uppercase;
+  color:var(--txt3);
+  text-align:center;
+  padding:5px 8px;
+  background:var(--card);
+  border-top:1px solid var(--border);
+}
+
+@media (max-width:480px) {
+  .grid { grid-template-columns:1fr; padding:10px; gap:10px; }
+  .pname { font-size:11px; }
+  .player-note { font-size:9.5px; }
+}
+</style>
+</head>
+<body>
+
+<header class="page-header">
+  <div class="page-eyebrow">PropStats Daily</div>
+  <div class="page-title">Today's Matchups</div>
+  <div class="page-date">August 1, 2026</div>
+</header>
+
+<div class="legend">
+  <span class="legend-label">Tiers</span>
+  <span class="legend-item"><span class="lbadge" style="background:#C8920A;color:#fff">S</span>Elite 68+</span>
+  <span class="legend-item"><span class="lbadge" style="background:#2457CC;color:#fff">A</span>Plus 54–67</span>
+  <span class="legend-item"><span class="lbadge" style="background:#06956A;color:#fff">B</span>Solid 42–53</span>
+  <span class="legend-item"><span class="lbadge" style="background:#5C7080;color:#fff">C</span>Watch &lt;42</span>
+  <span class="legend-label" style="margin-left:10px">Pills</span>
+  <span class="legend-item"><span class="pill pill-hr" style="font-size:9px">HR%</span>HR probability</span>
+  <span class="legend-item"><span class="pill pill-xw" style="font-size:9px">xwOBA</span>≥.370 only</span>
+  <span class="legend-item"><span class="pill pill-score" style="font-size:9px">85</span>Composite score</span>
+</div>
+
+<div class="grid">
+<div class="game-card">
+  <div class="card-header">
+    <div class="team-half away-half" style="background:#003278">
+      <div class="team-abbr">TEX</div>
+      <div class="team-pitcher">vs Blanco</div>
+    </div>
+    <div class="team-half home-half" style="background:#002D62">
+      <div class="team-abbr">HOU</div>
+      <div class="team-pitcher">vs deGrom</div>
+    </div>
+    <div class="at-bubble">@</div>
+  </div>
+  <div class="card-body">
+    <div class="team-col"><div class="player-row">
+  <div class="tier-mark" style="background:#C8920A;color:#fff">S</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Brandon Nimmo</span><span class="ppos"> RF</span>
+    </div>
+    <div class="player-note">Prime Matchup + HR</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-hr">27% HR</span><span class="pill pill-xw">xwOBA 0.371</span><span class="pill pill-score">71</span>
+  </div>
+</div><div class="player-row">
+  <div class="tier-mark" style="background:#C8920A;color:#fff">S</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Joc Pederson</span><span class="ppos"> DH</span>
+    </div>
+    <div class="player-note">Prime Matchup + HR</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-hr">26% HR</span><span class="pill pill-score">69</span>
+  </div>
+</div><div class="player-row">
+  <div class="tier-mark" style="background:#2457CC;color:#fff">A</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Corey Seager</span><span class="ppos"> SS</span>
+    </div>
+    <div class="player-note">Prime Matchup + HR</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-hr">28% HR</span><span class="pill pill-score">65</span>
+  </div>
+</div></div>
+    <div class="col-div"></div>
+    <div class="team-col"><div class="player-row">
+  <div class="tier-mark" style="background:#2457CC;color:#fff">A</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Yordan Alvarez</span><span class="ppos"> DH</span>
+    </div>
+    <div class="player-note">Hot Hand + Big HR Upside</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-hr">31% HR</span><span class="pill pill-xw">xwOBA 0.475</span><span class="pill pill-score">61</span>
+  </div>
+</div><div class="player-row">
+  <div class="tier-mark" style="background:#06956A;color:#fff">B</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Jeremy Peña</span><span class="ppos"> SS</span>
+    </div>
+    <div class="player-note">Good Pitch Edge</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-score">49</span>
+  </div>
+</div><div class="player-row">
+  <div class="tier-mark" style="background:#06956A;color:#fff">B</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Cam Smith</span><span class="ppos"> RF</span>
+    </div>
+    <div class="player-note">Power Profile</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-hr">15% HR</span><span class="pill pill-score">45</span>
+  </div>
+</div></div>
+  </div>
+  <div class="card-venue">Daikin Park</div>
+</div>
+<div class="game-card">
+  <div class="card-header">
+    <div class="team-half away-half" style="background:#004687">
+      <div class="team-abbr">KC</div>
+      <div class="team-pitcher">vs Feltner</div>
+    </div>
+    <div class="team-half home-half" style="background:#333366">
+      <div class="team-abbr">COL</div>
+      <div class="team-pitcher">vs Avila</div>
+    </div>
+    <div class="at-bubble">@</div>
+  </div>
+  <div class="card-body">
+    <div class="team-col"><div class="player-row">
+  <div class="tier-mark" style="background:#C8920A;color:#fff">S</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">John Rave</span><span class="ppos"> RF</span>
+    </div>
+    <div class="player-note">Best Play Today</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-hr">42% HR</span><span class="pill pill-xw">xwOBA 0.436</span><span class="pill pill-score">75</span>
+  </div>
+</div><div class="player-row">
+  <div class="tier-mark" style="background:#C8920A;color:#fff">S</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Jac Caglianone</span><span class="ppos"> RF</span>
+    </div>
+    <div class="player-note">Prime Matchup + HR</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-hr">28% HR</span><span class="pill pill-score">69</span>
+  </div>
+</div><div class="player-row">
+  <div class="tier-mark" style="background:#2457CC;color:#fff">A</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Tyler Tolbert</span><span class="ppos"> SS</span>
+    </div>
+    <div class="player-note">Power Profile</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-score">64</span>
+  </div>
+</div></div>
+    <div class="col-div"></div>
+    <div class="team-col"><div class="player-row">
+  <div class="tier-mark" style="background:#2457CC;color:#fff">A</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Hunter Goodman</span><span class="ppos"> C</span>
+    </div>
+    <div class="player-note">Pitch Edge + HR Upside</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-hr">22% HR</span><span class="pill pill-score">59</span>
+  </div>
+</div><div class="player-row">
+  <div class="tier-mark" style="background:#2457CC;color:#fff">A</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Kyle Karros</span><span class="ppos"> 3B</span>
+    </div>
+    <div class="player-note">Good Pitch Edge</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-score">58</span>
+  </div>
+</div><div class="player-row">
+  <div class="tier-mark" style="background:#2457CC;color:#fff">A</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Edouard Julien</span><span class="ppos"> 2B</span>
+    </div>
+    <div class="player-note">Good Pitch Edge</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-hr">16% HR</span><span class="pill pill-score">57</span>
+  </div>
+</div></div>
+  </div>
+  <div class="card-venue">Coors Field</div>
+</div>
+<div class="game-card">
+  <div class="card-header">
+    <div class="team-half away-half" style="background:#AB0003">
+      <div class="team-abbr">WSH</div>
+      <div class="team-pitcher">vs López</div>
+    </div>
+    <div class="team-half home-half" style="background:#CE1141">
+      <div class="team-abbr">ATL</div>
+      <div class="team-pitcher">vs Mikolas</div>
+    </div>
+    <div class="at-bubble">@</div>
+  </div>
+  <div class="card-body">
+    <div class="team-col"><div class="player-row">
+  <div class="tier-mark" style="background:#2457CC;color:#fff">A</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">James Wood</span><span class="ppos"> RF</span>
+    </div>
+    <div class="player-note">Pitch Edge + HR Upside</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-hr">27% HR</span><span class="pill pill-xw">xwOBA 0.425</span><span class="pill pill-score">64</span>
+  </div>
+</div><div class="player-row">
+  <div class="tier-mark" style="background:#2457CC;color:#fff">A</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Andrés Chaparro</span><span class="ppos"> 1B</span>
+    </div>
+    <div class="player-note">Due For A Big One</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-hr">22% HR</span><span class="pill pill-xw">xwOBA 0.395</span><span class="pill pill-score">61</span>
+  </div>
+</div><div class="player-row">
+  <div class="tier-mark" style="background:#2457CC;color:#fff">A</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Luis García Jr.</span><span class="ppos"> 1B</span>
+    </div>
+    <div class="player-note">Good Pitch Edge</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-hr">20% HR</span><span class="pill pill-score">58</span>
+  </div>
+</div></div>
+    <div class="col-div"></div>
+    <div class="team-col"><div class="player-row">
+  <div class="tier-mark" style="background:#C8920A;color:#fff">S</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Drake Baldwin</span><span class="ppos"> C</span>
+    </div>
+    <div class="player-note">Prime Matchup + HR</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-hr">22% HR</span><span class="pill pill-xw">xwOBA 0.387</span><span class="pill pill-score">68</span>
+  </div>
+</div><div class="player-row">
+  <div class="tier-mark" style="background:#2457CC;color:#fff">A</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Ronald Acuña Jr.</span><span class="ppos"> RF</span>
+    </div>
+    <div class="player-note">Prime Matchup</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-hr">20% HR</span><span class="pill pill-xw">xwOBA 0.379</span><span class="pill pill-score">66</span>
+  </div>
+</div><div class="player-row">
+  <div class="tier-mark" style="background:#2457CC;color:#fff">A</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Matt Olson</span><span class="ppos"> 1B</span>
+    </div>
+    <div class="player-note">Prime Matchup + HR</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-hr">23% HR</span><span class="pill pill-score">65</span>
+  </div>
+</div></div>
+  </div>
+  <div class="card-venue">Truist Park</div>
+</div>
+<div class="game-card">
+  <div class="card-header">
+    <div class="team-half away-half" style="background:#27251F">
+      <div class="team-abbr">PIT</div>
+      <div class="team-pitcher">vs Abbott</div>
+    </div>
+    <div class="team-half home-half" style="background:#C6011F">
+      <div class="team-abbr">CIN</div>
+      <div class="team-pitcher">vs Ashcraft</div>
+    </div>
+    <div class="at-bubble">@</div>
+  </div>
+  <div class="card-body">
+    <div class="team-col"><div class="player-row">
+  <div class="tier-mark" style="background:#2457CC;color:#fff">A</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Bryan Reynolds</span><span class="ppos"> LF</span>
+    </div>
+    <div class="player-note">HR Threat</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-hr">20% HR</span><span class="pill pill-score">60</span>
+  </div>
+</div><div class="player-row">
+  <div class="tier-mark" style="background:#2457CC;color:#fff">A</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Esmerlyn Valdez</span><span class="ppos"> RF</span>
+    </div>
+    <div class="player-note">Real HR Upside</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-hr">31% HR</span><span class="pill pill-score">60</span>
+  </div>
+</div><div class="player-row">
+  <div class="tier-mark" style="background:#2457CC;color:#fff">A</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Endy Rodríguez</span><span class="ppos"> C</span>
+    </div>
+    <div class="player-note">Good Pitch Edge</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-hr">18% HR</span><span class="pill pill-score">60</span>
+  </div>
+</div></div>
+    <div class="col-div"></div>
+    <div class="team-col"><div class="player-row">
+  <div class="tier-mark" style="background:#2457CC;color:#fff">A</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Elly De La Cruz</span><span class="ppos"> SS</span>
+    </div>
+    <div class="player-note">Good Pitch Edge</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-hr">16% HR</span><span class="pill pill-score">59</span>
+  </div>
+</div><div class="player-row">
+  <div class="tier-mark" style="background:#2457CC;color:#fff">A</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">JJ Bleday</span><span class="ppos"> LF</span>
+    </div>
+    <div class="player-note">Due Up</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-hr">16% HR</span><span class="pill pill-score">58</span>
+  </div>
+</div><div class="player-row">
+  <div class="tier-mark" style="background:#2457CC;color:#fff">A</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Sal Stewart</span><span class="ppos"> 1B</span>
+    </div>
+    <div class="player-note">Good Pitch Edge</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-hr">16% HR</span><span class="pill pill-score">56</span>
+  </div>
+</div></div>
+  </div>
+  <div class="card-venue">Great American Ball Park</div>
+</div>
+<div class="game-card">
+  <div class="card-header">
+    <div class="team-half away-half" style="background:#27251F">
+      <div class="team-abbr">SF</div>
+      <div class="team-pitcher">vs Buehler</div>
+    </div>
+    <div class="team-half home-half" style="background:#2F241D">
+      <div class="team-abbr">SD</div>
+      <div class="team-pitcher">vs Mahle</div>
+    </div>
+    <div class="at-bubble">@</div>
+  </div>
+  <div class="card-body">
+    <div class="team-col"><div class="player-row">
+  <div class="tier-mark" style="background:#2457CC;color:#fff">A</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Bryce Eldridge</span><span class="ppos"> DH</span>
+    </div>
+    <div class="player-note">Prime Matchup</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-hr">17% HR</span><span class="pill pill-score">65</span>
+  </div>
+</div><div class="player-row">
+  <div class="tier-mark" style="background:#2457CC;color:#fff">A</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Heliot Ramos</span><span class="ppos"> LF</span>
+    </div>
+    <div class="player-note">Good Pitch Edge</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-score">64</span>
+  </div>
+</div><div class="player-row">
+  <div class="tier-mark" style="background:#2457CC;color:#fff">A</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Rafael Devers</span><span class="ppos"> 1B</span>
+    </div>
+    <div class="player-note">Good Pitch Edge</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-hr">17% HR</span><span class="pill pill-score">62</span>
+  </div>
+</div></div>
+    <div class="col-div"></div>
+    <div class="team-col"><div class="player-row">
+  <div class="tier-mark" style="background:#06956A;color:#fff">B</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Fernando Tatis Jr.</span><span class="ppos"> RF</span>
+    </div>
+    <div class="player-note">Good Pitch Edge</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-score">53</span>
+  </div>
+</div><div class="player-row">
+  <div class="tier-mark" style="background:#06956A;color:#fff">B</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Luis Campusano</span><span class="ppos"> C</span>
+    </div>
+    <div class="player-note">Power Profile</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-score">51</span>
+  </div>
+</div><div class="player-row">
+  <div class="tier-mark" style="background:#06956A;color:#fff">B</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Manny Machado</span><span class="ppos"> 3B</span>
+    </div>
+    <div class="player-note">Good Pitch Edge</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-score">51</span>
+  </div>
+</div></div>
+  </div>
+  <div class="card-venue">Petco Park</div>
+</div>
+<div class="game-card">
+  <div class="card-header">
+    <div class="team-half away-half" style="background:#003087">
+      <div class="team-abbr">NYY</div>
+      <div class="team-pitcher">vs Peterson</div>
+    </div>
+    <div class="team-half home-half" style="background:#0E3386">
+      <div class="team-abbr">CHC</div>
+      <div class="team-pitcher">vs Fried</div>
+    </div>
+    <div class="at-bubble">@</div>
+  </div>
+  <div class="card-body">
+    <div class="team-col"><div class="player-row">
+  <div class="tier-mark" style="background:#2457CC;color:#fff">A</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Ben Rice</span><span class="ppos"> 1B</span>
+    </div>
+    <div class="player-note">Pitch Edge + HR Upside</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-hr">20% HR</span><span class="pill pill-xw">xwOBA 0.382</span><span class="pill pill-score">62</span>
+  </div>
+</div><div class="player-row">
+  <div class="tier-mark" style="background:#2457CC;color:#fff">A</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Trent Grisham</span><span class="ppos"> CF</span>
+    </div>
+    <div class="player-note">Good Pitch Edge</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-hr">16% HR</span><span class="pill pill-score">56</span>
+  </div>
+</div><div class="player-row">
+  <div class="tier-mark" style="background:#06956A;color:#fff">B</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Paul Goldschmidt</span><span class="ppos"> 1B</span>
+    </div>
+    <div class="player-note">Power Profile</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-hr">17% HR</span><span class="pill pill-score">53</span>
+  </div>
+</div></div>
+    <div class="col-div"></div>
+    <div class="team-col"><div class="player-row">
+  <div class="tier-mark" style="background:#06956A;color:#fff">B</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Pete Crow-Armstrong</span><span class="ppos"> CF</span>
+    </div>
+    <div class="player-note">Good Pitch Edge</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-score">49</span>
+  </div>
+</div><div class="player-row">
+  <div class="tier-mark" style="background:#06956A;color:#fff">B</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Michael Conforto</span><span class="ppos"> DH</span>
+    </div>
+    <div class="player-note">Good Pitch Edge</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-score">46</span>
+  </div>
+</div><div class="player-row">
+  <div class="tier-mark" style="background:#06956A;color:#fff">B</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Seiya Suzuki</span><span class="ppos"> RF</span>
+    </div>
+    <div class="player-note">Good Pitch Edge</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-score">45</span>
+  </div>
+</div></div>
+  </div>
+  <div class="card-venue">Wrigley Field</div>
+</div>
+<div class="game-card">
+  <div class="card-header">
+    <div class="team-half away-half" style="background:#E81828">
+      <div class="team-abbr">PHI</div>
+      <div class="team-pitcher">vs Baz</div>
+    </div>
+    <div class="team-half home-half" style="background:#DF4601">
+      <div class="team-abbr">BAL</div>
+      <div class="team-pitcher">vs Sánchez</div>
+    </div>
+    <div class="at-bubble">@</div>
+  </div>
+  <div class="card-body">
+    <div class="team-col"><div class="player-row">
+  <div class="tier-mark" style="background:#06956A;color:#fff">B</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Kyle Schwarber</span><span class="ppos"> DH</span>
+    </div>
+    <div class="player-note">Pitch Edge + HR Upside</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-hr">23% HR</span><span class="pill pill-score">52</span>
+  </div>
+</div><div class="player-row">
+  <div class="tier-mark" style="background:#06956A;color:#fff">B</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Bryce Harper</span><span class="ppos"> 1B</span>
+    </div>
+    <div class="player-note">Pitch Edge + HR Upside</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-hr">21% HR</span><span class="pill pill-xw">xwOBA 0.384</span><span class="pill pill-score">52</span>
+  </div>
+</div><div class="player-row">
+  <div class="tier-mark" style="background:#06956A;color:#fff">B</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Bryan De La Cruz</span><span class="ppos"> OF</span>
+    </div>
+    <div class="player-note">Power Profile</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-score">49</span>
+  </div>
+</div></div>
+    <div class="col-div"></div>
+    <div class="team-col"><div class="player-row">
+  <div class="tier-mark" style="background:#06956A;color:#fff">B</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Pete Alonso</span><span class="ppos"> 1B</span>
+    </div>
+    <div class="player-note">Good Pitch Edge</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-hr">16% HR</span><span class="pill pill-xw">xwOBA 0.375</span><span class="pill pill-score">47</span>
+  </div>
+</div><div class="player-row">
+  <div class="tier-mark" style="background:#06956A;color:#fff">B</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Christian Encarnacion-Strand</span><span class="ppos"> 3B</span>
+    </div>
+    <div class="player-note">HR Threat</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-hr">22% HR</span><span class="pill pill-xw">xwOBA 0.373</span><span class="pill pill-score">46</span>
+  </div>
+</div><div class="player-row">
+  <div class="tier-mark" style="background:#5C7080;color:#fff">C</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Taylor Ward</span><span class="ppos"> LF</span>
+    </div>
+    <div class="player-note">Power Profile</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-score">39</span>
+  </div>
+</div></div>
+  </div>
+  <div class="card-venue">Oriole Park at Camden Yards</div>
+</div>
+<div class="game-card">
+  <div class="card-header">
+    <div class="team-half away-half" style="background:#C41E3A">
+      <div class="team-abbr">STL</div>
+      <div class="team-pitcher">vs Gausman</div>
+    </div>
+    <div class="team-half home-half" style="background:#134A8E">
+      <div class="team-abbr">TOR</div>
+      <div class="team-pitcher">vs Mathews</div>
+    </div>
+    <div class="at-bubble">@</div>
+  </div>
+  <div class="card-body">
+    <div class="team-col"><div class="player-row">
+  <div class="tier-mark" style="background:#2457CC;color:#fff">A</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Alec Burleson</span><span class="ppos"> 1B</span>
+    </div>
+    <div class="player-note">Hot Streak + Pitch Edge</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-hr">19% HR</span><span class="pill pill-xw">xwOBA 0.382</span><span class="pill pill-score">59</span>
+  </div>
+</div><div class="player-row">
+  <div class="tier-mark" style="background:#2457CC;color:#fff">A</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Jordan Walker</span><span class="ppos"> RF</span>
+    </div>
+    <div class="player-note">Good Pitch Edge</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-hr">15% HR</span><span class="pill pill-score">57</span>
+  </div>
+</div><div class="player-row">
+  <div class="tier-mark" style="background:#2457CC;color:#fff">A</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Nelson Velázquez</span><span class="ppos"> LF</span>
+    </div>
+    <div class="player-note">Due Up</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-hr">17% HR</span><span class="pill pill-score">54</span>
+  </div>
+</div></div>
+    <div class="col-div"></div>
+    <div class="team-col"><div class="player-row">
+  <div class="tier-mark" style="background:#2457CC;color:#fff">A</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Vladimir Guerrero Jr.</span><span class="ppos"> 1B</span>
+    </div>
+    <div class="player-note">Power Profile</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-score">57</span>
+  </div>
+</div><div class="player-row">
+  <div class="tier-mark" style="background:#2457CC;color:#fff">A</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Jesús Sánchez</span><span class="ppos"> RF</span>
+    </div>
+    <div class="player-note">Power Profile</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-hr">15% HR</span><span class="pill pill-score">56</span>
+  </div>
+</div><div class="player-row">
+  <div class="tier-mark" style="background:#2457CC;color:#fff">A</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Kazuma Okamoto</span><span class="ppos"> 3B</span>
+    </div>
+    <div class="player-note">HR Threat</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-hr">20% HR</span><span class="pill pill-score">54</span>
+  </div>
+</div></div>
+  </div>
+  <div class="card-venue">Rogers Centre</div>
+</div>
+<div class="game-card">
+  <div class="card-header">
+    <div class="team-half away-half" style="background:#A71930">
+      <div class="team-abbr">AZ</div>
+      <div class="team-pitcher">vs Messick</div>
+    </div>
+    <div class="team-half home-half" style="background:#00385D">
+      <div class="team-abbr">CLE</div>
+      <div class="team-pitcher">vs Drake</div>
+    </div>
+    <div class="at-bubble">@</div>
+  </div>
+  <div class="card-body">
+    <div class="team-col"><div class="player-row">
+  <div class="tier-mark" style="background:#06956A;color:#fff">B</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Gabriel Moreno</span><span class="ppos"> C</span>
+    </div>
+    <div class="player-note">Good Pitch Edge</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-xw">xwOBA 0.378</span><span class="pill pill-score">46</span>
+  </div>
+</div><div class="player-row">
+  <div class="tier-mark" style="background:#06956A;color:#fff">B</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Ketel Marte</span><span class="ppos"> 2B</span>
+    </div>
+    <div class="player-note">Good Pitch Edge</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-score">44</span>
+  </div>
+</div><div class="player-row">
+  <div class="tier-mark" style="background:#06956A;color:#fff">B</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Corbin Carroll</span><span class="ppos"> RF</span>
+    </div>
+    <div class="player-note">Barrel Machine</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-score">43</span>
+  </div>
+</div></div>
+    <div class="col-div"></div>
+    <div class="team-col"><div class="player-row">
+  <div class="tier-mark" style="background:#2457CC;color:#fff">A</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">José Ramírez</span><span class="ppos"> 3B</span>
+    </div>
+    <div class="player-note">Prime Matchup</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-hr">18% HR</span><span class="pill pill-score">67</span>
+  </div>
+</div><div class="player-row">
+  <div class="tier-mark" style="background:#2457CC;color:#fff">A</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Chase DeLauter</span><span class="ppos"> RF</span>
+    </div>
+    <div class="player-note">Prime Matchup</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-hr">17% HR</span><span class="pill pill-score">66</span>
+  </div>
+</div><div class="player-row">
+  <div class="tier-mark" style="background:#2457CC;color:#fff">A</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Steven Kwan</span><span class="ppos"> LF</span>
+    </div>
+    <div class="player-note">Power Profile</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-score">61</span>
+  </div>
+</div></div>
+  </div>
+  <div class="card-venue">Progressive Field</div>
+</div>
+<div class="game-card">
+  <div class="card-header">
+    <div class="team-half away-half" style="background:#27251F">
+      <div class="team-abbr">CWS</div>
+      <div class="team-pitcher">vs Rasmussen</div>
+    </div>
+    <div class="team-half home-half" style="background:#092C5C">
+      <div class="team-abbr">TB</div>
+      <div class="team-pitcher">vs Hicks</div>
+    </div>
+    <div class="at-bubble">@</div>
+  </div>
+  <div class="card-body">
+    <div class="team-col"><div class="player-row">
+  <div class="tier-mark" style="background:#06956A;color:#fff">B</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Miguel Vargas</span><span class="ppos"> 3B</span>
+    </div>
+    <div class="player-note">Due Up</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-xw">xwOBA 0.388</span><span class="pill pill-score">49</span>
+  </div>
+</div><div class="player-row">
+  <div class="tier-mark" style="background:#06956A;color:#fff">B</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Munetaka Murakami</span><span class="ppos"> 1B</span>
+    </div>
+    <div class="player-note">Good Pitch Edge</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-hr">15% HR</span><span class="pill pill-xw">xwOBA 0.375</span><span class="pill pill-score">48</span>
+  </div>
+</div><div class="player-row">
+  <div class="tier-mark" style="background:#06956A;color:#fff">B</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Randal Grichuk</span><span class="ppos"> DH</span>
+    </div>
+    <div class="player-note">Good Pitch Edge</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-score">43</span>
+  </div>
+</div></div>
+    <div class="col-div"></div>
+    <div class="team-col"><div class="player-row">
+  <div class="tier-mark" style="background:#2457CC;color:#fff">A</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Junior Caminero</span><span class="ppos"> 3B</span>
+    </div>
+    <div class="player-note">Good Pitch Edge</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-xw">xwOBA 0.370</span><span class="pill pill-score">55</span>
+  </div>
+</div><div class="player-row">
+  <div class="tier-mark" style="background:#2457CC;color:#fff">A</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Jonathan Aranda</span><span class="ppos"> 1B</span>
+    </div>
+    <div class="player-note">Good Pitch Edge</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-score">54</span>
+  </div>
+</div><div class="player-row">
+  <div class="tier-mark" style="background:#06956A;color:#fff">B</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Yandy Díaz</span><span class="ppos"> DH</span>
+    </div>
+    <div class="player-note">Good Pitch Edge</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-score">53</span>
+  </div>
+</div></div>
+  </div>
+  <div class="card-venue">Tropicana Field</div>
+</div>
+<div class="game-card">
+  <div class="card-header">
+    <div class="team-half away-half" style="background:#007BB0">
+      <div class="team-abbr">MIA</div>
+      <div class="team-pitcher">vs Thornton</div>
+    </div>
+    <div class="team-half home-half" style="background:#002D72">
+      <div class="team-abbr">NYM</div>
+      <div class="team-pitcher">vs Phillips</div>
+    </div>
+    <div class="at-bubble">@</div>
+  </div>
+  <div class="card-body">
+    <div class="team-col"><div class="player-row">
+  <div class="tier-mark" style="background:#2457CC;color:#fff">A</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Griffin Conine</span><span class="ppos"> RF</span>
+    </div>
+    <div class="player-note">Pitch Edge + HR Upside</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-hr">20% HR</span><span class="pill pill-xw">xwOBA 0.379</span><span class="pill pill-score">56</span>
+  </div>
+</div><div class="player-row">
+  <div class="tier-mark" style="background:#06956A;color:#fff">B</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Heriberto Hernández</span><span class="ppos"> LF</span>
+    </div>
+    <div class="player-note">HR Threat</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-hr">22% HR</span><span class="pill pill-score">53</span>
+  </div>
+</div><div class="player-row">
+  <div class="tier-mark" style="background:#06956A;color:#fff">B</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Otto Lopez</span><span class="ppos"> SS</span>
+    </div>
+    <div class="player-note">Good Pitch Edge</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-score">52</span>
+  </div>
+</div></div>
+    <div class="col-div"></div>
+    <div class="team-col"><div class="player-row">
+  <div class="tier-mark" style="background:#2457CC;color:#fff">A</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Francisco Alvarez</span><span class="ppos"> C</span>
+    </div>
+    <div class="player-note">Good Pitch Edge</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-hr">16% HR</span><span class="pill pill-score">63</span>
+  </div>
+</div><div class="player-row">
+  <div class="tier-mark" style="background:#2457CC;color:#fff">A</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Francisco Lindor</span><span class="ppos"> SS</span>
+    </div>
+    <div class="player-note">Good Pitch Edge</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-hr">16% HR</span><span class="pill pill-score">62</span>
+  </div>
+</div><div class="player-row">
+  <div class="tier-mark" style="background:#2457CC;color:#fff">A</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Carson Benge</span><span class="ppos"> RF</span>
+    </div>
+    <div class="player-note">Power Profile</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-score">60</span>
+  </div>
+</div></div>
+  </div>
+  <div class="card-venue">Citi Field</div>
+</div>
+<div class="game-card">
+  <div class="card-header">
+    <div class="team-half away-half" style="background:#12284B">
+      <div class="team-abbr">MIL</div>
+      <div class="team-pitcher">vs Soriano</div>
+    </div>
+    <div class="team-half home-half" style="background:#BA0021">
+      <div class="team-abbr">LAA</div>
+      <div class="team-pitcher">vs Gasser</div>
+    </div>
+    <div class="at-bubble">@</div>
+  </div>
+  <div class="card-body">
+    <div class="team-col"><div class="player-row">
+  <div class="tier-mark" style="background:#06956A;color:#fff">B</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Jake Bauers</span><span class="ppos"> 1B</span>
+    </div>
+    <div class="player-note">Good Pitch Edge</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-hr">17% HR</span><span class="pill pill-score">52</span>
+  </div>
+</div><div class="player-row">
+  <div class="tier-mark" style="background:#06956A;color:#fff">B</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Andrew Vaughn</span><span class="ppos"> 1B</span>
+    </div>
+    <div class="player-note">Good Pitch Edge</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-score">51</span>
+  </div>
+</div><div class="player-row">
+  <div class="tier-mark" style="background:#06956A;color:#fff">B</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Luis Lara</span><span class="ppos"> RF</span>
+    </div>
+    <div class="player-note">Good Pitch Edge</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-score">51</span>
+  </div>
+</div></div>
+    <div class="col-div"></div>
+    <div class="team-col"><div class="player-row">
+  <div class="tier-mark" style="background:#2457CC;color:#fff">A</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Mike Trout</span><span class="ppos"> CF</span>
+    </div>
+    <div class="player-note">Good Pitch Edge</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-hr">19% HR</span><span class="pill pill-xw">xwOBA 0.398</span><span class="pill pill-score">57</span>
+  </div>
+</div><div class="player-row">
+  <div class="tier-mark" style="background:#06956A;color:#fff">B</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Vaughn Grissom</span><span class="ppos"> 2B</span>
+    </div>
+    <div class="player-note">Power Profile</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-score">50</span>
+  </div>
+</div><div class="player-row">
+  <div class="tier-mark" style="background:#06956A;color:#fff">B</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Travis d'Arnaud</span><span class="ppos"> C</span>
+    </div>
+    <div class="player-note">Good Pitch Edge</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-hr">15% HR</span><span class="pill pill-score">48</span>
+  </div>
+</div></div>
+  </div>
+  <div class="card-venue">Angel Stadium</div>
+</div>
+<div class="game-card">
+  <div class="card-header">
+    <div class="team-half away-half" style="background:#0C2340">
+      <div class="team-abbr">DET</div>
+      <div class="team-pitcher">vs Perkins</div>
+    </div>
+    <div class="team-half home-half" style="background:#003831">
+      <div class="team-abbr">ATH</div>
+      <div class="team-pitcher">vs Valdez</div>
+    </div>
+    <div class="at-bubble">@</div>
+  </div>
+  <div class="card-body">
+    <div class="team-col"><div class="player-row">
+  <div class="tier-mark" style="background:#2457CC;color:#fff">A</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Eduardo Valencia</span><span class="ppos"> C</span>
+    </div>
+    <div class="player-note">Barrel Machine</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-score">60</span>
+  </div>
+</div><div class="player-row">
+  <div class="tier-mark" style="background:#2457CC;color:#fff">A</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Riley Greene</span><span class="ppos"> LF</span>
+    </div>
+    <div class="player-note">Real HR Upside</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-hr">30% HR</span><span class="pill pill-xw">xwOBA 0.371</span><span class="pill pill-score">59</span>
+  </div>
+</div><div class="player-row">
+  <div class="tier-mark" style="background:#2457CC;color:#fff">A</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Dillon Dingler</span><span class="ppos"> C</span>
+    </div>
+    <div class="player-note">Pitch Edge + HR Upside</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-hr">27% HR</span><span class="pill pill-xw">xwOBA 0.371</span><span class="pill pill-score">58</span>
+  </div>
+</div></div>
+    <div class="col-div"></div>
+    <div class="team-col"><div class="player-row">
+  <div class="tier-mark" style="background:#2457CC;color:#fff">A</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Nick Kurtz</span><span class="ppos"> 1B</span>
+    </div>
+    <div class="player-note">Pitch Edge + HR Upside</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-hr">22% HR</span><span class="pill pill-xw">xwOBA 0.374</span><span class="pill pill-score">61</span>
+  </div>
+</div><div class="player-row">
+  <div class="tier-mark" style="background:#2457CC;color:#fff">A</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Tyler Soderstrom</span><span class="ppos"> LF</span>
+    </div>
+    <div class="player-note">Power Profile</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-hr">15% HR</span><span class="pill pill-score">54</span>
+  </div>
+</div><div class="player-row">
+  <div class="tier-mark" style="background:#2457CC;color:#fff">A</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Donovan Walton</span><span class="ppos"> 3B</span>
+    </div>
+    <div class="player-note">Power Profile</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-score">54</span>
+  </div>
+</div></div>
+  </div>
+  <div class="card-venue">Sutter Health Park</div>
+</div>
+<div class="game-card">
+  <div class="card-header">
+    <div class="team-half away-half" style="background:#BD3039">
+      <div class="team-abbr">BOS</div>
+      <div class="team-pitcher">vs Yamamoto</div>
+    </div>
+    <div class="team-half home-half" style="background:#005A9C">
+      <div class="team-abbr">LAD</div>
+      <div class="team-pitcher">vs Tolle</div>
+    </div>
+    <div class="at-bubble">@</div>
+  </div>
+  <div class="card-body">
+    <div class="team-col"><div class="player-row">
+  <div class="tier-mark" style="background:#06956A;color:#fff">B</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Willson Contreras</span><span class="ppos"> 1B</span>
+    </div>
+    <div class="player-note">Hot Streak + Pitch Edge</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-xw">xwOBA 0.391</span><span class="pill pill-score">49</span>
+  </div>
+</div><div class="player-row">
+  <div class="tier-mark" style="background:#06956A;color:#fff">B</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Wilyer Abreu</span><span class="ppos"> RF</span>
+    </div>
+    <div class="player-note">Barrel Machine</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-score">45</span>
+  </div>
+</div><div class="player-row">
+  <div class="tier-mark" style="background:#06956A;color:#fff">B</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Anthony Seigler</span><span class="ppos"> 2B</span>
+    </div>
+    <div class="player-note">Power Profile</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-score">42</span>
+  </div>
+</div></div>
+    <div class="col-div"></div>
+    <div class="team-col"><div class="player-row">
+  <div class="tier-mark" style="background:#06956A;color:#fff">B</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Shohei Ohtani</span><span class="ppos"> TWP</span>
+    </div>
+    <div class="player-note">Hot Streak + Pitch Edge</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-hr">16% HR</span><span class="pill pill-xw">xwOBA 0.411</span><span class="pill pill-score">53</span>
+  </div>
+</div><div class="player-row">
+  <div class="tier-mark" style="background:#06956A;color:#fff">B</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Freddie Freeman</span><span class="ppos"> 1B</span>
+    </div>
+    <div class="player-note">Hot Streak + Pitch Edge</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-xw">xwOBA 0.380</span><span class="pill pill-score">48</span>
+  </div>
+</div><div class="player-row">
+  <div class="tier-mark" style="background:#06956A;color:#fff">B</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Max Muncy</span><span class="ppos"> 3B</span>
+    </div>
+    <div class="player-note">Good Pitch Edge</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-score">46</span>
+  </div>
+</div></div>
+  </div>
+  <div class="card-venue">UNIQLO Field at Dodger Stadium</div>
+</div>
+<div class="game-card">
+  <div class="card-header">
+    <div class="team-half away-half" style="background:#002B5C">
+      <div class="team-abbr">MIN</div>
+      <div class="team-pitcher">vs Gilbert</div>
+    </div>
+    <div class="team-half home-half" style="background:#0C2C56">
+      <div class="team-abbr">SEA</div>
+      <div class="team-pitcher">vs Prielipp</div>
+    </div>
+    <div class="at-bubble">@</div>
+  </div>
+  <div class="card-body">
+    <div class="team-col"><div class="player-row">
+  <div class="tier-mark" style="background:#06956A;color:#fff">B</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Ryan Jeffers</span><span class="ppos"> C</span>
+    </div>
+    <div class="player-note">Barrel Machine</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-hr">15% HR</span><span class="pill pill-xw">xwOBA 0.375</span><span class="pill pill-score">53</span>
+  </div>
+</div><div class="player-row">
+  <div class="tier-mark" style="background:#06956A;color:#fff">B</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Kody Clemens</span><span class="ppos"> 1B</span>
+    </div>
+    <div class="player-note">Barrel Machine</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-hr">16% HR</span><span class="pill pill-score">49</span>
+  </div>
+</div><div class="player-row">
+  <div class="tier-mark" style="background:#06956A;color:#fff">B</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Trevor Larnach</span><span class="ppos"> LF</span>
+    </div>
+    <div class="player-note">Power Profile</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-score">49</span>
+  </div>
+</div></div>
+    <div class="col-div"></div>
+    <div class="team-col"><div class="player-row">
+  <div class="tier-mark" style="background:#06956A;color:#fff">B</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Dominic Canzone</span><span class="ppos"> DH</span>
+    </div>
+    <div class="player-note">Good Pitch Edge</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-hr">17% HR</span><span class="pill pill-xw">xwOBA 0.375</span><span class="pill pill-score">51</span>
+  </div>
+</div><div class="player-row">
+  <div class="tier-mark" style="background:#06956A;color:#fff">B</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Julio Rodríguez</span><span class="ppos"> CF</span>
+    </div>
+    <div class="player-note">Power Profile</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-hr">15% HR</span><span class="pill pill-score">47</span>
+  </div>
+</div><div class="player-row">
+  <div class="tier-mark" style="background:#06956A;color:#fff">B</div>
+  <div class="player-body">
+    <div class="player-name-line">
+      <span class="pname">Randy Arozarena</span><span class="ppos"> LF</span>
+    </div>
+    <div class="player-note">Good Pitch Edge</div>
+  </div>
+  <div class="player-pills">
+    <span class="pill pill-score">47</span>
+  </div>
+</div></div>
+  </div>
+  <div class="card-venue">T-Mobile Park</div>
+</div>
+</div>
+
+</body>
+</html>
