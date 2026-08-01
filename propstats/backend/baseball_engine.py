@@ -2065,7 +2065,7 @@ def get_team_roster_ids(team_id: int, season: int = None) -> list:
     for p in data.get("roster", []):
         person = p.get("person", {})
         pos = p.get("position", {}).get("abbreviation", "")
-        if pos not in ("P", "TWP"):
+        if pos not in ("P",):  # TWP (two-way players) bat and should be scored
             bats = person.get("batSide", {}).get("code", "R")
             roster.append({
                 "id":   person.get("id"),
@@ -2074,6 +2074,33 @@ def get_team_roster_ids(team_id: int, season: int = None) -> list:
                 "bats": bats,
             })
     return roster
+
+
+def get_game_lineups(game_date: str) -> dict:
+    """
+    Fetch confirmed batting order lineups for game_date.
+    Returns {game_pk: {"home": {player_id_str: order}, "away": {player_id_str: order}}}
+    Only populated after lineups are posted (~2-3h before first pitch).
+    """
+    data = _get(f"{MLB_API}/schedule", {
+        "sportId": "1",
+        "date": game_date,
+        "hydrate": "lineups",
+    })
+    result = {}
+    for date_obj in (data or {}).get("dates", []):
+        for game in date_obj.get("games", []):
+            pk = game.get("gamePk")
+            if not pk:
+                continue
+            lp = game.get("lineups") or {}
+            home_players = lp.get("homePlayers", [])
+            away_players = lp.get("awayPlayers", [])
+            result[pk] = {
+                "home": {str(p["id"]): i + 1 for i, p in enumerate(home_players) if p.get("id")},
+                "away": {str(p["id"]): i + 1 for i, p in enumerate(away_players) if p.get("id")},
+            }
+    return result
 
 
 def get_game_umpire(game_pk: int) -> dict:

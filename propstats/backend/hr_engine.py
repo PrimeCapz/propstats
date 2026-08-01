@@ -338,24 +338,31 @@ def _batter_hr_score(batter_hr: dict, savant_batting: dict, bat_track: dict, bat
     hh_pct     = _safe(ev.get("hard_hit_pct"))    # from batting leaderboard
     blast      = _safe(bt.get("blast_per_swing")) # bat tracking quality
     hr_fb_pct  = _safe(d.get("hr_fb_pct"))        # season HR/FB% — in-year conversion rate
+    ev50       = _safe(ev.get("ev50"))             # 50th pct EV: power floor signal
+    avg_hr_dist= _safe(ev.get("avg_hr_dist"))      # avg HR travel distance: raw power
 
-    s_brl    = _scale(brl_bip,    2.0,  7.0,  16.0)
-    s_pull   = _scale(pull_pct,   25.0, 40.0, 55.0)
-    s_sweet  = _scale(sweet_spot, 25.0, 34.0, 45.0)
-    s_xiso   = _scale(xiso,       0.05, 0.14, 0.260)
-    s_la     = _scale(la_avg,     4.0,  14.0, 24.0)
-    s_hh     = _scale(hh_pct,     30.0, 43.0, 56.0)
-    s_blast  = _scale(blast,      0.02, 0.04, 0.07) if blast else 0.0
+    s_brl     = _scale(brl_bip,    2.0,  7.0,  16.0)
+    s_pull    = _scale(pull_pct,   25.0, 40.0, 55.0)
+    s_sweet   = _scale(sweet_spot, 25.0, 34.0, 45.0)
+    s_xiso    = _scale(xiso,       0.05, 0.14, 0.260)
+    s_la      = _scale(la_avg,     4.0,  14.0, 24.0)
+    s_hh      = _scale(hh_pct,     30.0, 43.0, 56.0)
+    s_blast   = _scale(blast,      0.02, 0.04, 0.07) if blast else 0.0
     # HR/FB%: 6%=low, 14%=avg, 26%=elite — rewards batters actually converting this season
-    s_hrfb   = _scale(hr_fb_pct,  6.0,  14.0, 26.0) if hr_fb_pct > 0 else 0.0
+    s_hrfb    = _scale(hr_fb_pct,  6.0,  14.0, 26.0) if hr_fb_pct > 0 else 0.0
+    # ev50: 50th-pct EV separates consistent hard contact from peak-only hitters
+    s_ev50    = _scale(ev50,       86.0, 93.0, 101.0) if ev50 > 0 else 0.0
+    # avg HR distance: 360ft=below avg, 395ft=avg, 430ft=elite raw power
+    s_hr_dist = _scale(avg_hr_dist, 360.0, 395.0, 430.0) if avg_hr_dist > 0 else 0.0
 
     if hh_pct and blast:
-        score = (s_brl * 0.26 + s_pull * 0.16 + s_sweet * 0.14
-                 + s_xiso * 0.12 + s_la * 0.07 + s_hh * 0.08 + s_blast * 0.04
-                 + s_hrfb * 0.13)
+        score = (s_brl * 0.24 + s_pull * 0.15 + s_sweet * 0.12
+                 + s_xiso * 0.11 + s_la * 0.05 + s_hh * 0.08 + s_blast * 0.03
+                 + s_hrfb * 0.12 + s_ev50 * 0.05 + s_hr_dist * 0.05)
     else:
-        score = (s_brl * 0.30 + s_pull * 0.22 + s_sweet * 0.18
-                 + s_xiso * 0.14 + s_la * 0.06 + s_hrfb * 0.10)
+        score = (s_brl * 0.27 + s_pull * 0.20 + s_sweet * 0.16
+                 + s_xiso * 0.13 + s_la * 0.06 + s_hrfb * 0.10
+                 + s_ev50 * 0.04 + s_hr_dist * 0.04)
 
     return round(score, 1)
 
@@ -1152,14 +1159,26 @@ def build_hr_attack_board(game_date: str) -> list:
             })
 
     results.sort(key=lambda x: -(x["vuln"]["score"]))
+
+    # Tag game stack alerts: attackable pitcher with 3+ batters scoring ≥ 40 matchup_score
+    for r in results:
+        if r["vuln"]["tier"] == "Attackable":
+            stack_count = sum(1 for b in r["top_batters"] if b["matchup_score"] >= 40.0)
+            r["stack_alert"] = stack_count >= 3
+            r["stack_count"] = stack_count
+        else:
+            r["stack_alert"] = False
+            r["stack_count"] = 0
+
     return results
 
 
-def enrich_recent_hr_form(results: list, game_date: str, top_n: int = 60) -> list:
+def enrich_recent_hr_form(results: list, game_date: str, top_n: int = 120) -> list:
     """
     Post-build: for the top-N batters by matchup_score (across all games), pull a
     short game log (last 10 games) and tag HOT/DUE based on recent HR production.
     Adds 'recent_l5_hr', 'hot_bat' fields and boosts matchup_score by up to 8%.
+    Also enriches any batter with matchup_score >= 35 regardless of rank.
     Call after build_hr_attack_board() but before final ranking.
     """
     season = int(game_date[:4])
@@ -1174,9 +1193,11 @@ def enrich_recent_hr_form(results: list, game_date: str, top_n: int = 60) -> lis
     seen_ids: set = set()
     to_enrich: list = []
     for ms, bid, b, r in all_entries:
-        if bid not in seen_ids and len(to_enrich) < top_n:
-            seen_ids.add(bid)
-            to_enrich.append((bid, b, r))
+        if bid not in seen_ids:
+            # Enrich top_n by rank OR any batter with matchup_score >= 35
+            if len(to_enrich) < top_n or ms >= 35.0:
+                seen_ids.add(bid)
+                to_enrich.append((bid, b, r))
 
     enriched_map: dict = {}  # batter_id -> recent data
     for bid, b, r in to_enrich:
@@ -1330,9 +1351,10 @@ def format_hr_attack_board(results: list, game_date: str) -> str:
         xwoba    = f"{v['xwoba_allowed']:.3f}" if v['xwoba_allowed'] else "  -  "
         fb       = f"{v['fb_pct_allowed']:.1f}%" if v['fb_pct_allowed'] else "  -  "
         era      = f"{v['era']:.2f}" if v['era'] else "  -"
+        stack_flag = "  🔥 GAME STACK" if r.get("stack_alert") else ""
         lines.append(
             f"  {r['pitcher_name']:<22} {r['opp_team']:<5} {v['score']:<6.1f}"
-            f" {tier_sym} {v['tier']:<12} {barrel:<8} {xwoba:<10} {fb:<8} {era}"
+            f" {tier_sym} {v['tier']:<12} {barrel:<8} {xwoba:<10} {fb:<8} {era}{stack_flag}"
         )
 
     lines.append("\n" + "=" * W)

@@ -181,13 +181,16 @@ def _pitcher_k_score(pitcher_id: int, pitcher_k_data: dict, pitcher_arsenal: dic
     s_k       = _scale(k_pct,  13.0, 22.0, 35.0)        # 22% = avg, 35% = elite
     s_command = _scale(14.0 - bb_pct, 3.0, 7.0, 11.0)   # low BB% = good command
 
-    if swstr == 0 and k_pct == 0:
+    data_sparse = (swstr == 0 and k_pct == 0)
+    if data_sparse:
         score = 0.0
     else:
         score = (s_swstr * 0.55 + s_k * 0.30 + s_command * 0.15)
 
     # Tier
-    if score >= 72:
+    if data_sparse:
+        tier = "DATA SPARSE"   # no Savant data — monitor manually; could be K threat
+    elif score >= 72:
         tier = "K ELITE"
     elif score >= 55:
         tier = "K Threat"
@@ -545,6 +548,7 @@ def format_k_board(results: list, game_date: str) -> str:
         proj = r["proj"]
         tier_sym = ("★" if ks["tier"] == "K ELITE"
                     else "◎" if ks["tier"] == "K Threat"
+                    else "⚠" if ks["tier"] == "DATA SPARSE"
                     else "○")
         tier_str = f"{tier_sym} {ks['tier']}"
 
@@ -555,9 +559,10 @@ def format_k_board(results: list, game_date: str) -> str:
         line_str = f"{proj['line']:.1f}"
         opp_k    = _fmt(r["opp_k_pct"], ".1f", "%", "   -")
 
+        sparse_note = "  ← no Savant data, monitor manually" if ks["tier"] == "DATA SPARSE" else ""
         lines.append(
             f"  {r['pitcher_name']:<22} {r['opp_team']:<5} {ks['score']:>6.1f} {tier_str:<14} "
-            f"{k_pct:>6} {swstr:>9} {bb:>5} {proj_k:>5} {line_str:>5} {opp_k:>7}"
+            f"{k_pct:>6} {swstr:>9} {bb:>5} {proj_k:>5} {line_str:>5} {opp_k:>7}{sparse_note}"
         )
 
     lines.append("")
@@ -571,6 +576,7 @@ def format_k_board(results: list, game_date: str) -> str:
 
         tier_sym = ("★" if ks["tier"] == "K ELITE"
                     else "◎" if ks["tier"] == "K Threat"
+                    else "⚠" if ks["tier"] == "DATA SPARSE"
                     else "○")
 
         # Arsenal string

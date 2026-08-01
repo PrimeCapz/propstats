@@ -27,6 +27,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 from baseball_engine import (
     get_today_games,
     get_team_roster_ids,
+    get_game_lineups,
     load_savant_batting,
     load_savant_xstats,
     load_bat_tracking,
@@ -337,13 +338,22 @@ def _speed_score(batter_id: str, sprint_speed: dict) -> float:
     return round(_scale(speed, 24.0, 27.0, 31.0), 1)
 
 
+# ── PA by lineup position ──────────────────────────────────────────────────────
+
+_PA_BY_ORDER = {1: 4.5, 2: 4.4, 3: 4.2, 4: 4.0, 5: 3.9, 6: 3.8, 7: 3.7, 8: 3.6, 9: 3.5}
+
+def _lineup_pa(batting_order: int) -> float:
+    """Expected PA per game by confirmed batting order position."""
+    return _PA_BY_ORDER.get(batting_order, 4.0)
+
+
 # ── Stat projections (per game) ────────────────────────────────────────────────
 # Uses xBA, xSLG, BB%, K% adjusted for pitcher matchup and park factor
 
 def _proj_stats(batter_id: str, bats: str, pitcher_matchup: dict,
                 batting: dict, xstats: dict, batter_k: dict,
                 batter_hr: dict, sprint_speed: dict,
-                park_name: str) -> dict:
+                park_name: str, batting_order: int = 0) -> dict:
     bd = batting.get(batter_id, {})
     xs = xstats.get(batter_id, {})
     bk = batter_k.get(batter_id, {})
@@ -367,8 +377,8 @@ def _proj_stats(batter_id: str, bats: str, pitcher_matchup: dict,
     blended_k  = k_pct * 0.55 + p_k * 0.45
     blended_bb = bb_pct * 0.50 + p_bb * 0.50
 
-    # Projected PA ~4.0 per game, AB = PA × (1-BB%-HBP%)
-    proj_pa = 4.0
+    # Projected PA: use confirmed lineup position if available, else 4.0
+    proj_pa = _lineup_pa(batting_order) if batting_order > 0 else 4.0
     bb_rate = blended_bb / 100.0
     k_rate  = blended_k  / 100.0
     proj_bb = proj_pa * bb_rate
@@ -479,6 +489,9 @@ def build_hitter_fantasy_board(game_date: str) -> list:
     season = int(game_date[:4])
     games  = get_today_games(game_date)
 
+    # Pre-load confirmed lineups (batting order) — empty until ~2-3h before first pitch
+    lineups = get_game_lineups(game_date)
+
     # Pre-load all data (all batch CSVs — no per-player API calls)
     batting          = load_savant_batting(season)
     xstats           = load_savant_xstats(season)
@@ -525,14 +538,21 @@ def build_hitter_fantasy_board(game_date: str) -> list:
             matchup = _pitcher_matchup_grade(pitcher_id, pitcher_k, pitching, recent_form)
             roster  = get_team_roster_ids(team_id, season)
 
+            # Resolve batting order lookup for this game
+            game_pk = game.get("game_pk")
+            game_lp = lineups.get(game_pk, {})
+            order_map = game_lp.get(side, {})  # {player_id_str: 1-9}
+
             for batter in roster:
                 bid  = str(batter.get("id", ""))
                 name = batter.get("name", "")
                 bats = batter.get("bats", "R")
                 pos  = batter.get("pos", "")
+                batting_order = order_map.get(bid, 0)  # 0 = not in confirmed lineup yet
 
                 proj = _proj_stats(bid, bats, matchup, batting, xstats,
-                                   batter_k, batter_hr, sprint_speed, venue)
+                                   batter_k, batter_hr, sprint_speed, venue,
+                                   batting_order)
 
                 cs  = _contact_score(bid, batting, xstats, batter_k)
                 ps  = _power_score(bid, batting, xstats, batter_hr, bat_track)
@@ -572,6 +592,7 @@ def build_hitter_fantasy_board(game_date: str) -> list:
                     "name":          name,
                     "bats":          bats,
                     "pos":           pos,
+                    "batting_order": batting_order,
                     "team":          team_abv,
                     "opp":           opp_abv,
                     "pitcher_name":  pitcher_name,
