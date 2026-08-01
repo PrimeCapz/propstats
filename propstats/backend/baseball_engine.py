@@ -1604,9 +1604,9 @@ def load_sprint_speed(season: int = None) -> dict:
             pid = str(row.get("id", "")).strip()
         if pid:
             result[pid] = {
-                "sprint_speed":   _safe_float(row.get("r_sprint_speed_top50percent")),
+                "sprint_speed":   _safe_float(row.get("sprint_speed")),
                 "hp_to_1b":       _safe_float(row.get("hp_to_1b")),
-                "percentile":     _safe_float(row.get("sprint_speed_percentile")),
+                "bolts":          _safe_float(row.get("bolts")),
             }
     if result:
         _savant_sprint_speed[season] = result
