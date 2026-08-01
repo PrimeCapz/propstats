@@ -159,11 +159,11 @@ def card_html(game):
   <div class="card-header">
     <div class="team-half" style="background:{at["bg"]}">
       <div class="team-abbr">{away}</div>
-      <div class="team-pitcher">vs {esc(last(hp))}</div>
+      <div class="team-pitcher">SP: {esc(last(ap))}</div>
     </div>
     <div class="team-half" style="background:{ht["bg"]}">
       <div class="team-abbr">{home}</div>
-      <div class="team-pitcher">vs {esc(last(ap))}</div>
+      <div class="team-pitcher">SP: {esc(last(hp))}</div>
     </div>
     <div class="at-bubble">@</div>
   </div>
