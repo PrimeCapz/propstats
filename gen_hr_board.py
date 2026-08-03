@@ -73,8 +73,15 @@ def grade_info(composite, hr):
     return 'C','#374151','#9CA3AF'
 
 def build_tags(brl_pa, brl_bip, hh, bat_spd, xwoba, avg_dist, form,
-               edges, ptier, wt, ms, hr, ev50, park_factor):
+               edges, ptier, wt, ms, hr, ev50, park_factor,
+               persistent_due=False, ideal_setup=False):
     T = []
+
+    # Proven 2-day winning signals — surface first
+    if ideal_setup:
+        T.append(('IDEAL SETUP ✦', '#D4A017'))
+    if persistent_due:
+        T.append(('PERSISTENT DUE', '#F59E0B'))
 
     # Contact quality — barrel/PA is the primary signal
     if   brl_pa >= 25: T.append(('BARREL MACHINE',    '#D4A017'))
@@ -148,7 +155,9 @@ for ge in hr_board:
 
         hr    = b.get('hr_prob', 0)
         ms    = b.get('matchup_score', 0)
-        wt    = round(hr*0.55 + (ms/100)*45, 1)
+        wt_raw = round(hr*0.55 + (ms/100)*45, 1)
+        # Avoid multiplier: Avoid tier → clean miss 83% of 2-day sample
+        wt = round(wt_raw * 0.72, 1) if ptier == 'Avoid' else wt_raw
 
         brl_bip  = b.get('brl_bip', 0) or 0
         brl_pa   = sv.get('barrel_pct', 0) or proj.get('barrel_pct', 0) or brl_bip
@@ -166,22 +175,42 @@ for ge in hr_board:
         composite= round(fscore*0.40 + mg*0.60, 1)
         pf_row   = b.get('park_hr_factor', park_factor)
 
+        # IDEAL SETUP: park amplifies ≥1.15 AND pitcher is not Avoid
+        ideal_setup = pf_row >= 1.15 and ptier != 'Avoid'
+        # Effective HR%: pessimistic — applies park suppression + Avoid discount
+        eff_hr = round(hr * (pf_row if pf_row < 1.0 else 1.0) * (0.72 if ptier == 'Avoid' else 1.0), 1)
+
+        # PERSISTENT DUE: 2+ near-miss games in last 3 (air contact, no HR)
+        persistent_due = False
+        try:
+            bid_int = b.get('batter_id', 0)
+            if bid_int:
+                logs = be.get_batter_game_log(int(bid_int), 2026)
+                if logs:
+                    recent = logs[-3:]
+                    near_cnt = sum(1 for g in recent if g.get('near_hr', 0) > 0)
+                    persistent_due = near_cnt >= 2
+        except Exception:
+            pass
+
         if game not in game_meta:
             game_meta[game] = {'venue': venue, 'park_factor': pf_row}
 
         tags = build_tags(brl_pa, brl_bip, hh, bat_spd, xwoba, avg_dist,
-                          form, edges, ptier, wt, ms, hr, ev50, pf_row)
+                          form, edges, ptier, wt, ms, hr, ev50, pf_row,
+                          persistent_due=persistent_due, ideal_setup=ideal_setup)
         grd, gbg, gfg = grade_info(composite, hr)
 
         all_picks.append({
             'name': b.get('batter_name',''), 'bats': bats, 'team': team,
-            'hr': hr, 'ms': ms, 'wt': wt, 'composite': composite,
+            'hr': hr, 'eff_hr': eff_hr, 'ms': ms, 'wt': wt, 'composite': composite,
             'brl_pa': brl_pa, 'brl_bip': brl_bip, 'ev50': ev50, 'hh': hh,
             'xwoba': xwoba, 'avg_dist': avg_dist, 'bat_spd': bat_spd,
             'form': form, 'tags': tags,
             'grade': grd, 'gbg': gbg, 'gfg': gfg,
             'game': game, 'venue': venue, 'park_factor': pf_row,
             'pitcher': ge['pitcher_name'], 'ptier': ptier, 'vuln': pscore,
+            'ideal_setup': ideal_setup, 'persistent_due': persistent_due,
         })
 
 all_picks.sort(key=lambda x: x['wt'], reverse=True)
@@ -208,20 +237,21 @@ def metric_pill(label, val, highlight=False):
     return f'<span class="metric-pill" style="{hl}">{label} <b>{val}</b></span>'
 
 def player_row_html(pick):
-    wt   = pick['wt']
-    hr   = pick['hr']
-    bats = pick['bats']
-    name = pick['name']
-    team = pick['team']
-    grd  = pick['grade']
-    gbg  = pick['gbg']
-    gfg  = pick['gfg']
-    odds = to_american(hr)
-    tags = pick['tags']
-    brl  = pick['brl_pa']
-    ev50 = pick['ev50']
-    hh   = pick['hh']
-    pf   = pick['park_factor']
+    wt    = pick['wt']
+    hr    = pick['hr']
+    eff   = pick.get('eff_hr', hr)
+    bats  = pick['bats']
+    name  = pick['name']
+    team  = pick['team']
+    grd   = pick['grade']
+    gbg   = pick['gbg']
+    gfg   = pick['gfg']
+    odds  = to_american(hr)
+    tags  = pick['tags']
+    brl   = pick['brl_pa']
+    ev50  = pick['ev50']
+    hh    = pick['hh']
+    pf    = pick['park_factor']
 
     # Outlier stripe
     if wt >= 50:   stripe_col = '#D4A017'; row_cls = 'player-row outlier-prime'
@@ -244,6 +274,9 @@ def player_row_html(pick):
     if pf != 1.0:
         pf_col = '#D4A017' if pf >= 1.20 else ('#22C55E' if pf >= 1.07 else ('#EF4444' if pf <= 0.90 else '#5A7090'))
         metrics += f'<span class="metric-pill" style="color:{pf_col}">Park ×{pf:.2f}</span>'
+    # Effective HR% — show when park suppression or Avoid penalty reduces it materially
+    if abs(eff - hr) >= 0.5:
+        metrics += metric_pill('Eff HR%', f'{eff:.1f}%', False)
 
     return f'''\
 <div class="{row_cls}">
@@ -410,7 +443,7 @@ body{{
 <div class="page-hdr">
   <div class="page-eyebrow">Baseball Analytics · HR Props</div>
   <div class="page-title">HR Props Board — {DATE_LABEL}</div>
-  <div class="page-sub">Weighted Score = HR% × 0.55 + (Matchup/100) × 45 · Brl/PA from Statcast leaderboard · EV50 = 50th pct exit velocity</div>
+  <div class="page-sub">Weighted Score = HR% × 0.55 + (Matchup/100) × 45 · Avoid pitcher = ×0.72 penalty · Eff HR% adjusts for park + Avoid · Brl/PA from Statcast · EV50 = 50th pct exit velocity</div>
 </div>
 
 <div class="legend">
@@ -422,7 +455,19 @@ body{{
     <div class="legend-stripe" style="background:#2563EB"></div>
     <span class="legend-label">STRONG</span><span>wt ≥ 43</span>
   </div>
-  <div class="legend-item" style="margin-left:8px">
+  <div class="legend-item" style="margin-left:8px;color:#D4A017;font-weight:700;font-size:10px">
+    IDEAL SETUP ✦
+    <span style="font-weight:400;color:#3B5270">= Park ≥×1.15 + Non-Avoid pitcher (4/6 HRs over 2 days)</span>
+  </div>
+  <div class="legend-item">
+    <span style="color:#F59E0B;font-weight:700;font-size:10px">PERSISTENT DUE</span>
+    <span>= 2+ near-miss games in last 3 (air contact, no HR)</span>
+  </div>
+  <div class="legend-item">
+    <span style="color:#6B7280;font-weight:700;font-size:10px">AVOID PENALTY</span>
+    <span>= wt × 0.72 when pitcher tier = Avoid (83% clean-miss rate)</span>
+  </div>
+  <div class="legend-item">
     <span style="color:#D4A017;font-weight:700;font-size:10px">Brl/PA ≥ 17%</span>
     <span>= Elite barrel rate (per PA, not per BIP)</span>
   </div>
@@ -444,6 +489,10 @@ body{{
   EV50 = 50th percentile exit velocity — separates consistent hard contact from peak-only hitters.
   Park ×factor from PARK_FACTORS table; ×1.27+ = Coors/Sutter Health (significant HR amplifier).
   K-RATE RISK fires when Brl/BIP ÷ Brl/PA &gt; 2.2, indicating the player needs too many PAs to reach barrel opportunity.
+  AVOID PENALTY: Weighted score multiplied by ×0.72 when pitcher tier = Avoid — derived from 2-day sample (5 of 6 clean misses were Avoid matchups).
+  IDEAL SETUP: Park ×1.15+ AND non-Avoid pitcher — produced 4 of 6 HRs over the 2-day 8/1–8/2 sample.
+  PERSISTENT DUE: Batter had near-miss air contact in 2+ of last 3 games without clearing the wall — regression candidate.
+  Eff HR%: Effective probability adjusted downward for park suppression and/or Avoid pitcher; shown only when &gt;0.5% below raw HR%.
 </div>
 </body>
 </html>"""
