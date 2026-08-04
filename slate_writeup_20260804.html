@@ -1,0 +1,1097 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Full Slate Breakdown — August 4, 2026</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{background:#06090F;color:#BDD4EC;font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",Arial,sans-serif;-webkit-font-smoothing:antialiased;line-height:1.5}
+.wrap{max-width:980px;margin:0 auto;padding:0 18px 60px}
+.page-hdr{padding:28px 0 20px}
+.eyebrow{font-size:10px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:#2A4060;margin-bottom:8px}
+.page-title{font-size:clamp(22px,4vw,30px);font-weight:800;letter-spacing:-.02em;color:#D4E8FF;line-height:1.1}
+.page-sub{margin-top:6px;font-size:12px;color:#2A4060}
+.section-hdr{display:flex;align-items:center;gap:10px;margin:32px 0 14px;padding-bottom:8px;border-bottom:1px solid #162236}
+.section-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.section-title{font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:#2A4060}
+.section-count{font-size:10px;color:#1A3050;margin-left:auto}
+.top-plays{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:12px;margin-bottom:8px}
+.play-card{background:#0B1220;border:1px solid #162236;border-radius:8px;padding:16px;position:relative;overflow:hidden}
+.play-card.prime::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,#D4A017,transparent)}
+.play-card.prime{border-color:rgba(212,160,23,.35)}
+.play-card.strong::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,#3B82F6,transparent)}
+.play-card.strong{border-color:rgba(59,130,246,.30)}
+.play-card.k-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,#A855F7,transparent)}
+.play-card.k-card{border-color:rgba(168,85,247,.30)}
+.play-card.watch{border-color:rgba(245,158,11,.25)}
+.play-card.fade{border-color:rgba(239,68,68,.25)}
+.play-label{font-size:9px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;margin-bottom:8px}
+.play-name{font-size:18px;font-weight:800;color:#D4E8FF;line-height:1.1}
+.play-sub{font-size:11px;color:#3D5870;margin-top:3px}
+.play-stat{font-size:28px;font-weight:800;font-variant-numeric:tabular-nums;margin-top:8px}
+.play-tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:10px}
+.play-note{font-size:11px;color:#5A7890;margin-top:8px;line-height:1.4}
+.tag{display:inline-block;font-size:9px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;padding:2px 7px;border-radius:4px}
+.game-card{background:#0B1220;border:1px solid #162236;border-radius:10px;margin-bottom:20px;overflow:hidden}
+.game-card-hdr{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 16px;background:#080D18;border-bottom:1px solid #162236;flex-wrap:wrap}
+.game-teams{font-size:15px;font-weight:800;letter-spacing:.02em;color:#D4E8FF}
+.game-teams .at{color:#2A4060;font-weight:400}
+.game-venue{font-size:10px;color:#2A4060;margin-top:2px}
+.park-badge{font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:3px 8px;border-radius:999px;border:1px solid}
+.game-body{padding:16px;display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:600px){.game-body{grid-template-columns:1fr}}
+.prop-section{border:1px solid #162236;border-radius:7px;padding:12px;background:#060A12}
+.prop-section-hdr{font-size:9px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;margin-bottom:10px}
+.gp-row{display:flex;align-items:baseline;justify-content:space-between;padding:6px 0;border-bottom:1px solid #0F1825}
+.gp-row:last-child{border-bottom:none;padding-bottom:0}
+.gp-name{font-size:13px;font-weight:700;color:#C8DCF0}
+.gp-name.prime{color:#F5C842}
+.gp-name.avo{color:#6B7280}
+.gp-pct{font-size:14px;font-weight:800;font-variant-numeric:tabular-nums;color:#D4E8FF}
+.gp-odds{font-size:11px;color:#2A4060;font-variant-numeric:tabular-nums;margin-left:3px}
+.gp-tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:3px}
+.gp-meta{font-size:10px;color:#2A4060;margin-top:2px}
+.k-row{padding:8px 0;border-bottom:1px solid #0F1825}
+.k-row:last-child{border-bottom:none;padding-bottom:0}
+.k-name{font-size:13px;font-weight:700;color:#A78BFA}
+.k-stats{font-size:11px;color:#3D5870;margin-top:2px}
+.k-line{display:flex;align-items:center;gap:8px;margin-top:5px}
+.k-proj{font-size:20px;font-weight:800;color:#A78BFA;font-variant-numeric:tabular-nums}
+.k-line-val{font-size:11px;color:#3D5870}
+.k-over{font-size:11px;font-weight:700;padding:2px 7px;border-radius:4px}
+.f-row{display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid #0F1825}
+.f-row:last-child{border-bottom:none;padding-bottom:0}
+.f-name{font-size:13px;font-weight:700;color:#C8DCF0}
+.f-score{font-size:16px;font-weight:800;font-variant-numeric:tabular-nums;color:#06B6D4}
+.f-sub{font-size:10px;color:#2A4060;margin-top:1px}
+.f-form{font-size:9px;font-weight:700;padding:1px 6px;border-radius:3px}
+.narrative{grid-column:1/-1;font-size:12px;color:#5A7890;line-height:1.7;padding:10px 0 0}
+.narrative strong{color:#8AAAC8;font-weight:600}
+.narrative .signal{color:#D4A017;font-weight:600}
+.narrative .k-signal{color:#A78BFA;font-weight:600}
+.narrative .red{color:#EF4444;font-weight:600}
+.nrfi-strip{display:flex;align-items:center;gap:10px;font-size:11px}
+.nrfi-label{font-size:9px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#2A4060;flex-shrink:0}
+.nrfi-lean{font-weight:700}
+.nrfi-note{color:#3D5870;font-size:10px}
+.ftable{width:100%;border-collapse:collapse}
+.ftable th{font-size:9px;font-weight:700;letter-spacing:.10em;text-transform:uppercase;color:#1A3050;padding:6px 10px;text-align:left;border-bottom:1px solid #162236}
+.ftable td{padding:7px 10px;border-bottom:1px solid #0D1826;font-size:12px;font-variant-numeric:tabular-nums}
+.ftable tr:last-child td{border-bottom:none}
+.ftable .num{color:#2A4060;font-weight:600}
+.ftable .name{font-weight:700;color:#C8DCF0}
+.ftable .fs{color:#06B6D4;font-weight:700}
+.ftable .dk{color:#22C55E;font-weight:700}
+.ftable .hot{color:#EF4444}
+.ftable .warm{color:#F59E0B}
+.ftable .due{color:#A855F7}
+.ftable .ideal-row .name{color:#D4A017}
+.ftable .avo-row .name{color:#6B7280}
+hr.div{border:none;border-top:1px solid #0F1825;margin:10px 0}
+.alert-box{background:#0B1220;border-radius:8px;padding:16px;margin-bottom:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<div class="page-hdr">
+  <div class="eyebrow">Baseball Analytics · Full Slate</div>
+  <div class="page-title">Tuesday, August 4, 2026</div>
+  <div class="page-sub">14 games · 28 starters · HR props · K props (4 K ELITE arms) · Fantasy · NRFI leans · Game-by-game breakdowns · 8/3 post-mortem</div>
+</div>
+
+<!-- 8/3 POST-MORTEM CALLOUT -->
+<div style="background:#0B1220;border:1px solid rgba(212,160,23,.25);border-radius:8px;padding:16px;margin-bottom:24px">
+  <div style="font-size:9px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:#D4A017;margin-bottom:10px">8/3 Post-Mortem</div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;font-size:12px">
+    <div>
+      <div style="color:#22C55E;font-weight:700;margin-bottom:4px">✅ HRs: 2</div>
+      <div style="color:#5A7890;line-height:1.7">Caminero (Coors IDEAL ✦)<br>Grisham (Yankee Stadium IDEAL ✦)<br><em>Both from IDEAL SETUP</em></div>
+    </div>
+    <div>
+      <div style="color:#F59E0B;font-weight:700;margin-bottom:4px">⚪ Near-Misses: 7</div>
+      <div style="color:#5A7890;line-height:1.7">Alvarez ×1 · Rice ×3 (!!) · Ohtani ×1<br>Aranda ×1 · Trammell ×2 · Reynolds ×1<br>Lowe ×1</div>
+    </div>
+    <div>
+      <div style="color:#D4A017;font-weight:700;margin-bottom:4px">3-Day IDEAL SETUP: 7/8 ✅</div>
+      <div style="color:#5A7890;line-height:1.7">8/1: 3/3 · 8/2: 2/2 · 8/3: 2/3<br>Only miss: Rice (NEAR×3 — due tomorrow)</div>
+    </div>
+    <div>
+      <div style="color:#EF4444;font-weight:700;margin-bottom:4px">⚠ Alvarez Streak</div>
+      <div style="color:#5A7890;line-height:1.7">3 straight near-miss days, 0 HRs<br><strong style="color:#EF4444">BUT: AVOID matchup today</strong><br>Yesavage (Avoid 28) → fade him</div>
+    </div>
+  </div>
+</div>
+
+<!-- TOP PLAYS -->
+<div class="section-hdr">
+  <div class="section-dot" style="background:#D4A017"></div>
+  <div class="section-title">Today's Best Plays</div>
+</div>
+
+<div class="top-plays">
+
+  <!-- Harper PHI Stack — Prime -->
+  <div class="play-card prime">
+    <div class="play-label" style="color:#D4A017">⭑ Prime · HR Prop · PHI Stack</div>
+    <div class="play-name">Bryce Harper</div>
+    <div class="play-sub">PHI vs Littell · Citizens Bank · Attackable 75</div>
+    <div class="play-stat" style="color:#D4A017">29.1% <span style="font-size:14px;color:#3D5870">+244</span></div>
+    <div class="play-tags">
+      <span class="tag" style="background:rgba(59,130,246,.12);color:#3B82F6;border:1px solid rgba(59,130,246,.25)">Attackable 75</span>
+      <span class="tag" style="background:rgba(249,115,22,.12);color:#F97316;border:1px solid rgba(249,115,22,.22)">L5 2 HR</span>
+    </div>
+    <div class="play-note">Zack Littell carries a 75 vuln score — second-softest matchup on the slate behind Rodriguez (83). Citizens Bank Park is ×1.14, just below IDEAL SETUP threshold but still a Hitter Friendly venue. Harper in HOT form with 2 HRs in his last 5 games. L5 context + soft market = top HR play today.</div>
+  </div>
+
+  <!-- Schwarber — Prime -->
+  <div class="play-card prime">
+    <div class="play-label" style="color:#D4A017">⭑ Prime · HR Prop · PHI Stack</div>
+    <div class="play-name">Kyle Schwarber</div>
+    <div class="play-sub">PHI vs Littell · Citizens Bank · Brl 17.6%</div>
+    <div class="play-stat" style="color:#D4A017">31.5% <span style="font-size:14px;color:#3D5870">+217</span></div>
+    <div class="play-tags">
+      <span class="tag" style="background:rgba(212,160,23,.13);color:#D4A017;border:1px solid rgba(212,160,23,.28)">Brl/PA 17.6%</span>
+      <span class="tag" style="background:rgba(249,115,22,.12);color:#F97316;border:1px solid rgba(249,115,22,.22)">EV50 104.1</span>
+    </div>
+    <div class="play-note">Same Littell matchup as Harper — and Schwarber's contact quality is elite. 17.6% Brl/PA, EV50 104.1, LHB at Citizens Bank. 31.5% raw HR prob is third-highest on the slate. Stack both in DFS for PHI vs Littell. PHI stack alert fires with 5 batters scoring ≥40 matchup vs this arm.</div>
+  </div>
+
+  <!-- Cantillo Ks — Prime -->
+  <div class="play-card k-card">
+    <div class="play-label" style="color:#A855F7">⭑ Best K Value · Over 4.5</div>
+    <div class="play-name">Joey Cantillo</div>
+    <div class="play-sub">CLE vs NYM · Progressive Field</div>
+    <div class="play-stat" style="color:#A855F7">5.0 proj <span style="font-size:14px;color:#3D5870">line 4.5</span></div>
+    <div class="play-tags">
+      <span class="tag" style="background:rgba(139,92,246,.13);color:#A78BFA;border:1px solid rgba(139,92,246,.25)">K Threat 64.6</span>
+      <span class="tag" style="background:rgba(6,182,212,.12);color:#06B6D4;border:1px solid rgba(6,182,212,.22)">SwStr 30.7%</span>
+      <span class="tag" style="background:rgba(34,197,94,.12);color:#22C55E;border:1px solid rgba(34,197,94,.22)">56% over</span>
+    </div>
+    <div class="play-note">Best K edge on the board. 56% over at a 4.5 line — that's genuine model edge, not noise. 30.7% SwStr is elite-tier whiff generation even with just a 25.2% K rate; the SwStr suggests he misses bats but some go to contact. Proj 5.0 vs 4.5 line is 0.5 Ks of cushion at a clean over. NYM lineup has strikeout vulnerability.</div>
+  </div>
+
+  <!-- Skubal Ks — Strong -->
+  <div class="play-card k-card">
+    <div class="play-label" style="color:#A855F7">★ K ELITE · Over 7.0</div>
+    <div class="play-name">Tarik Skubal</div>
+    <div class="play-sub">DET@SEA relocated? vs CHC · Wrigley · K score 90.5</div>
+    <div class="play-stat" style="color:#A855F7">7.5 proj <span style="font-size:14px;color:#3D5870">line 7.0</span></div>
+    <div class="play-tags">
+      <span class="tag" style="background:rgba(139,92,246,.15);color:#A78BFA;border:1px solid rgba(139,92,246,.28)">K ELITE 90.5</span>
+      <span class="tag" style="background:rgba(6,182,212,.12);color:#06B6D4;border:1px solid rgba(6,182,212,.22)">SwStr 32.7%</span>
+      <span class="tag" style="background:rgba(139,92,246,.12);color:#8B5CF6;border:1px solid rgba(139,92,246,.22)">K% 31.0</span>
+    </div>
+    <div class="play-note">Highest K score on the slate at 90.5 — 31.0% K rate and 32.7% SwStr is generational. The 7.0 line is high and only 47% over, but the arm's track record makes this a real play on quality outings. CHC lineup has strikeout susceptibility. If he's sharp early, this clears 7 easily. 7.5 proj gives half a K of cushion.</div>
+  </div>
+
+  <!-- Nick Kurtz IDEAL SETUP -->
+  <div class="play-card watch">
+    <div class="play-label" style="color:#F59E0B">◎ Watch · IDEAL SETUP ✦</div>
+    <div class="play-name">Nick Kurtz</div>
+    <div class="play-sub">ATH@CIN · Great American ×1.22 · Singer (NL)</div>
+    <div class="play-stat" style="color:#F59E0B">25.6% <span style="font-size:14px;color:#3D5870">+291</span></div>
+    <div class="play-tags">
+      <span class="tag" style="background:rgba(212,160,23,.13);color:#D4A017;border:1px solid rgba(212,160,23,.28)">IDEAL SETUP ✦</span>
+      <span class="tag" style="background:rgba(212,160,23,.12);color:#D4A017;border:1px solid rgba(212,160,23,.22)">Brl/PA 18.0%</span>
+      <span class="tag" style="background:rgba(249,115,22,.12);color:#F97316;border:1px solid rgba(249,115,22,.22)">EV50 106.2</span>
+    </div>
+    <div class="play-note">IDEAL SETUP fires: Great American Ball Park (×1.22) + Singer (Neutral Lean, non-Avoid). The formula that produced 7 of 8 HRs over 3 days. Kurtz's contact quality is exceptional — 18.0% Brl/PA and EV50 106.2 is top-5 on this slate. At +291 this is real value. 3-day IDEAL hit rate makes this a must-play at this number.</div>
+  </div>
+
+  <!-- Fade Alvarez -->
+  <div class="play-card fade">
+    <div class="play-label" style="color:#EF4444">✕ Fade · Despite 3-Day Near-Miss Streak</div>
+    <div class="play-name">Yordan Alvarez</div>
+    <div class="play-sub">HOU vs Yesavage · Daikin Park · Avoid 28</div>
+    <div class="play-stat" style="color:#EF4444">24.4% raw <span style="font-size:14px;color:#3D5870">→ wt=34.8 [AVOID]</span></div>
+    <div class="play-tags">
+      <span class="tag" style="background:rgba(107,114,128,.12);color:#6B7280;border:1px solid rgba(107,114,128,.22)">Avoid tier ×0.72</span>
+      <span class="tag" style="background:rgba(239,68,68,.12);color:#EF4444;border:1px solid rgba(239,68,68,.22)">Vuln 28 — bottom of slate</span>
+    </div>
+    <div class="play-note">This is the discipline play. 3 straight days of near-misses create emotional pull to "he's due," but the model says NO — Trey Yesavage is an Avoid-tier arm (28 vuln, K Threat) facing a neutral park. Avoid tier = 83% clean-miss rate in our sample. The PERSISTENT DUE narrative doesn't override the matchup. Fade and redirect capital.</div>
+  </div>
+
+</div>
+
+<!-- GAME BREAKDOWNS -->
+<div class="section-hdr" style="margin-top:40px">
+  <div class="section-dot" style="background:#06B6D4"></div>
+  <div class="section-title">Game-by-Game Breakdowns</div>
+  <div class="section-count">14 games · Priority order</div>
+</div>
+
+<!-- ─── WSH@PHI ─── -->
+<div class="game-card">
+  <div class="game-card-hdr">
+    <div>
+      <div class="game-teams">WSH <span class="at">@</span> PHI</div>
+      <div class="game-venue">Citizens Bank Park · Philadelphia · Park ×1.14</div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <span class="park-badge" style="color:#22C55E;border-color:rgba(34,197,94,.28)">Hitter Friendly ×1.14</span>
+      <span class="park-badge" style="color:#3B82F6;border-color:rgba(59,130,246,.25)">Stack Alert — Littell 75 vuln</span>
+    </div>
+  </div>
+  <div class="game-body">
+    <div class="prop-section">
+      <div class="prop-section-hdr" style="color:#D4A017">⬟ HR Props — PHI Attack (vs Littell Att 75)</div>
+      <div class="gp-row">
+        <div>
+          <div class="gp-name prime">Bryce Harper</div>
+          <div class="gp-tags"><span class="tag" style="background:rgba(59,130,246,.12);color:#3B82F6;border:1px solid rgba(59,130,246,.22)">Attackable 75</span><span class="tag" style="background:rgba(249,115,22,.12);color:#F97316;border:1px solid rgba(249,115,22,.20)">L5 2HR</span></div>
+          <div class="gp-meta">LHB · wt=47.9 · HOT form · xBA .276</div>
+        </div>
+        <div style="text-align:right"><div class="gp-pct">29.1%</div><div class="gp-odds">+244</div></div>
+      </div>
+      <div class="gp-row">
+        <div>
+          <div class="gp-name prime">Kyle Schwarber</div>
+          <div class="gp-tags"><span class="tag" style="background:rgba(212,160,23,.12);color:#D4A017;border:1px solid rgba(212,160,23,.22)">Brl 17.6%</span><span class="tag" style="background:rgba(249,115,22,.10);color:#F97316;border:1px solid rgba(249,115,22,.18)">EV50 104.1</span></div>
+          <div class="gp-meta">LHB · wt=44.7 · 31.5% HR prob · WARM form</div>
+        </div>
+        <div style="text-align:right"><div class="gp-pct">31.5%</div><div class="gp-odds">+217</div></div>
+      </div>
+      <div class="gp-row">
+        <div>
+          <div class="gp-name">Brandon Marsh / Edmundo Sosa</div>
+          <div class="gp-meta">Stack depth — 5-batter alert vs Littell</div>
+        </div>
+      </div>
+      <div class="gp-row">
+        <div>
+          <div class="gp-name avo">WSH batters vs Luzardo</div>
+          <div class="gp-tags"><span class="tag" style="background:rgba(107,114,128,.10);color:#6B7280;border:1px solid rgba(107,114,128,.20)">K ELITE Avoid</span></div>
+          <div class="gp-meta">James Wood (WSH) facing K ELITE Luzardo — K-RATE RISK + K ELITE = skip HR</div>
+        </div>
+      </div>
+    </div>
+    <div class="prop-section">
+      <div class="prop-section-hdr" style="color:#A78BFA">◎ K Props</div>
+      <div class="k-row">
+        <div class="k-name">Jesús Luzardo <span style="color:#EF4444;font-size:10px">(PHI SP vs WSH) · K ELITE · Avoid</span></div>
+        <div class="k-stats">K%: 29.2 · SwStr: 31.4% · K ELITE score=77.5</div>
+        <div class="k-line"><span class="k-proj">6.6</span><span class="k-line-val">proj vs</span><span class="k-line-val">line 6.5</span><span class="k-over" style="background:rgba(245,158,11,.12);color:#F59E0B">50% — Monitor</span></div>
+      </div>
+      <div class="k-row">
+        <div class="k-name">Zack Littell <span style="color:#3D5870;font-size:10px">(WSH SP vs PHI) · Avoid tier</span></div>
+        <div class="k-stats">K%: low · Avoid tier — skip K props</div>
+      </div>
+    </div>
+    <div class="prop-section">
+      <div class="prop-section-hdr" style="color:#06B6D4">Fantasy Targets</div>
+      <div class="f-row">
+        <div><div class="f-name">Bryce Harper</div><div class="f-sub">DK $9.6 · 0.98 hits · 1.82 TB · xBA .276</div></div>
+        <div style="text-align:right"><div class="f-score">67.2</div><span class="f-form" style="background:rgba(245,158,11,.12);color:#F59E0B">WARM</span></div>
+      </div>
+      <div class="f-row">
+        <div><div class="f-name">Kyle Schwarber</div><div class="f-sub">DK $8.9 · 0.83 hits · 1.75 TB · xBA .238</div></div>
+        <div style="text-align:right"><div class="f-score">63.4</div><span class="f-form" style="background:rgba(245,158,11,.12);color:#F59E0B">WARM</span></div>
+      </div>
+      <div class="f-row">
+        <div><div class="f-name">James Wood (WSH)</div><div class="f-sub">DK $10.5 · 0.95 hits · K-RATE RISK vs Luzardo</div></div>
+        <div style="text-align:right"><div class="f-score">67.7</div><span class="f-form" style="background:rgba(245,158,11,.12);color:#F59E0B">WARM</span></div>
+      </div>
+    </div>
+    <div class="prop-section">
+      <div class="prop-section-hdr" style="color:#84CC16">Angles</div>
+      <div class="nrfi-strip">
+        <span class="nrfi-label">NRFI/YRFI</span>
+        <span class="nrfi-lean" style="color:#EF4444">YRFI lean</span>
+        <span class="nrfi-note">— Littell (Attackable 75) gets touched early. PHI lineup is live vs soft arms.</span>
+      </div>
+      <hr class="div">
+      <div class="narrative">
+        The best HR stack on today's slate. Littell is the second-most hittable pitcher (75 vuln) and PHI's lineup is loaded. <strong>Stack Harper + Schwarber</strong> — both LHB with elite contact quality at a Hitter Friendly park. <span class="k-signal">Luzardo's K prop is razor-thin at 50%</span> but his arm profile (29.2% K rate, 31.4% SwStr) means the model respects him even if the line is full value. Play at 6.0 if you can get it. <span class="red">Wood vs Luzardo is a skip</span> — K-RATE RISK + K ELITE pitcher is exactly the wrong combo. James Wood will strike out 2-3 times today.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── LAA@BAL ─── -->
+<div class="game-card">
+  <div class="game-card-hdr">
+    <div>
+      <div class="game-teams">LAA <span class="at">@</span> BAL</div>
+      <div class="game-venue">Oriole Park at Camden Yards · Baltimore · Park ×1.08</div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <span class="park-badge" style="color:#22C55E;border-color:rgba(34,197,94,.28)">Hitter Friendly ×1.08</span>
+      <span class="park-badge" style="color:#EF4444;border-color:rgba(239,68,68,.28)">Stack Alert — Rodriguez 83 vuln (highest)</span>
+    </div>
+  </div>
+  <div class="game-body">
+    <div class="prop-section">
+      <div class="prop-section-hdr" style="color:#D4A017">⬟ HR Props — BAL Attack (vs Rodriguez Att 83)</div>
+      <div class="gp-row">
+        <div>
+          <div class="gp-name">Pete Alonso</div>
+          <div class="gp-tags"><span class="tag" style="background:rgba(249,115,22,.12);color:#F97316;border:1px solid rgba(249,115,22,.22)">EV50 103.7</span><span class="tag" style="background:rgba(59,130,246,.12);color:#3B82F6;border:1px solid rgba(59,130,246,.20)">L5 1HR</span></div>
+          <div class="gp-meta">RHB · wt=43.3 · 27.0% HR prob · Attackable 83</div>
+        </div>
+        <div style="text-align:right"><div class="gp-pct">27.0%</div><div class="gp-odds">+270</div></div>
+      </div>
+      <div class="gp-row">
+        <div>
+          <div class="gp-name">Christian Encarnacion-Strand</div>
+          <div class="gp-meta">RHB · 31.9% HR prob · wt=39.3 · WARM form</div>
+        </div>
+        <div style="text-align:right"><div class="gp-pct">31.9%</div><div class="gp-odds">+213</div></div>
+      </div>
+      <div class="gp-row">
+        <div>
+          <div class="gp-name">Colton Cowser / Coby Mayo / Tyler O'Neill</div>
+          <div class="gp-meta">Stack depth — 7-batter alert. Rodriguez (83) = softest SP on slate</div>
+        </div>
+      </div>
+    </div>
+    <div class="prop-section">
+      <div class="prop-section-hdr" style="color:#A78BFA">◎ K Props</div>
+      <div class="k-row">
+        <div class="k-name">Grayson Rodriguez <span style="color:#3D5870;font-size:10px">(LAA SP vs BAL) · Attackable</span></div>
+        <div class="k-stats">Attackable 83 vuln — skip K props entirely. Soft arm.</div>
+      </div>
+    </div>
+    <div class="prop-section">
+      <div class="prop-section-hdr" style="color:#06B6D4">Fantasy Targets</div>
+      <div class="f-row">
+        <div><div class="f-name">Pete Alonso</div><div class="f-sub">DK $9.2 · 0.95 hits · 1.81 TB · xBA .272</div></div>
+        <div style="text-align:right"><div class="f-score">67.9</div><span class="f-form" style="background:rgba(245,158,11,.12);color:#F59E0B">WARM</span></div>
+      </div>
+      <div class="f-row">
+        <div><div class="f-name">Christian Encarnacion-Strand</div><div class="f-sub">DK $9.6 · 0.93 hits · 1.99 TB · xBA .262</div></div>
+        <div style="text-align:right"><div class="f-score">68.7</div><span class="f-form" style="background:rgba(245,158,11,.12);color:#F59E0B">WARM</span></div>
+      </div>
+    </div>
+    <div class="prop-section">
+      <div class="prop-section-hdr" style="color:#84CC16">Angles</div>
+      <div class="nrfi-strip">
+        <span class="nrfi-label">NRFI/YRFI</span>
+        <span class="nrfi-lean" style="color:#EF4444">YRFI strong</span>
+        <span class="nrfi-note">— Rodriguez is the most hittable arm on the slate. BAL scores in the first.</span>
+      </div>
+      <hr class="div">
+      <div class="narrative">
+        Rodriguez at 83 vuln is the <strong>softest pitcher on the entire slate</strong> — even softer than Littell. The 7-batter stack alert means the model sees this entire BAL lineup as dangerous. CES at 31.9% raw HR prob is interesting but the wt (39.3) ranks him behind Alonso's contact quality and L5 context. <span class="signal">YRFI is the cleanest single play from this game</span> — Rodriguez gets touched early, bank on it. Stack BAL in DFS: Alonso, CES, Cowser, Mayo, O'Neill are all in play.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── LAD@CHC ─── -->
+<div class="game-card">
+  <div class="game-card-hdr">
+    <div>
+      <div class="game-teams">LAD <span class="at">@</span> CHC</div>
+      <div class="game-venue">Wrigley Field · Chicago · Park ×1.07</div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <span class="park-badge" style="color:#22C55E;border-color:rgba(34,197,94,.28)">Hitter Friendly ×1.07</span>
+      <span class="park-badge" style="color:#A855F7;border-color:rgba(168,85,247,.28)">K ELITE — Skubal</span>
+    </div>
+  </div>
+  <div class="game-body">
+    <div class="prop-section">
+      <div class="prop-section-hdr" style="color:#3B82F6">⬟ HR Props — LAD Attack (vs Assad NL 52)</div>
+      <div class="gp-row">
+        <div>
+          <div class="gp-name prime">Shohei Ohtani</div>
+          <div class="gp-tags"><span class="tag" style="background:rgba(249,115,22,.12);color:#F97316;border:1px solid rgba(249,115,22,.22)">EV50 103.9</span><span class="tag" style="background:rgba(239,68,68,.10);color:#EF4444;border:1px solid rgba(239,68,68,.20)">HOT form</span></div>
+          <div class="gp-meta">LHB · wt=50.2 · L5=1 HR · NEAR×1 yesterday · xBA .297</div>
+        </div>
+        <div style="text-align:right"><div class="gp-pct">25.9%</div><div class="gp-odds">+286</div></div>
+      </div>
+      <div class="gp-row">
+        <div>
+          <div class="gp-name">Max Muncy</div>
+          <div class="gp-meta">LHB · wt=39.4 · 22.1% HR prob · Wrigley ×1.07</div>
+        </div>
+        <div style="text-align:right"><div class="gp-pct">22.1%</div><div class="gp-odds">+352</div></div>
+      </div>
+      <div class="gp-row">
+        <div>
+          <div class="gp-name avo">CHC batters vs Skubal</div>
+          <div class="gp-tags"><span class="tag" style="background:rgba(107,114,128,.10);color:#6B7280;border:1px solid rgba(107,114,128,.20)">K ELITE · Avoid</span></div>
+          <div class="gp-meta">Skip all CHC HR props. Skubal (90.5 K score) dominates this lineup.</div>
+        </div>
+      </div>
+    </div>
+    <div class="prop-section">
+      <div class="prop-section-hdr" style="color:#A78BFA">◎ K Props — K ELITE Alert</div>
+      <div class="k-row">
+        <div class="k-name">Tarik Skubal <span style="color:#EF4444;font-size:10px">(DET? vs CHC) · K ELITE · Avoid 25</span></div>
+        <div class="k-stats">K%: 31.0 · SwStr: 32.7% · K ELITE score=90.5 — highest on slate</div>
+        <div class="k-line"><span class="k-proj" style="font-size:24px">7.5</span><span class="k-line-val">proj vs</span><span class="k-line-val">line 7.0</span><span class="k-over" style="background:rgba(245,158,11,.12);color:#F59E0B">47% over</span></div>
+      </div>
+      <div class="k-row">
+        <div class="k-name">Javier Assad <span style="color:#3D5870;font-size:10px">(CHC SP vs LAD) · NL 52</span></div>
+        <div class="k-stats">Neutral Lean — skip K props on Assad</div>
+      </div>
+    </div>
+    <div class="prop-section">
+      <div class="prop-section-hdr" style="color:#06B6D4">Fantasy Targets</div>
+      <div class="f-row">
+        <div><div class="f-name">Shohei Ohtani</div><div class="f-sub">DK $10.4 · 1.06 hits · 2.09 TB · HOT form</div></div>
+        <div style="text-align:right"><div class="f-score">74.9</div><span class="f-form" style="background:rgba(239,68,68,.15);color:#EF4444">HOT</span></div>
+      </div>
+      <div class="f-row">
+        <div><div class="f-name">Max Muncy</div><div class="f-sub">LHB · Wrigley park boost · WARM form</div></div>
+        <div style="text-align:right"><div class="f-score" style="font-size:13px">Supp.</div></div>
+      </div>
+    </div>
+    <div class="prop-section">
+      <div class="prop-section-hdr" style="color:#84CC16">Angles</div>
+      <div class="nrfi-strip">
+        <span class="nrfi-label">NRFI/YRFI</span>
+        <span class="nrfi-lean" style="color:#22C55E">NRFI — Skubal</span>
+        <span class="nrfi-note">— Skubal (K ELITE, 32.7% SwStr) will shut down LAD early. CHC may also score off Assad.</span>
+      </div>
+      <hr class="div">
+      <div class="narrative">
+        Split game: <strong>Ohtani is the HR play on the LAD side</strong> (Assad is Neutral Lean, manageable). <strong>Skubal is the K play on the CHC side</strong>. The line at 7.0 is aggressive but Skubal's 32.7% SwStr is the highest on the slate — when he's on, he goes 8+. CHC HR props are a hard no with Skubal pitching. <span class="k-signal">The Skubal K over is a quality play but at 47% over there's not a massive edge — it's a "best arm on a great day" play rather than a model-edge play.</span> Pair it with Cantillo as your two K plays today.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── ATH@CIN ─── -->
+<div class="game-card">
+  <div class="game-card-hdr">
+    <div>
+      <div class="game-teams">ATH <span class="at">@</span> CIN</div>
+      <div class="game-venue">Great American Ball Park · Cincinnati · Park ×1.22</div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <span class="park-badge" style="color:#22C55E;border-color:rgba(34,197,94,.30)">Hitter Friendly ×1.22</span>
+      <span class="park-badge" style="color:#D4A017;border-color:rgba(212,160,23,.30)">IDEAL SETUP ✦ — Kurtz</span>
+    </div>
+  </div>
+  <div class="game-body">
+    <div class="prop-section">
+      <div class="prop-section-hdr" style="color:#D4A017">⬟ HR Props — ATH Attack (vs Singer NL 58) IDEAL SETUP ✦</div>
+      <div class="gp-row">
+        <div>
+          <div class="gp-name prime">Nick Kurtz</div>
+          <div class="gp-tags"><span class="tag" style="background:rgba(212,160,23,.13);color:#D4A017;border:1px solid rgba(212,160,23,.28)">IDEAL SETUP ✦</span><span class="tag" style="background:rgba(212,160,23,.10);color:#D4A017;border:1px solid rgba(212,160,23,.20)">Brl 18.0%</span><span class="tag" style="background:rgba(249,115,22,.10);color:#F97316;border:1px solid rgba(249,115,22,.18)">EV50 106.2</span></div>
+          <div class="gp-meta">LHB · Great American ×1.22 · Singer NL · wt=36.9</div>
+        </div>
+        <div style="text-align:right"><div class="gp-pct">25.6%</div><div class="gp-odds">+291</div></div>
+      </div>
+      <div class="gp-row">
+        <div>
+          <div class="gp-name avo">CIN batters vs J.T. Ginn</div>
+          <div class="gp-tags"><span class="tag" style="background:rgba(107,114,128,.10);color:#6B7280;border:1px solid rgba(107,114,128,.20)">Avoid 33</span></div>
+          <div class="gp-meta">Ginn is Avoid tier — CIN HR props get ×0.72 penalty. Skip.</div>
+        </div>
+      </div>
+    </div>
+    <div class="prop-section">
+      <div class="prop-section-hdr" style="color:#A78BFA">◎ K Props</div>
+      <div class="k-row">
+        <div class="k-name">J.T. Ginn <span style="color:#EF4444;font-size:10px">(CIN SP vs ATH) · Avoid 33</span></div>
+        <div class="k-stats">Avoid tier — not a reliable K arm. Skip.</div>
+      </div>
+      <div class="k-row">
+        <div class="k-name">Brady Singer <span style="color:#3D5870;font-size:10px">(ATH SP vs CIN) · NL 58</span></div>
+        <div class="k-stats">Neutral Lean — moderate K potential</div>
+      </div>
+    </div>
+    <div class="prop-section">
+      <div class="prop-section-hdr" style="color:#06B6D4">Fantasy Targets</div>
+      <div class="f-row">
+        <div><div class="f-name">Eduardo Valencia (CIN)</div><div class="f-sub">DK $8.9 · 0.91 hits · 1.98 TB · xBA .269</div></div>
+        <div style="text-align:right"><div class="f-score">68.4</div><span class="f-form" style="background:rgba(245,158,11,.12);color:#F59E0B">WARM</span></div>
+      </div>
+      <div class="f-row">
+        <div><div class="f-name">Nick Kurtz (ATH)</div><div class="f-sub">Great American park boost · IDEAL HR setup · DK value</div></div>
+        <div style="text-align:right"><div class="f-score" style="font-size:13px">Watch</div></div>
+      </div>
+    </div>
+    <div class="prop-section">
+      <div class="prop-section-hdr" style="color:#84CC16">Angles</div>
+      <div class="nrfi-strip">
+        <span class="nrfi-label">NRFI/YRFI</span>
+        <span class="nrfi-lean" style="color:#EF4444">YRFI lean</span>
+        <span class="nrfi-note">— Great American Ball Park + two manageable arms. Expect offense early.</span>
+      </div>
+      <hr class="div">
+      <div class="narrative">
+        <span class="signal">IDEAL SETUP fires on Kurtz</span> — Great American (×1.22) + Singer (NL, non-Avoid). The signal that has gone 7 for 8 over 3 days. Kurtz's contact profile (Brl 18%, EV50 106.2) is legitimate power, not a soft-contact hitter benefiting from park. At +291, this is a value play. The game-level angle: YRFI is solid at a hitter park. Skip CIN HR props (Ginn is Avoid) — one-sided game where ATH attacks Singer and CIN faces an Avoid arm.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── STL@NYY ─── -->
+<div class="game-card">
+  <div class="game-card-hdr">
+    <div>
+      <div class="game-teams">STL <span class="at">@</span> NYY</div>
+      <div class="game-venue">Yankee Stadium · Bronx · Park ×1.19</div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <span class="park-badge" style="color:#22C55E;border-color:rgba(34,197,94,.28)">Hitter Friendly ×1.19</span>
+      <span class="park-badge" style="color:#D4A017;border-color:rgba(212,160,23,.28)">IDEAL SETUP ✦ — Velázquez</span>
+    </div>
+  </div>
+  <div class="game-body">
+    <div class="prop-section">
+      <div class="prop-section-hdr" style="color:#D4A017">⬟ HR Props — STL Attack (vs Weathers NL 49) IDEAL SETUP ✦</div>
+      <div class="gp-row">
+        <div>
+          <div class="gp-name prime">Nelson Velázquez</div>
+          <div class="gp-tags"><span class="tag" style="background:rgba(212,160,23,.13);color:#D4A017;border:1px solid rgba(212,160,23,.28)">IDEAL SETUP ✦</span><span class="tag" style="background:rgba(59,130,246,.10);color:#3B82F6;border:1px solid rgba(59,130,246,.18)">L5 2HR</span></div>
+          <div class="gp-meta">RHB · Yankee Stadium ×1.19 · Weathers NL · wt=37.9</div>
+        </div>
+        <div style="text-align:right"><div class="gp-pct">24.2%</div><div class="gp-odds">+313</div></div>
+      </div>
+      <div class="gp-row">
+        <div>
+          <div class="gp-name avo">NYY batters vs Dobbins</div>
+          <div class="gp-tags"><span class="tag" style="background:rgba(107,114,128,.10);color:#6B7280;border:1px solid rgba(107,114,128,.20)">Avoid 36</span></div>
+          <div class="gp-meta">Dobbins is Avoid — NYY HR props get ×0.72 penalty despite Yankee Stadium</div>
+        </div>
+      </div>
+    </div>
+    <div class="prop-section">
+      <div class="prop-section-hdr" style="color:#A78BFA">◎ K Props</div>
+      <div class="k-row">
+        <div class="k-name">Ryan Weathers <span style="color:#3D5870;font-size:10px">(NYY SP vs STL)</span></div>
+        <div class="k-stats">K%: 26.1 · SwStr: 27.5% · K Threat score=64.7</div>
+        <div class="k-line"><span class="k-proj">6.0</span><span class="k-line-val">proj vs</span><span class="k-line-val">line 6.0</span><span class="k-over" style="background:rgba(90,120,144,.10);color:#5A7890">40% — skip (exact line)</span></div>
+      </div>
+      <div class="k-row">
+        <div class="k-name">Hunter Dobbins <span style="color:#EF4444;font-size:10px">(STL? SP vs NYY) · Avoid 36</span></div>
+        <div class="k-stats">Avoid tier — likely low K arm despite Yankee lineup exposure</div>
+      </div>
+    </div>
+    <div class="prop-section">
+      <div class="prop-section-hdr" style="color:#06B6D4">Fantasy Targets</div>
+      <div class="f-row">
+        <div><div class="f-name">Nelson Velázquez (STL)</div><div class="f-sub">IDEAL Setup · L5 2 HR · Yankee Stadium upside</div></div>
+        <div style="text-align:right"><div class="f-score" style="font-size:13px">Dart</div></div>
+      </div>
+      <div class="f-row">
+        <div><div class="f-name">Alec Burleson (STL)</div><div class="f-sub">vs Weathers NL · Yankee Stadium · WARM form</div></div>
+        <div style="text-align:right"><div class="f-score" style="font-size:13px">Support</div></div>
+      </div>
+    </div>
+    <div class="prop-section">
+      <div class="prop-section-hdr" style="color:#84CC16">Angles</div>
+      <div class="nrfi-strip">
+        <span class="nrfi-label">NRFI/YRFI</span>
+        <span class="nrfi-lean" style="color:#F59E0B">Neutral</span>
+        <span class="nrfi-note">— Weathers is manageable but NYY faces Dobbins (Avoid). Mixed signals.</span>
+      </div>
+      <hr class="div">
+      <div class="narrative">
+        IDEAL SETUP fires on Velázquez (STL batter vs Weathers NL at Yankee Stadium ×1.19). L5: 2 HR adds momentum context. <strong>But note:</strong> Weathers (NL, not Attackable) is a step below yesterday's McGreevy — vuln score 49 vs 65. The IDEAL fires but with slightly lower conviction. <span class="red">NYY HR props are Avoid-penalized (Dobbins, 36 vuln) despite playing in Yankee Stadium</span> — this is the model correctly identifying that even a great park can't overcome an Avoid-tier arm.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── SD@AZ ─── -->
+<div class="game-card">
+  <div class="game-card-hdr">
+    <div>
+      <div class="game-teams">SD <span class="at">@</span> AZ</div>
+      <div class="game-venue">Chase Field · Phoenix · Park ×1.06</div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <span class="park-badge" style="color:#22C55E;border-color:rgba(34,197,94,.25)">Slight Hitter Lean ×1.06</span>
+      <span class="park-badge" style="color:#3B82F6;border-color:rgba(59,130,246,.25)">Stack Alert — Vásquez 77 vuln</span>
+    </div>
+  </div>
+  <div class="game-body">
+    <div class="prop-section">
+      <div class="prop-section-hdr" style="color:#3B82F6">⬟ HR Props — AZ Attack (vs Vásquez Att 77)</div>
+      <div class="gp-row">
+        <div>
+          <div class="gp-name">Ketel Marte</div>
+          <div class="gp-meta">Switch · Brl 10.2% · wt=39.0 · 22.2% HR prob</div>
+        </div>
+        <div style="text-align:right"><div class="gp-pct">22.2%</div><div class="gp-odds">+351</div></div>
+      </div>
+      <div class="gp-row">
+        <div>
+          <div class="gp-name">Max Kepler</div>
+          <div class="gp-meta">LHB · wt=37.7 · 20.2% HR prob · Attackable 77</div>
+        </div>
+        <div style="text-align:right"><div class="gp-pct">20.2%</div><div class="gp-odds">+395</div></div>
+      </div>
+      <div class="gp-row">
+        <div>
+          <div class="gp-name">Corbin Carroll / Gabriel Moreno</div>
+          <div class="gp-meta">Stack depth (6 batters) vs Vásquez</div>
+        </div>
+      </div>
+    </div>
+    <div class="prop-section">
+      <div class="prop-section-hdr" style="color:#A78BFA">◎ K Props</div>
+      <div class="k-row">
+        <div class="k-name">MacKenzie Gore <span style="color:#3D5870;font-size:10px">(SF SP vs TEX) — mismatch, see SF@TEX</span></div>
+      </div>
+      <div class="k-row">
+        <div class="k-name">Eduardo Rodriguez <span style="color:#3D5870;font-size:10px">(SD SP vs AZ) · NL 57</span></div>
+        <div class="k-stats">Neutral Lean — skip K props</div>
+      </div>
+      <div class="k-row">
+        <div class="k-name">Randy Vásquez <span style="color:#3D5870;font-size:10px">(SD SP vs AZ) · Att 77</span></div>
+        <div class="k-stats">Attackable — not a K arm. Skip.</div>
+      </div>
+    </div>
+    <div class="prop-section">
+      <div class="prop-section-hdr" style="color:#06B6D4">Fantasy Targets</div>
+      <div class="f-row">
+        <div><div class="f-name">Gabriel Moreno (AZ)</div><div class="f-sub">DK $8.6 · 1.05 hits · 1.65 TB · xBA .293</div></div>
+        <div style="text-align:right"><div class="f-score">63.7</div><span class="f-form" style="background:rgba(245,158,11,.12);color:#F59E0B">WARM</span></div>
+      </div>
+    </div>
+    <div class="prop-section">
+      <div class="prop-section-hdr" style="color:#84CC16">Angles</div>
+      <div class="nrfi-strip">
+        <span class="nrfi-label">NRFI/YRFI</span>
+        <span class="nrfi-lean" style="color:#EF4444">YRFI lean</span>
+        <span class="nrfi-note">— Vásquez is Attackable (77). AZ lineup will score in early innings.</span>
+      </div>
+      <hr class="div">
+      <div class="narrative">
+        Marte and Kepler are solid plays vs Vásquez (Attackable 77) but Chase Field is only ×1.06 — just below our IDEAL threshold. Good matchup, not elite context. AZ stack (6 batters) is viable in DFS with decent salary-relief options. <span class="red">Don't stack SD HR props</span> — E. Rodriguez is Neutral Lean (fine for K props but not exciting for HR). Skip AZ K props entirely — Vásquez and Rodriguez are not K-generating arms.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── NYM@CLE ─── -->
+<div class="game-card">
+  <div class="game-card-hdr">
+    <div>
+      <div class="game-teams">NYM <span class="at">@</span> CLE</div>
+      <div class="game-venue">Progressive Field · Cleveland · Park ×0.93</div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <span class="park-badge" style="color:#F59E0B;border-color:rgba(245,158,11,.28)">Slight Suppressor ×0.93</span>
+      <span class="park-badge" style="color:#A855F7;border-color:rgba(168,85,247,.28)">K Play — Cantillo 56% over</span>
+    </div>
+  </div>
+  <div class="game-body">
+    <div class="prop-section">
+      <div class="prop-section-hdr" style="color:#3B82F6">⬟ HR Props</div>
+      <div class="gp-row">
+        <div>
+          <div class="gp-name">Sean Manaea (NL 54) vs NYM</div>
+          <div class="gp-meta">Neutral Lean — moderate HR potential for NYM batters</div>
+        </div>
+      </div>
+      <div class="gp-row">
+        <div>
+          <div class="gp-name avo">NYM batters vs Cantillo</div>
+          <div class="gp-tags"><span class="tag" style="background:rgba(107,114,128,.10);color:#6B7280;border:1px solid rgba(107,114,128,.20)">Avoid · K Threat</span></div>
+          <div class="gp-meta">Cantillo (Avoid tier, K Threat) + suppressor park = skip all NYM HR props</div>
+        </div>
+      </div>
+    </div>
+    <div class="prop-section">
+      <div class="prop-section-hdr" style="color:#A78BFA">◎ K Props — Best Value Play</div>
+      <div class="k-row">
+        <div class="k-name">Joey Cantillo <span style="color:#22C55E;font-size:10px">(CLE SP vs NYM) · K Threat · Avoid 38</span></div>
+        <div class="k-stats">K%: 25.2 · SwStr: 30.7% · K Threat score=64.6</div>
+        <div class="k-line"><span class="k-proj" style="color:#22C55E">5.0</span><span class="k-line-val">proj vs</span><span class="k-line-val">line 4.5</span><span class="k-over" style="background:rgba(34,197,94,.15);color:#22C55E;font-weight:700">56% over ← Best K edge today</span></div>
+      </div>
+      <div class="k-row">
+        <div class="k-name">Sean Manaea <span style="color:#3D5870;font-size:10px">(CLE SP vs NYM) · NL 54</span></div>
+        <div class="k-stats">Neutral Lean — not a strong K play</div>
+      </div>
+    </div>
+    <div class="prop-section">
+      <div class="prop-section-hdr" style="color:#06B6D4">Fantasy Targets</div>
+      <div class="f-row">
+        <div><div class="f-name">Miguel Vargas (NYM)</div><div class="f-sub">DK $9.7 · 1.05 hits · 2.08 TB · DUE form</div></div>
+        <div style="text-align:right"><div class="f-score">64.0</div><span class="f-form" style="background:rgba(168,85,247,.15);color:#A855F7">DUE</span></div>
+      </div>
+    </div>
+    <div class="prop-section">
+      <div class="prop-section-hdr" style="color:#84CC16">Angles</div>
+      <div class="nrfi-strip">
+        <span class="nrfi-label">NRFI/YRFI</span>
+        <span class="nrfi-lean" style="color:#22C55E">NRFI — Cantillo</span>
+        <span class="nrfi-note">— Cantillo's K Threat profile (30.7% SwStr) = clean early innings. NYM bats suppressed.</span>
+      </div>
+      <hr class="div">
+      <div class="narrative">
+        <span class="k-signal">Cantillo over 4.5 is the best K value on the slate at 56% over.</span> 30.7% SwStr is the real signal — that's whiff generation that shows up in Ks regardless of K% label. At a 4.5 line (modest), even a pedestrian 5-K day covers. NYM lineup has strikeout exposure. This is the quietest play with the most model edge today. <span class="red">Avoid NYM HR props</span> — suppressor park + Cantillo Avoid tier = double suppression.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── TOR@HOU ─── -->
+<div class="game-card">
+  <div class="game-card-hdr">
+    <div>
+      <div class="game-teams">TOR <span class="at">@</span> HOU</div>
+      <div class="game-venue">Daikin Park · Houston · Park ×1.00</div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <span class="park-badge" style="color:#5A7890;border-color:rgba(90,120,144,.28)">Neutral Park</span>
+      <span class="park-badge" style="color:#EF4444;border-color:rgba(239,68,68,.28)">FADE Alvarez — Avoid matchup</span>
+    </div>
+  </div>
+  <div class="game-body">
+    <div class="prop-section">
+      <div class="prop-section-hdr" style="color:#3B82F6">⬟ HR Props</div>
+      <div class="gp-row">
+        <div>
+          <div class="gp-name avo">Yordan Alvarez</div>
+          <div class="gp-tags"><span class="tag" style="background:rgba(107,114,128,.12);color:#6B7280;border:1px solid rgba(107,114,128,.22)">Avoid Penalty ×0.72</span><span class="tag" style="background:rgba(239,68,68,.10);color:#EF4444;border:1px solid rgba(239,68,68,.18)">Yesavage Avoid 28</span></div>
+          <div class="gp-meta">Raw HR=24.4% but adjusted wt=34.8 [AVOID]. 3-day near-miss streak irrelevant vs Avoid arm.</div>
+        </div>
+        <div style="text-align:right"><div class="gp-pct" style="color:#6B7280">24.4%</div><div class="gp-odds" style="color:#EF4444">FADE</div></div>
+      </div>
+      <div class="gp-row">
+        <div>
+          <div class="gp-name">TOR batters vs Wesneski (NL 58)</div>
+          <div class="gp-meta">Moderate — Wesneski is Neutral Lean. Enrique Hernández (FS=69.8) is the TOR fantasy anchor.</div>
+        </div>
+      </div>
+    </div>
+    <div class="prop-section">
+      <div class="prop-section-hdr" style="color:#A78BFA">◎ K Props</div>
+      <div class="k-row">
+        <div class="k-name">Trey Yesavage <span style="color:#3D5870;font-size:10px">(HOU SP vs TOR?) · K Threat · Avoid 28</span></div>
+        <div class="k-stats">K%: 24.0 · SwStr: 30.2% · K Threat score=61.9</div>
+        <div class="k-line"><span class="k-proj">5.8</span><span class="k-line-val">proj vs</span><span class="k-line-val">line 5.5</span><span class="k-over" style="background:rgba(139,92,246,.12);color:#8B5CF6">52% over</span></div>
+      </div>
+      <div class="k-row">
+        <div class="k-name">Hayden Wesneski <span style="color:#3D5870;font-size:10px">(TOR SP vs HOU) · NL 58</span></div>
+        <div class="k-stats">Neutral Lean — skip K props</div>
+      </div>
+    </div>
+    <div class="prop-section">
+      <div class="prop-section-hdr" style="color:#06B6D4">Fantasy Targets</div>
+      <div class="f-row">
+        <div><div class="f-name">Yordan Alvarez</div><div class="f-sub">DK $11.8 · 1.12 hits · HOT form — still top fantasy floor despite Avoid arm</div></div>
+        <div style="text-align:right"><div class="f-score">81.8</div><span class="f-form" style="background:rgba(239,68,68,.15);color:#EF4444">HOT</span></div>
+      </div>
+      <div class="f-row">
+        <div><div class="f-name">Enrique Hernández (TOR)</div><div class="f-sub">DK $9.6 · 1.06 hits · 2.07 TB · WARM</div></div>
+        <div style="text-align:right"><div class="f-score">69.8</div><span class="f-form" style="background:rgba(245,158,11,.12);color:#F59E0B">WARM</span></div>
+      </div>
+    </div>
+    <div class="prop-section">
+      <div class="prop-section-hdr" style="color:#84CC16">Angles</div>
+      <div class="nrfi-strip">
+        <span class="nrfi-label">NRFI/YRFI</span>
+        <span class="nrfi-lean" style="color:#22C55E">NRFI lean</span>
+        <span class="nrfi-note">— Yesavage (K Threat, 30.2% SwStr) should be sharp early. TOR faces Wesneski (NL).</span>
+      </div>
+      <hr class="div">
+      <div class="narrative">
+        <strong>The discipline call of the day.</strong> Alvarez has made air contact in 3 straight games — every baseball media outlet will say he's due. The model says: <span class="red">Yesavage is an Avoid-tier arm (28 vuln, K Threat, 30.2% SwStr) at a neutral park.</span> The entire Avoid tier research says 83% clean miss rate. Don't chase the narrative. <strong>Alvarez is still the #1 fantasy play</strong> (FS=81.8) — he'll get hits and TB — just not a HR today per the model. <span class="k-signal">Yesavage K over 5.5 (52%) is a real play</span> — his 30.2% SwStr is legitimate even at an Avoid rating.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── TB@COL ─── -->
+<div class="game-card">
+  <div class="game-card-hdr">
+    <div>
+      <div class="game-teams">TB <span class="at">@</span> COL</div>
+      <div class="game-venue">Coors Field · Denver · Park ×1.27</div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <span class="park-badge" style="color:#D4A017;border-color:rgba(212,160,23,.35)">EXTREME HR PARK ×1.27</span>
+      <span class="park-badge" style="color:#EF4444;border-color:rgba(239,68,68,.28)">Both SPs Avoid tier — caution</span>
+    </div>
+  </div>
+  <div class="game-body">
+    <div class="prop-section">
+      <div class="prop-section-hdr" style="color:#3B82F6">⬟ HR Props</div>
+      <div class="gp-row">
+        <div>
+          <div class="gp-name avo">COL/TB batters — both sides Avoid penalty</div>
+          <div class="gp-tags"><span class="tag" style="background:rgba(107,114,128,.12);color:#6B7280;border:1px solid rgba(107,114,128,.22)">Peralta Avoid 31</span><span class="tag" style="background:rgba(107,114,128,.10);color:#6B7280;border:1px solid rgba(107,114,128,.18)">Hughes Avoid 11</span></div>
+          <div class="gp-meta">Peralta (Avoid 31) and Hughes (Avoid 11 — bottom of slate). Both sides get ×0.72 penalty.</div>
+        </div>
+      </div>
+      <div class="gp-row">
+        <div>
+          <div class="gp-name" style="color:#F59E0B">Brandon Lowe (TB) — Coors override?</div>
+          <div class="gp-meta">Coors ×1.27 partially offsets Avoid penalty. Monitor for lineup confirmation.</div>
+        </div>
+      </div>
+    </div>
+    <div class="prop-section">
+      <div class="prop-section-hdr" style="color:#A78BFA">◎ K Props</div>
+      <div class="k-row">
+        <div class="k-name">Freddy Peralta <span style="color:#EF4444;font-size:10px">(COL SP vs TB?) · Avoid 31 · Manageable K</span></div>
+        <div class="k-stats">K%: 22.1 · SwStr: 26.8% · score=53.3</div>
+        <div class="k-line"><span class="k-proj" style="color:#3D5870">4.1</span><span class="k-line-val">proj vs</span><span class="k-line-val">line 4.0</span><span class="k-over" style="background:rgba(90,120,144,.10);color:#5A7890">39% — Skip. Coors kills K props.</span></div>
+      </div>
+    </div>
+    <div class="prop-section">
+      <div class="prop-section-hdr" style="color:#06B6D4">Fantasy Targets</div>
+      <div class="f-row">
+        <div><div class="f-name">Yandy Díaz (TB) / Gabriel Moreno</div><div class="f-sub">Coors floor · fantasy hits projection elevated by park</div></div>
+        <div style="text-align:right"><div class="f-score" style="font-size:13px">Floor</div></div>
+      </div>
+    </div>
+    <div class="prop-section">
+      <div class="prop-section-hdr" style="color:#84CC16">Angles</div>
+      <div class="nrfi-strip">
+        <span class="nrfi-label">NRFI/YRFI</span>
+        <span class="nrfi-lean" style="color:#EF4444">YRFI — Coors</span>
+        <span class="nrfi-note">— Always. Park runs override pitcher suppression.</span>
+      </div>
+      <hr class="div">
+      <div class="narrative">
+        Unusual Coors situation: <strong>both SPs are Avoid tier</strong>. Normally Coors + non-Avoid = IDEAL SETUP, but today both starters are rated Avoid. This means <span class="red">neither side has a clean HR prop play</span> — the Avoid ×0.72 penalty applies to both attack directions. YRFI is still a lock at Coors. For HR props, the Coors park factor partially cancels the Avoid penalty — if you have to pick one, the batter with the best underlying contact metrics and most favorable pitcher (Peralta, 31 vuln vs Hughes, 11 vuln) gets more appeal, but the model doesn't endorse either strongly.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- REMAINING GAMES QUICK VIEW -->
+<div class="section-hdr" style="margin-top:32px">
+  <div class="section-dot" style="background:#3D5870"></div>
+  <div class="section-title">Remaining Games — Quick View</div>
+  <div class="section-count">6 games</div>
+</div>
+
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px">
+
+  <div class="alert-box" style="border:1px solid #162236">
+    <div style="font-size:11px;font-weight:700;color:#BDD4EC;margin-bottom:6px">MIA @ ATL · Truist Park (×0.98)</div>
+    <div style="font-size:11px;color:#3D5870;line-height:1.7">
+      <strong style="color:#8AAAC8">Griffin Conine</strong> (MIA) wt=46.8, EV50 104.2 vs Holmes (NL 58)<br>
+      Drake Baldwin (ATL) wt=39.5 vs Ryan Gusto (NL 50)<br>
+      Fantasy: Bryan De La Cruz (FS=67.7) · Conine (FS=67.3)<br>
+      Park slightly suppresses (×0.98) but Conine's EV50 carries through<br>
+      <span style="color:#F59E0B">NRFI lean — two NL arms, sub-1.0 park</span>
+    </div>
+  </div>
+
+  <div class="alert-box" style="border:1px solid #162236">
+    <div style="font-size:11px;font-weight:700;color:#BDD4EC;margin-bottom:6px">DET @ SEA · T-Mobile Park (×0.91)</div>
+    <div style="font-size:11px;color:#3D5870;line-height:1.7">
+      <strong style="color:#8AAAC8">Riley Greene</strong> (DET) wt=44.8, L5=0 vs Hancock (NL 52)<br>
+      Kevin McGonigle wt=36.7 at suppressor park<br>
+      T-Mobile (×0.91) suppresses HR — proceed with caution<br>
+      <span style="color:#EF4444">Park suppressor cautions all HR props here</span><br>
+      NRFI lean — Hancock is solid early
+    </div>
+  </div>
+
+  <div class="alert-box" style="border:1px solid #162236">
+    <div style="font-size:11px;font-weight:700;color:#BDD4EC;margin-bottom:6px">PIT @ MIL · American Family Field (×1.04)</div>
+    <div style="font-size:11px;color:#3D5870;line-height:1.7">
+      <strong style="color:#8AAAC8">K ELITE: Jared Jones</strong> (PIT? vs MIL)<br>
+      K%: 27.9 · SwStr: 30.9% · score=75.4 · Proj 6.4 vs line 6.0 · 46% over<br>
+      Also: Logan Henderson (K ELITE, 32% K rate, 43% over vs 7.0 line)<br>
+      <span style="color:#A78BFA">Two K ELITE arms — best game for K props besides LAD@CHC</span><br>
+      HR: both attack sides have Avoid pitchers except Jones
+    </div>
+  </div>
+
+  <div class="alert-box" style="border:1px solid #162236">
+    <div style="font-size:11px;font-weight:700;color:#BDD4EC;margin-bottom:6px">SF @ TEX · Globe Life Field (×0.91)</div>
+    <div style="font-size:11px;color:#3D5870;line-height:1.7">
+      <strong style="color:#8AAAC8">K: MacKenzie Gore</strong> (SF SP vs TEX)<br>
+      K%: 26.0 · SwStr: 25.3% · score=55.6 · Proj 5.8 vs 5.5 · 52% over<br>
+      Globe Life (×0.91) suppresses HR — fade both sides on HR props<br>
+      Avoid arms: Gore (Avoid 45), Tidwell (Avoid 30) — both sides suppressed<br>
+      <span style="color:#F59E0B">K over Gore 5.5 is the only play from this game</span>
+    </div>
+  </div>
+
+  <div class="alert-box" style="border:1px solid #162236">
+    <div style="font-size:11px;font-weight:700;color:#BDD4EC;margin-bottom:6px">MIN @ KC · Kauffman Stadium (×0.93)</div>
+    <div style="font-size:11px;color:#3D5870;line-height:1.7">
+      <strong style="color:#8AAAC8">K: Joe Ryan</strong> (MIN SP vs KC)<br>
+      K%: 27.1 · SwStr: 25.9% · K Threat · Proj 5.5 vs 5.5 · 47% over — skip<br>
+      Matt Olson (ATL, not MIN?) wt=37.2, L5 3 HR — check lineup<br>
+      Park suppressor (×0.93) + Avoid arms (Randy Dobnak) = skip HR props<br>
+      <span style="color:#5A7890">Quiet game — skip</span>
+    </div>
+  </div>
+
+  <div class="alert-box" style="border:1px solid #162236">
+    <div style="font-size:11px;font-weight:700;color:#BDD4EC;margin-bottom:6px">CWS @ BOS · Fenway Park (×1.04)</div>
+    <div style="font-size:11px;color:#3D5870;line-height:1.7">
+      Davis Martin (Avoid 39) + Patrick Sandoval (Avoid 39)<br>
+      <strong style="color:#EF4444">Both starters Avoid tier</strong> — similar to Coors situation<br>
+      Fenway (×1.04) = slight lift but Avoid penalty dominates<br>
+      Ryan Jeffers (MIN, not BOS) FS=65.0 appears in fantasy data<br>
+      <span style="color:#EF4444">Skip HR props, both sides Avoid-penalized</span>
+    </div>
+  </div>
+
+</div>
+
+<!-- FULL K BOARD -->
+<div class="section-hdr" style="margin-top:40px">
+  <div class="section-dot" style="background:#A78BFA"></div>
+  <div class="section-title">Strikeout Props — Full Board</div>
+  <div class="section-count">4 K ELITE arms · Best slate of the week</div>
+</div>
+
+<div style="overflow-x:auto;background:#0B1220;border:1px solid #162236;border-radius:8px">
+<table class="ftable">
+  <thead>
+    <tr><th>#</th><th>Pitcher</th><th>Opp</th><th>Tier</th><th>Score</th><th>K%</th><th>SwStr%</th><th>Proj K</th><th>Line</th><th>Over%</th><th>Lean</th></tr>
+  </thead>
+  <tbody>
+    <tr><td class="num">1</td><td class="name" style="color:#A78BFA">Tarik Skubal ★</td><td>CHC</td><td style="color:#A78BFA;font-weight:700">K ELITE</td><td class="fs">90.5</td><td>31.0%</td><td>32.7%</td><td>7.5</td><td>7.0</td><td style="color:#F59E0B">47%</td><td style="color:#F59E0B">Lean Over</td></tr>
+    <tr><td class="num">2</td><td class="name" style="color:#A78BFA">Jesús Luzardo ★</td><td>WSH</td><td style="color:#A78BFA;font-weight:700">K ELITE</td><td class="fs">77.5</td><td>29.2%</td><td>31.4%</td><td>6.6</td><td>6.5</td><td style="color:#F59E0B">50%</td><td style="color:#F59E0B">Monitor</td></tr>
+    <tr><td class="num">3</td><td class="name" style="color:#A78BFA">Logan Henderson ★</td><td>MIL</td><td style="color:#A78BFA;font-weight:700">K ELITE</td><td class="fs">76.3</td><td>32.0%</td><td>28.2%</td><td>7.2</td><td>7.0</td><td style="color:#F59E0B">43%</td><td style="color:#F59E0B">Watch — 32% K rate vs 43% over</td></tr>
+    <tr><td class="num">4</td><td class="name" style="color:#A78BFA">Jared Jones ★</td><td>MIL</td><td style="color:#A78BFA;font-weight:700">K ELITE</td><td class="fs">75.4</td><td>27.9%</td><td>30.9%</td><td>6.4</td><td>6.0</td><td style="color:#F59E0B">46%</td><td style="color:#F59E0B">Lean Over</td></tr>
+    <tr><td class="num">5</td><td class="name">Joe Ryan</td><td>KC</td><td style="color:#8B5CF6">K Threat</td><td>64.9</td><td>27.1%</td><td>25.9%</td><td>5.5</td><td>5.5</td><td>47%</td><td style="color:#3D5870">Skip (exact line)</td></tr>
+    <tr><td class="num">6</td><td class="name">Ryan Weathers</td><td>STL</td><td style="color:#8B5CF6">K Threat</td><td>64.7</td><td>26.1%</td><td>27.5%</td><td>6.0</td><td>6.0</td><td>40%</td><td style="color:#EF4444">Skip (exact line)</td></tr>
+    <tr><td class="num">7</td><td class="name" style="color:#22C55E">Joey Cantillo ★</td><td>NYM</td><td style="color:#8B5CF6">K Threat</td><td>64.6</td><td>25.2%</td><td>30.7%</td><td>5.0</td><td>4.5</td><td style="color:#22C55E;font-weight:700">56% ← Best value</td><td style="color:#22C55E;font-weight:700">OVER</td></tr>
+    <tr><td class="num">8</td><td class="name">Trey Yesavage</td><td>HOU</td><td style="color:#8B5CF6">K Threat</td><td>61.9</td><td>24.0%</td><td>30.2%</td><td>5.8</td><td>5.5</td><td style="color:#F59E0B">52%</td><td style="color:#F59E0B">Lean Over</td></tr>
+    <tr><td class="num">9</td><td class="name" style="color:#F59E0B">MacKenzie Gore</td><td>SF</td><td style="color:#8B5CF6">K Threat</td><td>55.6</td><td>26.0%</td><td>25.3%</td><td>5.8</td><td>5.5</td><td style="color:#F59E0B">52%</td><td style="color:#F59E0B">Lean Over</td></tr>
+    <tr><td class="num">10</td><td class="name">Freddy Peralta</td><td>COL/TB</td><td>Manageable</td><td>53.3</td><td>22.1%</td><td>26.8%</td><td>4.1</td><td>4.0</td><td>39%</td><td style="color:#EF4444">Skip (Coors)</td></tr>
+  </tbody>
+</table>
+</div>
+<div style="font-size:10px;color:#1A3050;padding:8px 0 0">★ = K ELITE · Note: Cantillo (56% over) is best edge despite lower K score — the 4.5 line is thin relative to his SwStr. Henderson over 7.0 at 32% K rate with only 43% over may indicate the market is right about his IP limits — verify expected innings.</div>
+
+<!-- FANTASY TOP 15 -->
+<div class="section-hdr" style="margin-top:40px">
+  <div class="section-dot" style="background:#06B6D4"></div>
+  <div class="section-title">Fantasy Board — Top 15</div>
+</div>
+
+<div style="overflow-x:auto;background:#0B1220;border:1px solid #162236;border-radius:8px">
+<table class="ftable">
+  <thead>
+    <tr><th>#</th><th>Batter</th><th>H</th><th>Form</th><th>FS</th><th>DK</th><th>Hits</th><th>TB</th><th>xBA</th><th>Game / Note</th></tr>
+  </thead>
+  <tbody>
+    <tr class="avo-row"><td class="num">1</td><td class="name">Yordan Alvarez†</td><td>L</td><td class="hot">HOT</td><td class="fs">81.8</td><td class="dk">$11.8</td><td>1.12</td><td>2.39</td><td>.339</td><td>TOR@HOU · †Avoid HR matchup — fantasy yes, HR prop no</td></tr>
+    <tr><td class="num">2</td><td class="name">Shohei Ohtani</td><td>L</td><td class="hot">HOT</td><td class="fs">74.9</td><td class="dk">$10.4</td><td>1.06</td><td>2.09</td><td>.297</td><td>LAD@CHC · near-miss yday · NEAR×1</td></tr>
+    <tr><td class="num">3</td><td class="name">Enrique Hernández</td><td>R</td><td class="warm">WARM</td><td class="fs">69.8</td><td class="dk">$9.6</td><td>1.06</td><td>2.07</td><td>.285</td><td>TOR@HOU</td></tr>
+    <tr class="ideal-row"><td class="num">4</td><td class="name">C. Encarnacion-Strand</td><td>R</td><td class="warm">WARM</td><td class="fs">68.7</td><td class="dk">$9.6</td><td>0.93</td><td>1.99</td><td>.262</td><td>LAA@BAL · Rodriguez Att 83</td></tr>
+    <tr><td class="num">5</td><td class="name">Eduardo Valencia</td><td>R</td><td class="warm">WARM</td><td class="fs">68.4</td><td class="dk">$8.9</td><td>0.91</td><td>1.98</td><td>.269</td><td>ATH@CIN</td></tr>
+    <tr class="ideal-row"><td class="num">6</td><td class="name">Pete Alonso ✦</td><td>R</td><td class="warm">WARM</td><td class="fs">67.9</td><td class="dk">$9.2</td><td>0.95</td><td>1.81</td><td>.272</td><td>LAA@BAL · Rodriguez Att 83 stack</td></tr>
+    <tr><td class="num">7</td><td class="name">Bryan De La Cruz</td><td>R</td><td class="warm">WARM</td><td class="fs">67.7</td><td class="dk">$9.4</td><td>1.09</td><td>1.91</td><td>.292</td><td>PIT@MIL</td></tr>
+    <tr><td class="num">8</td><td class="name">James Wood</td><td>L</td><td class="warm">WARM</td><td class="fs">67.7</td><td class="dk">$10.5</td><td>0.95</td><td>2.05</td><td>.276</td><td>WSH@PHI · K-RATE RISK vs Luzardo</td></tr>
+    <tr><td class="num">9</td><td class="name">Griffin Conine</td><td>L</td><td class="warm">WARM</td><td class="fs">67.3</td><td class="dk">$9.1</td><td>0.93</td><td>1.81</td><td>.275</td><td>MIA@ATL</td></tr>
+    <tr><td class="num">10</td><td class="name">Bryce Harper ✦</td><td>L</td><td class="warm">WARM</td><td class="fs">67.2</td><td class="dk">$9.6</td><td>0.98</td><td>1.82</td><td>.276</td><td>WSH@PHI · Littell Att 75</td></tr>
+    <tr><td class="num">11</td><td class="name">Drake Baldwin</td><td>L</td><td class="warm">WARM</td><td class="fs">67.0</td><td class="dk">$9.0</td><td>0.98</td><td>1.82</td><td>.283</td><td>MIA@ATL</td></tr>
+    <tr><td class="num">12</td><td class="name">Ryan Jeffers</td><td>R</td><td class="warm">WARM</td><td class="fs">65.0</td><td class="dk">$8.4</td><td>0.89</td><td>1.59</td><td>.265</td><td>MIN@KC</td></tr>
+    <tr><td class="num">13</td><td class="name">Miguel Vargas</td><td>R</td><td class="due">DUE</td><td class="fs">64.0</td><td class="dk">$9.7</td><td>1.05</td><td>2.08</td><td>.269</td><td>NYM@CLE · DUE form</td></tr>
+    <tr><td class="num">14</td><td class="name">Gabriel Moreno</td><td>R</td><td class="warm">WARM</td><td class="fs">63.7</td><td class="dk">$8.6</td><td>1.05</td><td>1.65</td><td>.293</td><td>SD@AZ</td></tr>
+    <tr><td class="num">15</td><td class="name">Kyle Schwarber ✦</td><td>L</td><td class="warm">WARM</td><td class="fs">63.4</td><td class="dk">$8.9</td><td>0.83</td><td>1.75</td><td>.238</td><td>WSH@PHI · Littell Att 75</td></tr>
+  </tbody>
+</table>
+</div>
+<div style="font-size:10px;color:#1A3050;padding:8px 0 0">✦ = strong HR + fantasy synergy · † = elite fantasy floor but fade on HR prop today · ✦IDEAL = IDEAL SETUP matchup</div>
+
+<!-- NRFI QUICK VIEW -->
+<div class="section-hdr" style="margin-top:40px">
+  <div class="section-dot" style="background:#84CC16"></div>
+  <div class="section-title">NRFI / YRFI Quick View</div>
+</div>
+
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px">
+  <div style="background:#0B1220;border:1px solid rgba(239,68,68,.20);border-radius:8px;padding:12px">
+    <div style="font-size:11px;font-weight:700;color:#BDD4EC">LAA @ BAL</div>
+    <div style="font-size:18px;font-weight:800;color:#EF4444;margin:6px 0">YRFI ↑↑</div>
+    <div style="font-size:10px;color:#3D5070">Rodriguez (83 vuln) = BAL scores in 1st. Strongest YRFI on slate.</div>
+  </div>
+  <div style="background:#0B1220;border:1px solid rgba(239,68,68,.20);border-radius:8px;padding:12px">
+    <div style="font-size:11px;font-weight:700;color:#BDD4EC">WSH @ PHI</div>
+    <div style="font-size:18px;font-weight:800;color:#EF4444;margin:6px 0">YRFI lean</div>
+    <div style="font-size:10px;color:#3D5070">Littell (75 vuln) touched early by PHI lineup.</div>
+  </div>
+  <div style="background:#0B1220;border:1px solid rgba(34,197,94,.18);border-radius:8px;padding:12px">
+    <div style="font-size:11px;font-weight:700;color:#BDD4EC">LAD @ CHC</div>
+    <div style="font-size:18px;font-weight:800;color:#22C55E;margin:6px 0">NRFI — Skubal</div>
+    <div style="font-size:10px;color:#3D5070">K ELITE Skubal (32.7% SwStr) dominates LAD early.</div>
+  </div>
+  <div style="background:#0B1220;border:1px solid rgba(239,68,68,.20);border-radius:8px;padding:12px">
+    <div style="font-size:11px;font-weight:700;color:#D4A017">TB @ COL ✦</div>
+    <div style="font-size:18px;font-weight:800;color:#EF4444;margin:6px 0">YRFI ↑↑</div>
+    <div style="font-size:10px;color:#3D5070">Coors. Always. Even with Avoid arms — park runs override.</div>
+  </div>
+  <div style="background:#0B1220;border:1px solid rgba(34,197,94,.18);border-radius:8px;padding:12px">
+    <div style="font-size:11px;font-weight:700;color:#BDD4EC">NYM @ CLE</div>
+    <div style="font-size:18px;font-weight:800;color:#22C55E;margin:6px 0">NRFI — Cantillo</div>
+    <div style="font-size:10px;color:#3D5070">30.7% SwStr suppresses NYM in the first. Park also suppresses.</div>
+  </div>
+  <div style="background:#0B1220;border:1px solid rgba(34,197,94,.18);border-radius:8px;padding:12px">
+    <div style="font-size:11px;font-weight:700;color:#BDD4EC">TOR @ HOU</div>
+    <div style="font-size:18px;font-weight:800;color:#22C55E;margin:6px 0">NRFI lean</div>
+    <div style="font-size:10px;color:#3D5070">Yesavage (30.2% SwStr) sharp early. Neutral park.</div>
+  </div>
+  <div style="background:#0B1220;border:1px solid #162236;border-radius:8px;padding:12px">
+    <div style="font-size:11px;font-weight:700;color:#BDD4EC">ATH @ CIN</div>
+    <div style="font-size:18px;font-weight:800;color:#EF4444;margin:6px 0">YRFI lean</div>
+    <div style="font-size:10px;color:#3D5070">Great American + manageable arms = early offense.</div>
+  </div>
+  <div style="background:#0B1220;border:1px solid #162236;border-radius:8px;padding:12px">
+    <div style="font-size:11px;font-weight:700;color:#BDD4EC">STL @ NYY</div>
+    <div style="font-size:18px;font-weight:800;color:#5A7890;margin:6px 0">Neutral</div>
+    <div style="font-size:10px;color:#3D5070">Weathers (NL) vs Dobbins (Avoid). Mixed signals.</div>
+  </div>
+</div>
+
+<!-- FADES -->
+<div class="section-hdr" style="margin-top:40px">
+  <div class="section-dot" style="background:#EF4444"></div>
+  <div class="section-title">Fades &amp; Avoids</div>
+</div>
+<div style="background:#0B1220;border:1px solid rgba(239,68,68,.20);border-radius:8px;padding:16px;display:grid;grid-template-columns:1fr 1fr;gap:12px">
+  <div>
+    <div style="font-size:10px;font-weight:700;color:#EF4444;letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px">HR Props — Hard Fades</div>
+    <div style="font-size:12px;color:#5A7890;line-height:1.8">
+      • <strong style="color:#EF4444">Alvarez HR prop</strong> — Yesavage (Avoid 28). Emotional DUE play, model says no.<br>
+      • <strong style="color:#BDD4EC">Any COL/TB batter at Coors</strong> — both SPs Avoid tier, penalty applied<br>
+      • <strong style="color:#BDD4EC">CWS/BOS batters</strong> — both Fenway starters Avoid (Martin 39, Sandoval 39)<br>
+      • <strong style="color:#BDD4EC">NYM batters vs Cantillo</strong> — K Threat + suppressor park<br>
+      • <strong style="color:#BDD4EC">James Wood HR</strong> — K-RATE RISK vs K ELITE Luzardo. Strikeout spot.
+    </div>
+  </div>
+  <div>
+    <div style="font-size:10px;font-weight:700;color:#EF4444;letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px">K Props — Skip</div>
+    <div style="font-size:12px;color:#5A7890;line-height:1.8">
+      • <strong style="color:#BDD4EC">Peralta Ks</strong> — Coors kills swing-and-miss (39% over at Coors)<br>
+      • <strong style="color:#BDD4EC">Ryan Weathers over 6.0</strong> — exact line, 40% over<br>
+      • <strong style="color:#BDD4EC">Joe Ryan over 5.5</strong> — exact line, 47% over<br>
+      • <strong style="color:#BDD4EC">Any Attackable-tier SP Ks</strong> — Rodriguez (83), Vásquez (77), Littell (75) are soft arms, not K props
+    </div>
+  </div>
+</div>
+
+<!-- SUMMARY -->
+<div class="section-hdr" style="margin-top:40px">
+  <div class="section-dot" style="background:#D4A017"></div>
+  <div class="section-title">Slate Summary</div>
+</div>
+
+<div style="background:#0B1220;border:1px solid rgba(212,160,23,.18);border-radius:8px;padding:18px;font-size:12px;color:#5A7890;line-height:1.8">
+  <strong style="color:#D4E8FF;font-size:14px">Best single play: Harper or Schwarber HR (PHI stack).</strong> Littell at 75 vuln, Citizens Bank ×1.14, two of the cleanest power bats on the slate. Stack both — you get LHB power from two different angles in the same game. This is the most straightforward play on the board.
+  <br><br>
+  <strong style="color:#D4E8FF">Best K play: Cantillo over 4.5 (56% over)</strong> — not the most elite arm (Skubal has that) but the model edge is clearest here. 30.7% SwStr at a low 4.5 line. Pair with Skubal over 7.0 for your K parlay if you want the premium arm too.
+  <br><br>
+  <strong style="color:#D4E8FF">IDEAL SETUP plays: Kurtz (Great American ×1.22, +291) and Velázquez (Yankee Stadium ×1.19, +313).</strong> The 3-day sample is 7/8 on IDEAL — these are not optional. At those odds with the formula validated, both belong on the card.
+  <br><br>
+  <strong style="color:#D4E8FF">DFS anchors:</strong> Alvarez (fantasy FS=81.8, HOT form, 1.12 hits proj) is still the top DFS play despite being a HR prop fade. His floor via hits/TB is excellent. Stack Ohtani (FS=74.9, HOT) as the second anchor. Alonso + CES + Cowser for the BAL stack vs Rodriguez (Att 83).
+  <br><br>
+  <strong style="color:#D4E8FF">The discipline bet:</strong> Fading Alvarez HR despite 3 straight near-miss days. The PERSISTENT DUE emotional pull is real. The model's verdict is cold and clear: Yesavage (Avoid 28) at neutral park = 83% historical clean miss rate for this tier. Redirect the Alvarez HR capital to the PHI stack or Kurtz IDEAL.
+</div>
+
+<div style="font-size:10px;color:#1A3050;padding:20px 0 0;line-height:1.6">
+  Generated 2026-08-04 · 14 games · 28 starters · 374 batters scored ·
+  IDEAL SETUP 3-day record: 7/8 ✅ ·
+  Avoid tier 10-day record: 9/10 clean misses ·
+  Personal use only.
+</div>
+
+</div>
+</body>
+</html>
