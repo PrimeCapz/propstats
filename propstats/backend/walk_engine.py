@@ -2,8 +2,12 @@
 walk_engine.py — Pitcher walk prop board.
 
 Walk Score (0-100):
-  Pitcher BB% (40%) + Recent walk trend (20%) + Opp lineup BB draw (25%) + Chase inverse (15%)
+  Pitcher BB% (50%) + Recent walk trend (25%) + Opp lineup BB draw (25%)
   Tiers: WALK MACHINE >68 | WALK THREAT 52-68 | NEUTRAL <52
+
+Note: Savant chase_pct (o_swing_percent) is unavailable via public CSV endpoints
+for 2026; the 3-component model excludes it cleanly rather than defaulting all
+pitchers to the same neutral value.
 
 Projected Walks:
   proj_bb = blended_bb_rate × proj_bf
@@ -34,7 +38,6 @@ from baseball_engine import (
 LEAGUE_BB_PCT  = 8.5    # MLB avg pitcher BB%
 LEAGUE_BF_SP   = 25.0   # avg SP batters faced per game
 LEAGUE_OPP_BB  = 8.5    # MLB avg batter BB draw rate
-LEAGUE_CHASE   = 29.0   # MLB avg pitcher chase rate (batters chasing out-of-zone)
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -175,14 +178,14 @@ def _pitcher_walk_score(pitcher_id: int, pitcher_k_data: dict, pitcher_velo_data
                         recent_form: dict, opp_bb_pct: float) -> dict:
     """
     0-100 Walk Score. High score = pitcher likely to issue many walks.
-    Components: BB%(40) + Recent trend(20) + Opp patience(25) + Chase inverse(15)
+    Components: BB%(50) + Recent trend(25) + Opp patience(25)
+    3-component model — chase_pct excluded (unavailable from Savant public CSVs).
     """
     pid = str(pitcher_id)
     kd  = pitcher_k_data.get(pid, {})
     vd  = pitcher_velo_data.get(pid, {})
 
-    bb_pct  = _safe(kd.get("bb_pct")) or _safe(vd.get("bb_pct")) or LEAGUE_BB_PCT
-    chase   = _safe(vd.get("chase_pct")) or LEAGUE_CHASE
+    bb_pct = _safe(kd.get("bb_pct")) or _safe(vd.get("bb_pct")) or LEAGUE_BB_PCT
 
     recent_bb_pct = _safe(recent_form.get("recent_bb_pct")) or bb_pct
     trend = recent_form.get("trend", "STABLE")
@@ -201,15 +204,11 @@ def _pitcher_walk_score(pitcher_id: int, pitcher_k_data: dict, pitcher_velo_data
     opp = opp_bb_pct if opp_bb_pct > 0 else LEAGUE_OPP_BB
     s_opp = _scale(opp, 6.0, 8.5, 14.0)
 
-    # (4) Inverse pitcher chase rate — low chase = batters stay patient = more walks
-    # Scale: 35% chase→0, 29% chase→50 (avg), 20% chase→100
-    s_chase_inv = _scale(35.0 - chase, 0.0, 6.0, 15.0)
-
-    data_sparse = (bb_pct == LEAGUE_BB_PCT and kd.get("bb_pct") is None and vd.get("bb_pct") is None)
+    data_sparse = (kd.get("bb_pct") is None and vd.get("bb_pct") is None)
     if data_sparse:
         score = 0.0
     else:
-        score = s_bb * 0.40 + s_recent * 0.20 + s_opp * 0.25 + s_chase_inv * 0.15
+        score = s_bb * 0.50 + s_recent * 0.25 + s_opp * 0.25
 
     # Tier
     if data_sparse:
@@ -233,21 +232,17 @@ def _pitcher_walk_score(pitcher_id: int, pitcher_k_data: dict, pitcher_velo_data
         tags.append("IMPROVING CTRL")
     if opp >= 9.5:
         tags.append("PATIENT LINEUP")
-    if chase <= 25.0:
-        tags.append("LOW CHASE ARM")  # pitcher rarely gets chases → batters work counts
 
     return {
         "score":      round(score, 1),
         "tier":       tier,
         "bb_pct":     round(bb_pct, 1),
-        "chase_pct":  round(chase, 1),
         "opp_bb_pct": round(opp, 1),
         "tags":       tags,
         "components": {
-            "s_bb":        round(s_bb, 1),
-            "s_recent":    round(s_recent, 1),
-            "s_opp":       round(s_opp, 1),
-            "s_chase_inv": round(s_chase_inv, 1),
+            "s_bb":     round(s_bb, 1),
+            "s_recent": round(s_recent, 1),
+            "s_opp":    round(s_opp, 1),
         },
     }
 
@@ -420,28 +415,27 @@ def format_walk_board(results: list, game_date: str) -> str:
 
     lines.append("=" * W)
     lines.append(f"  WALK PROP BOARD — {game_date}")
-    lines.append("  Walk Score: BB%(40) + Recent Trend(20) + Opp Patience(25) + Chase Inv(15)  |  Proj = Poisson(blended BB%×BF)")
+    lines.append("  Walk Score: BB%(50) + Recent Trend(25) + Opp Patience(25)  |  Proj = Poisson(blended BB%×BF)")
     lines.append("=" * W)
     lines.append("")
-    lines.append(f"  {'PITCHER':<22} {'OPP':<5} {'WLKSCR':>7} {'TIER':<14} {'BB%':>5} {'Chase':>6} {'OppBB%':>7} {'Proj':>5} {'Line':>5} {'Ov%':>5} {'o2.5':>6}")
-    lines.append("  " + "-" * 96)
+    lines.append(f"  {'PITCHER':<22} {'OPP':<5} {'WLKSCR':>7} {'TIER':<14} {'BB%':>5} {'OppBB%':>7} {'Proj':>5} {'Line':>5} {'Ov%':>5} {'o2.5':>6}")
+    lines.append("  " + "-" * 89)
 
     for r in results:
         ws   = r["walk_score"]
         proj = r["proj"]
 
         tier_sym = "🔥" if ws["tier"] == "WALK MACHINE" else ("⚠ " if ws["tier"] == "WALK THREAT" else "  ")
-        bb_s     = _fmt(ws["bb_pct"],     ".1f", "%", "  -")
-        chase_s  = _fmt(ws["chase_pct"],  ".1f", "%", "  -")
-        oppbb_s  = _fmt(r["opp_bb_pct"],  ".1f", "%", "  -")
-        proj_s   = _fmt(proj["proj_bb"],  ".2f", "",  "  -")
-        ov_s     = _fmt(proj["over_pct"], ".0f", "%", "  -")
-        ov25_s   = _fmt(proj["o2_5"],     ".0f", "%", "  -")
+        bb_s    = _fmt(ws["bb_pct"],     ".1f", "%", "  -")
+        oppbb_s = _fmt(r["opp_bb_pct"],  ".1f", "%", "  -")
+        proj_s  = _fmt(proj["proj_bb"],  ".2f", "",  "  -")
+        ov_s    = _fmt(proj["over_pct"], ".0f", "%", "  -")
+        ov25_s  = _fmt(proj["o2_5"],     ".0f", "%", "  -")
 
         lines.append(
             f"  {tier_sym}{r['pitcher_name']:<20} {r['opp_team']:<5}"
             f" {ws['score']:>6.1f} {ws['tier']:<14}"
-            f" {bb_s:>5} {chase_s:>6} {oppbb_s:>7}"
+            f" {bb_s:>5} {oppbb_s:>7}"
             f" {proj_s:>5} {proj['line']:>5.1f}"
             f" {ov_s:>5} {ov25_s:>6}"
         )
