@@ -1306,7 +1306,12 @@ SAVANT_PITCHING_URL = "https://baseballsavant.mlb.com/leaderboard/statcast?type=
 SAVANT_XSTATS_URL   = "https://baseballsavant.mlb.com/leaderboard/expected_statistics?type=batter&year={year}&position=&team=&min=10&csv=true"
 SAVANT_BAT_TRACK_URL = "https://baseballsavant.mlb.com/leaderboard/bat-tracking?type=batter&year={year}&min=10&csv=true"
 # Custom leaderboard: pitcher whiff% and K% (CSW% not available in custom CSV)
-SAVANT_PITCHER_K_URL = "https://baseballsavant.mlb.com/leaderboard/custom?year={year}&type=pitcher&filter=&sort=4&sortDir=desc&min=20&selections=k_percent,bb_percent,whiff_percent&csv=true"
+SAVANT_PITCHER_K_URL = (
+    "https://baseballsavant.mlb.com/leaderboard/custom?year={year}&type=pitcher"
+    "&filter=&sort=4&sortDir=desc&min=20"
+    "&selections=k_percent,bb_percent,whiff_percent,f_strike_percent,groundballs_percent,flyballs_percent,hard_hit_percent"
+    "&csv=true"
+)
 # Custom leaderboard: batter K% and whiff% (not in statcast leaderboard CSV)
 SAVANT_BATTER_K_URL  = "https://baseballsavant.mlb.com/leaderboard/custom?year={year}&type=batter&filter=&sort=4&sortDir=desc&min=20&selections=k_percent,bb_percent,whiff_percent&csv=true"
 
@@ -1505,9 +1510,13 @@ def load_savant_pitcher_k(season: int = None) -> dict:
         pid = row.get("player_id", "").strip()
         if pid:
             result[pid] = {
-                "swstr_pct": _safe_float(row.get("whiff_percent")),  # whiff% per swing
-                "k_pct":     _safe_float(row.get("k_percent")),
-                "bb_pct":    _safe_float(row.get("bb_percent")),
+                "swstr_pct":    _safe_float(row.get("whiff_percent")),
+                "k_pct":        _safe_float(row.get("k_percent")),
+                "bb_pct":       _safe_float(row.get("bb_percent")),
+                "f_strike_pct": _safe_float(row.get("f_strike_percent")),
+                "gb_pct":       _safe_float(row.get("groundballs_percent")),
+                "fb_pct":       _safe_float(row.get("flyballs_percent")),
+                "hh_pct":       _safe_float(row.get("hard_hit_percent")),
             }
     if result:
         _savant_pitcher_k[season] = result

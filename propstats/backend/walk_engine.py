@@ -2,12 +2,12 @@
 walk_engine.py — Pitcher walk prop board.
 
 Walk Score (0-100):
-  Pitcher BB% (50%) + Recent walk trend (25%) + Opp lineup BB draw (25%)
+  BB% (40%) + Recent walk trend (25%) + Opp lineup BB draw (20%) + F-Strike inv (15%)
   Tiers: WALK MACHINE >68 | WALK THREAT 52-68 | NEUTRAL <52
 
-Note: Savant chase_pct (o_swing_percent) is unavailable via public CSV endpoints
-for 2026; the 3-component model excludes it cleanly rather than defaulting all
-pitchers to the same neutral value.
+  F-Strike component: low first-pitch strike% → falls behind in counts → more walks.
+  Inverted so high f_strike_pct suppresses walk score (pitcher commands the zone).
+  Note: Savant chase_pct unavailable via public CSV for 2026 — excluded.
 
 Projected Walks:
   proj_bb = blended_bb_rate × proj_bf
@@ -174,18 +174,22 @@ def _pitcher_recent_walk_form(pitcher_id: int, season_bb_pct: float,
 
 # ── Walk score ───────────────────────────────────────────────────────────────
 
+LEAGUE_FSTRIKE_PCT = 62.5  # MLB avg first-pitch strike %
+
+
 def _pitcher_walk_score(pitcher_id: int, pitcher_k_data: dict, pitcher_velo_data: dict,
                         recent_form: dict, opp_bb_pct: float) -> dict:
     """
     0-100 Walk Score. High score = pitcher likely to issue many walks.
-    Components: BB%(50) + Recent trend(25) + Opp patience(25)
-    3-component model — chase_pct excluded (unavailable from Savant public CSVs).
+    Components: BB%(40) + Recent trend(25) + Opp patience(20) + F-Strike inv(15)
+    F-Strike: low first-pitch strike% → falls behind counts → more walks.
     """
     pid = str(pitcher_id)
     kd  = pitcher_k_data.get(pid, {})
     vd  = pitcher_velo_data.get(pid, {})
 
-    bb_pct = _safe(kd.get("bb_pct")) or _safe(vd.get("bb_pct")) or LEAGUE_BB_PCT
+    bb_pct      = _safe(kd.get("bb_pct")) or _safe(vd.get("bb_pct")) or LEAGUE_BB_PCT
+    f_strike_pct = _safe(kd.get("f_strike_pct")) or LEAGUE_FSTRIKE_PCT
 
     recent_bb_pct = _safe(recent_form.get("recent_bb_pct")) or bb_pct
     trend = recent_form.get("trend", "STABLE")
@@ -204,11 +208,16 @@ def _pitcher_walk_score(pitcher_id: int, pitcher_k_data: dict, pitcher_velo_data
     opp = opp_bb_pct if opp_bb_pct > 0 else LEAGUE_OPP_BB
     s_opp = _scale(opp, 6.0, 8.5, 14.0)
 
+    # (4) F-Strike% — inverted: low f_strike% → high walk risk
+    # scale: f_strike_inv = 100 - f_strike_pct; 28→0, 37.5→50, 45→100
+    f_strike_inv = 100.0 - f_strike_pct
+    s_fstrike = _scale(f_strike_inv, 28.0, 37.5, 45.0)
+
     data_sparse = (kd.get("bb_pct") is None and vd.get("bb_pct") is None)
     if data_sparse:
         score = 0.0
     else:
-        score = s_bb * 0.50 + s_recent * 0.25 + s_opp * 0.25
+        score = s_bb * 0.40 + s_recent * 0.25 + s_opp * 0.20 + s_fstrike * 0.15
 
     # Tier
     if data_sparse:
@@ -232,17 +241,23 @@ def _pitcher_walk_score(pitcher_id: int, pitcher_k_data: dict, pitcher_velo_data
         tags.append("IMPROVING CTRL")
     if opp >= 9.5:
         tags.append("PATIENT LINEUP")
+    if f_strike_pct < 58.0:
+        tags.append(f"LOW F-STRIKE ({f_strike_pct:.0f}%)")
+    elif f_strike_pct >= 66.0:
+        tags.append(f"COMMAND ARTIST ({f_strike_pct:.0f}%)")
 
     return {
-        "score":      round(score, 1),
-        "tier":       tier,
-        "bb_pct":     round(bb_pct, 1),
-        "opp_bb_pct": round(opp, 1),
-        "tags":       tags,
+        "score":        round(score, 1),
+        "tier":         tier,
+        "bb_pct":       round(bb_pct, 1),
+        "f_strike_pct": round(f_strike_pct, 1),
+        "opp_bb_pct":   round(opp, 1),
+        "tags":         tags,
         "components": {
-            "s_bb":     round(s_bb, 1),
-            "s_recent": round(s_recent, 1),
-            "s_opp":    round(s_opp, 1),
+            "s_bb":       round(s_bb, 1),
+            "s_recent":   round(s_recent, 1),
+            "s_opp":      round(s_opp, 1),
+            "s_fstrike":  round(s_fstrike, 1),
         },
     }
 
@@ -415,27 +430,28 @@ def format_walk_board(results: list, game_date: str) -> str:
 
     lines.append("=" * W)
     lines.append(f"  WALK PROP BOARD — {game_date}")
-    lines.append("  Walk Score: BB%(50) + Recent Trend(25) + Opp Patience(25)  |  Proj = Poisson(blended BB%×BF)")
+    lines.append("  Walk Score: BB%(40) + Recent Trend(25) + Opp Patience(20) + F-Strike inv(15)  |  Proj = Poisson(blended BB%×BF)")
     lines.append("=" * W)
     lines.append("")
-    lines.append(f"  {'PITCHER':<22} {'OPP':<5} {'WLKSCR':>7} {'TIER':<14} {'BB%':>5} {'OppBB%':>7} {'Proj':>5} {'Line':>5} {'Ov%':>5} {'o2.5':>6}")
-    lines.append("  " + "-" * 89)
+    lines.append(f"  {'PITCHER':<22} {'OPP':<5} {'WLKSCR':>7} {'TIER':<14} {'BB%':>5} {'F-Str':>6} {'OppBB%':>7} {'Proj':>5} {'Line':>5} {'Ov%':>5} {'o2.5':>6}")
+    lines.append("  " + "-" * 96)
 
     for r in results:
         ws   = r["walk_score"]
         proj = r["proj"]
 
-        tier_sym = "🔥" if ws["tier"] == "WALK MACHINE" else ("⚠ " if ws["tier"] == "WALK THREAT" else "  ")
-        bb_s    = _fmt(ws["bb_pct"],     ".1f", "%", "  -")
-        oppbb_s = _fmt(r["opp_bb_pct"],  ".1f", "%", "  -")
-        proj_s  = _fmt(proj["proj_bb"],  ".2f", "",  "  -")
-        ov_s    = _fmt(proj["over_pct"], ".0f", "%", "  -")
-        ov25_s  = _fmt(proj["o2_5"],     ".0f", "%", "  -")
+        tier_sym  = "🔥" if ws["tier"] == "WALK MACHINE" else ("⚠ " if ws["tier"] == "WALK THREAT" else "  ")
+        bb_s      = _fmt(ws["bb_pct"],       ".1f", "%", "  -")
+        fstr_s    = _fmt(ws.get("f_strike_pct"), ".0f", "%", "  -")
+        oppbb_s   = _fmt(r["opp_bb_pct"],    ".1f", "%", "  -")
+        proj_s    = _fmt(proj["proj_bb"],     ".2f", "",  "  -")
+        ov_s      = _fmt(proj["over_pct"],    ".0f", "%", "  -")
+        ov25_s    = _fmt(proj["o2_5"],        ".0f", "%", "  -")
 
         lines.append(
             f"  {tier_sym}{r['pitcher_name']:<20} {r['opp_team']:<5}"
             f" {ws['score']:>6.1f} {ws['tier']:<14}"
-            f" {bb_s:>5} {oppbb_s:>7}"
+            f" {bb_s:>5} {fstr_s:>6} {oppbb_s:>7}"
             f" {proj_s:>5} {proj['line']:>5.1f}"
             f" {ov_s:>5} {ov25_s:>6}"
         )

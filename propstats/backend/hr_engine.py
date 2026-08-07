@@ -214,6 +214,7 @@ def _vuln_from_data(d: dict, era_fallback: float = 4.50) -> tuple:
     fb_pct = _safe(d.get("fb_pct_allowed"))
     la_avg = _safe(d.get("la_avg_allowed"))
     xslg   = _safe(d.get("xslg_allowed"))
+    gb_pct = _safe(d.get("gb_pct_allowed"))
 
     s_xwoba  = _scale(xwoba,  0.260, 0.320, 0.420)
     s_barrel = _scale(barrel, 3.0,   7.0,   14.0)
@@ -226,6 +227,12 @@ def _vuln_from_data(d: dict, era_fallback: float = 4.50) -> tuple:
     else:
         score = (s_xwoba * 0.30 + s_barrel * 0.28 + s_xslg * 0.20
                  + s_fb * 0.15 + s_la * 0.07)
+
+    # GB suppressor penalty: heavy GB pitchers don't give up HRs even when
+    # their contact quality metrics look attackable (e.g. Mikolas at 45.8% GB)
+    if gb_pct > 40.0:
+        gb_penalty = min(18.0, (gb_pct - 38.0) * 1.5)
+        score = max(0.0, score - gb_penalty)
 
     if score > 63:
         tier = "Attackable"
@@ -249,6 +256,7 @@ def _pitcher_vuln_score(pitcher_id: int, pitcher_hr_data: dict,
     barrel   = _safe(d.get("barrel_allowed"))
     xwoba    = _safe(d.get("xwoba_allowed"))
     fb_pct   = _safe(d.get("fb_pct_allowed"))
+    gb_pct   = _safe(d.get("gb_pct_allowed"))
     la_avg   = _safe(d.get("la_avg_allowed"))
     xslg     = _safe(d.get("xslg_allowed"))
     era      = _safe(d.get("era"), default=4.50)
@@ -273,6 +281,8 @@ def _pitcher_vuln_score(pitcher_id: int, pitcher_hr_data: dict,
     s_la     = _scale(la_avg, 5.0,   14.0,  24.0)
     s_xslg   = _scale(xslg,   0.320, 0.400, 0.540)
 
+    gb_suppressor = gb_pct >= 43.0
+
     return {
         "score":          score,
         "tier":           tier,
@@ -284,7 +294,9 @@ def _pitcher_vuln_score(pitcher_id: int, pitcher_hr_data: dict,
         "xwoba_allowed":  round(xwoba, 3) if xwoba else None,
         "xslg_allowed":   round(xslg, 3) if xslg else None,
         "fb_pct_allowed": round(fb_pct, 1),
+        "gb_pct_allowed": round(gb_pct, 1),
         "la_avg_allowed": round(la_avg, 1),
+        "gb_suppressor":  gb_suppressor,
         "era":            round(era, 2) if era else None,
         "components": {
             "xwoba": round(s_xwoba, 1),
@@ -303,14 +315,18 @@ def _pitcher_tags(pitcher_id: int, pitcher_hr_data: dict, arsenal_data: dict) ->
     d = pitcher_hr_data.get(pid, {})
     arsenal = arsenal_data.get(pid, [])
 
-    xwoba = _safe(d.get("xwoba_allowed"))
+    xwoba  = _safe(d.get("xwoba_allowed"))
     barrel = _safe(d.get("barrel_allowed"))
-    era = _safe(d.get("era"), 4.50)
+    gb_pct = _safe(d.get("gb_pct_allowed"))
+    era    = _safe(d.get("era"), 4.50)
 
     if xwoba > 0.350 and era > 4.50:
         tags.append("MEATBALL PITCHER")
     if barrel > 10.0:
         tags.append("HIGH BARREL RATE ALLOWED")
+    # GB suppressor: heavy GB profile limits HR upside even when otherwise Attackable
+    if gb_pct >= 43.0:
+        tags.append(f"GB SUPPRESSOR ({gb_pct:.0f}% GB)")
 
     # Pitch mix concentration
     if arsenal:
@@ -692,6 +708,7 @@ def _batter_tags(batter_id: int, batter_hr_data: dict, savant_batting: dict,
     pull_pct = _safe(d.get("pull_pct"))
     fb_pct   = _safe(d.get("fb_pct"))
     sweet    = _safe(d.get("sweet_spot_pct"))
+    la_avg   = _safe(d.get("la_avg"))
     hh_pct   = _safe(ev.get("hard_hit_pct"))
     form     = hr_form_data.get("form_pct", 50)
     trend    = hr_form_data.get("trend", "→")
@@ -704,6 +721,11 @@ def _batter_tags(batter_id: int, batter_hr_data: dict, savant_batting: dict,
         tags.append("BLASTS")
     if sweet >= 38.0:
         tags.append("SWEET SPOT")
+    # Launch angle profile flags — key for distinguishing true HR threats
+    if la_avg >= 21.0:
+        tags.append(f"LOFT HITTER ({la_avg:.0f}°)")
+    elif la_avg > 0 and la_avg < 13.0:
+        tags.append(f"FLAT SWING ({la_avg:.0f}°)")
     if form >= 80 and trend == "↑":
         tags.append("HOT FORM")
     elif form <= 35 and trend == "↓":

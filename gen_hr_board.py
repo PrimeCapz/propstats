@@ -74,7 +74,8 @@ def grade_info(composite, hr):
 
 def build_tags(brl_pa, brl_bip, hh, bat_spd, xwoba, avg_dist, form,
                edges, ptier, wt, ms, hr, ev50, park_factor,
-               persistent_due=False, ideal_setup=False):
+               persistent_due=False, ideal_setup=False,
+               la_avg=None, gb_suppressor=False):
     T = []
 
     # Proven 2-day winning signals — surface first
@@ -82,6 +83,17 @@ def build_tags(brl_pa, brl_bip, hh, bat_spd, xwoba, avg_dist, form,
         T.append(('IDEAL SETUP ✦', '#D4A017'))
     if persistent_due:
         T.append(('PERSISTENT DUE', '#F59E0B'))
+
+    # Launch angle profile — key HR predictor (flag before contact quality)
+    if la_avg is not None:
+        if la_avg >= 21.0:
+            T.append((f'LOFT HITTER {la_avg:.0f}°', '#10B981'))
+        elif la_avg < 13.0:
+            T.append((f'FLAT SWING {la_avg:.0f}°', '#EF4444'))
+
+    # Pitcher GB suppressor warning — reduces HR upside even vs Attackable pitchers
+    if gb_suppressor:
+        T.append(('GB SUPPRESSOR', '#6B7280'))
 
     # Contact quality — barrel/PA is the primary signal
     if   brl_pa >= 25: T.append(('BARREL MACHINE',    '#D4A017'))
@@ -196,9 +208,13 @@ for ge in hr_board:
         if game not in game_meta:
             game_meta[game] = {'venue': venue, 'park_factor': pf_row}
 
+        la_avg_batter   = b.get('la_avg') or 0
+        gb_suppressor   = ge['vuln'].get('gb_suppressor', False)
         tags = build_tags(brl_pa, brl_bip, hh, bat_spd, xwoba, avg_dist,
                           form, edges, ptier, wt, ms, hr, ev50, pf_row,
-                          persistent_due=persistent_due, ideal_setup=ideal_setup)
+                          persistent_due=persistent_due, ideal_setup=ideal_setup,
+                          la_avg=la_avg_batter if la_avg_batter else None,
+                          gb_suppressor=gb_suppressor)
         grd, gbg, gfg = grade_info(composite, hr)
 
         all_picks.append({
@@ -206,10 +222,12 @@ for ge in hr_board:
             'hr': hr, 'eff_hr': eff_hr, 'ms': ms, 'wt': wt, 'composite': composite,
             'brl_pa': brl_pa, 'brl_bip': brl_bip, 'ev50': ev50, 'hh': hh,
             'xwoba': xwoba, 'avg_dist': avg_dist, 'bat_spd': bat_spd,
-            'form': form, 'tags': tags,
+            'la_avg': la_avg_batter, 'form': form, 'tags': tags,
             'grade': grd, 'gbg': gbg, 'gfg': gfg,
             'game': game, 'venue': venue, 'park_factor': pf_row,
             'pitcher': ge['pitcher_name'], 'ptier': ptier, 'vuln': pscore,
+            'gb_pct_allowed': ge['vuln'].get('gb_pct_allowed', 0),
+            'gb_suppressor': gb_suppressor,
             'ideal_setup': ideal_setup, 'persistent_due': persistent_due,
         })
 
@@ -320,8 +338,11 @@ def game_header_html(game):
     pitcher = top.get('pitcher','')
     ptier   = top.get('ptier','')
     ptier_col = '#84CC16' if ptier == 'Attackable' else ('#EF4444' if ptier == 'Avoid' else '#5A7090')
+    gb_pct_v  = top.get('gb_pct_allowed', 0)
+    gb_sup    = top.get('gb_suppressor', False)
+    gb_note   = f' · GB {gb_pct_v:.0f}%⬇' if gb_sup and gb_pct_v else ''
     pitcher_html = (f'<span class="pitcher-tag" style="color:{ptier_col}">'
-                    f'vs {esc(pitcher)} · {esc(ptier)}</span>') if pitcher else ''
+                    f'vs {esc(pitcher)} · {esc(ptier)}{esc(gb_note)}</span>') if pitcher else ''
 
     return f'''\
 <div class="game-hdr">
