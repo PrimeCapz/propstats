@@ -57,7 +57,8 @@ def _pitcher_recent_form(pitcher_id: int, lookback: int = 3) -> dict:
         starts = [s for s in splits
                   if _safe(s.get("stat", {}).get("inningsPitched")) >= 1.0][-lookback:]
         if not starts:
-            return {"bf_mult": 1.0, "form_label": "", "recent_era": None, "recent_ip_pg": None}
+            return {"bf_mult": 1.0, "form_label": "", "recent_era": None, "recent_ip_pg": None,
+                    "start_logs": [], "last_start_date": "", "last_start_opp": "", "n_starts": 0}
 
         total_er = sum(_safe(s["stat"].get("earnedRuns")) for s in starts)
         total_ip = sum(_safe(s["stat"].get("inningsPitched")) for s in starts)
@@ -93,15 +94,36 @@ def _pitcher_recent_form(pitcher_id: int, lookback: int = 3) -> dict:
         else:
             form_label = f"→ STABLE({recent_era:.2f}ERA/{recent_ip_pg:.1f}IP)"
 
+        # Individual start logs (most-recent first)
+        start_logs = []
+        for s in reversed(starts):
+            stat     = s.get("stat", {})
+            opp_info = s.get("opponent") or s.get("team") or {}
+            start_logs.append({
+                "date": s.get("date", ""),
+                "opp":  opp_info.get("abbreviation", ""),
+                "ip":   stat.get("inningsPitched", "0.0"),
+                "bb":   int(_safe(stat.get("baseOnBalls", 0))),
+                "k":    int(_safe(stat.get("strikeOuts", 0))),
+                "er":   int(_safe(stat.get("earnedRuns", 0))),
+            })
+
+        last_start = starts[-1] if starts else {}
+        last_opp   = (last_start.get("opponent") or last_start.get("team") or {})
+
         return {
-            "bf_mult":      round(bf_mult, 3),
-            "form_label":   form_label,
-            "recent_era":   round(recent_era, 2),
-            "recent_ip_pg": round(recent_ip_pg, 1),
-            "n_starts":     n,
+            "bf_mult":        round(bf_mult, 3),
+            "form_label":     form_label,
+            "recent_era":     round(recent_era, 2),
+            "recent_ip_pg":   round(recent_ip_pg, 1),
+            "n_starts":       n,
+            "start_logs":     start_logs,
+            "last_start_date": last_start.get("date", ""),
+            "last_start_opp":  last_opp.get("abbreviation", ""),
         }
     except Exception:
-        return {"bf_mult": 1.0, "form_label": "", "recent_era": None, "recent_ip_pg": None}
+        return {"bf_mult": 1.0, "form_label": "", "recent_era": None, "recent_ip_pg": None,
+                "start_logs": [], "last_start_date": "", "last_start_opp": "", "n_starts": 0}
 
 def _apply_swstr_guard(bf_mult: float, recent_era: float | None,
                        recent_ip_pg: float | None, swstr_pct: float) -> float:
@@ -622,6 +644,14 @@ def format_k_board(results: list, game_date: str) -> str:
         )
         if ars_str:
             lines.append(f"  │  Arsenal: {ars_str}")
+        # Recent start log (most-recent first, up to 5)
+        logs = r["recent_form"].get("start_logs", [])[:5]
+        if logs:
+            log_str = "  ".join(
+                f"{l['date'][-5:]} vs {l['opp']} {l['ip']}IP {l['bb']}BB {l['k']}K"
+                for l in logs
+            )
+            lines.append(f"  │  Last {len(logs)}G({rf_label}): {log_str}")
         lines.append("  │")
 
         # Column headers

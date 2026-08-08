@@ -225,7 +225,8 @@ for ge in hr_board:
             'la_avg': la_avg_batter, 'form': form, 'tags': tags,
             'grade': grd, 'gbg': gbg, 'gfg': gfg,
             'game': game, 'venue': venue, 'park_factor': pf_row,
-            'pitcher': ge['pitcher_name'], 'ptier': ptier, 'vuln': pscore,
+            'pitcher': ge['pitcher_name'], 'pitcher_team': ge.get('pitcher_team', ''),
+            'ptier': ptier, 'vuln': pscore,
             'gb_pct_allowed': ge['vuln'].get('gb_pct_allowed', 0),
             'gb_suppressor': gb_suppressor,
             'ideal_setup': ideal_setup, 'persistent_due': persistent_due,
@@ -255,21 +256,22 @@ def metric_pill(label, val, highlight=False):
     return f'<span class="metric-pill" style="{hl}">{label} <b>{val}</b></span>'
 
 def player_row_html(pick):
-    wt    = pick['wt']
-    hr    = pick['hr']
-    eff   = pick.get('eff_hr', hr)
-    bats  = pick['bats']
-    name  = pick['name']
-    team  = pick['team']
-    grd   = pick['grade']
-    gbg   = pick['gbg']
-    gfg   = pick['gfg']
-    odds  = to_american(hr)
-    tags  = pick['tags']
-    brl   = pick['brl_pa']
-    ev50  = pick['ev50']
-    hh    = pick['hh']
-    pf    = pick['park_factor']
+    wt      = pick['wt']
+    hr      = pick['hr']
+    eff     = pick.get('eff_hr', hr)
+    bats    = pick['bats']
+    name    = pick['name']
+    team    = pick['team']
+    pitcher = pick.get('pitcher', '')
+    grd     = pick['grade']
+    gbg     = pick['gbg']
+    gfg     = pick['gfg']
+    odds    = to_american(hr)
+    tags    = pick['tags']
+    brl     = pick['brl_pa']
+    ev50    = pick['ev50']
+    hh      = pick['hh']
+    pf      = pick['park_factor']
 
     # Outlier stripe
     if wt >= 50:   stripe_col = '#D4A017'; row_cls = 'player-row outlier-prime'
@@ -308,6 +310,7 @@ def player_row_html(pick):
       </div>
       <div class="row-right">
         <span class="team-tag">{esc(team)}</span>
+        {f'<span class="vs-pitcher">vs {esc(pitcher)}</span>' if pitcher else ''}
         <span class="grade-badge" style="background:{gbg};color:{gfg}">{grd}</span>
         <span class="prob-block"><span class="prob-pct">{hr:.1f}%</span><span class="prob-odds"> ({odds})</span></span>
       </div>
@@ -333,16 +336,31 @@ def game_header_html(game):
         park_html = ''
 
     away, home = game.split('@')
-    # Best pick for this game
-    top = game_picks[game][0] if game_picks[game] else {}
-    pitcher = top.get('pitcher','')
-    ptier   = top.get('ptier','')
-    ptier_col = '#84CC16' if ptier == 'Attackable' else ('#EF4444' if ptier == 'Avoid' else '#5A7090')
-    gb_pct_v  = top.get('gb_pct_allowed', 0)
-    gb_sup    = top.get('gb_suppressor', False)
-    gb_note   = f' · GB {gb_pct_v:.0f}%⬇' if gb_sup and gb_pct_v else ''
-    pitcher_html = (f'<span class="pitcher-tag" style="color:{ptier_col}">'
-                    f'vs {esc(pitcher)} · {esc(ptier)}{esc(gb_note)}</span>') if pitcher else ''
+    # Collect unique pitchers from all picks for this game (preserves insertion order)
+    seen_pitchers: dict = {}
+    for p in game_picks[game]:
+        pname = p.get('pitcher', '')
+        if pname and pname not in seen_pitchers:
+            seen_pitchers[pname] = (
+                pname,
+                p.get('pitcher_team', ''),
+                p.get('ptier', ''),
+                p.get('gb_suppressor', False),
+                p.get('gb_pct_allowed', 0),
+            )
+    pitcher_parts = []
+    for pname, pteam, ptier, gb_sup, gb_pct_v in seen_pitchers.values():
+        ptier_col = '#84CC16' if ptier == 'Attackable' else ('#EF4444' if ptier == 'Avoid' else '#5A7090')
+        gb_note   = ' GB⬇' if gb_sup else ''
+        team_part = f' ({esc(pteam)})' if pteam else ''
+        label     = f'{esc(pname)}{team_part} · {esc(ptier)}{gb_note}'
+        pitcher_parts.append(f'<span class="pitcher-tag" style="color:{ptier_col}">{label}</span>')
+    if len(pitcher_parts) > 1:
+        pitcher_html = '<span class="pitcher-sep"> ↔ </span>'.join(pitcher_parts)
+    elif pitcher_parts:
+        pitcher_html = pitcher_parts[0]
+    else:
+        pitcher_html = ''
 
     return f'''\
 <div class="game-hdr">
@@ -408,6 +426,7 @@ body{{
 .hdr-dot{{color:#1A2A3E}}
 .game-venue{{font-size:11px;color:#3B5270}}
 .pitcher-tag{{font-size:10px;font-weight:600;letter-spacing:.04em}}
+.pitcher-sep{{font-size:10px;color:#3B5270;font-weight:400}}
 .park-pill{{
   font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
   padding:2px 7px;border:1px solid;border-radius:999px
@@ -427,6 +446,7 @@ body{{
 .hr-pill{{font-size:10px;font-weight:700;color:#3B5270;letter-spacing:.04em}}
 .row-right{{display:flex;align-items:center;gap:8px;flex-shrink:0}}
 .team-tag{{font-size:11px;font-weight:600;color:#3B5270}}
+.vs-pitcher{{font-size:10px;font-weight:600;color:#5A7090;white-space:nowrap}}
 .grade-badge{{font-size:11px;font-weight:800;padding:2px 8px;border-radius:4px}}
 .prob-block{{display:flex;align-items:baseline;gap:2px}}
 .prob-pct{{font-size:17px;font-weight:800;color:#DDE6F0;font-variant-numeric:tabular-nums}}
