@@ -2,13 +2,21 @@
 k_engine.py — Pitcher strikeout prop board.
 
 Pitcher K Score (0-100):
-  SwStr% (40%) + CSW% (35%) + K% (15%) + Command/inverse-BB% (10%)
-  Tiers: K ELITE >72 | K Threat 55-72 | Manageable <55
+  When putaway data available:
+    Whiff/Swing (42%) + K% (24%) + Putaway% (22%) + Command/inv-BB% (12%)
+    + P/PA bonus (+1/+2.5/+4 at ≥3.88/≥3.95/≥4.00)
+  Fallback (no putaway):
+    Whiff/Swing (55%) + K% (30%) + Command (15%)
+  Tiers: K ELITE ≥72 | K Threat 55-72 | Manageable <55
+
+Putaway% = 2-strike-count K rate (how often pitcher closes out the AB).
+P/PA = pitches per plate appearance (deep counts → more swing opportunities).
 
 Projected K Line:
   proj_k = blended_k_rate × proj_bf
   blended_k_rate = pitcher_K% × 0.65 + opp_lineup_K% × 0.35
   proj_bf = 25 (MLB average SP batters faced)
+  edge_vs_line = proj_k − posted_line
   Poisson P(over/under) at nearest 0.5-unit line
 
 Batter K Vulnerability (0-100):
@@ -99,13 +107,17 @@ def _pitcher_recent_form(pitcher_id: int, lookback: int = 3) -> dict:
         for s in reversed(starts):
             stat     = s.get("stat", {})
             opp_info = s.get("opponent") or s.get("team") or {}
+            pitches  = int(_safe(stat.get("numberOfPitches", 0)))
+            bf       = int(_safe(stat.get("battersFaced", 0)))
             start_logs.append({
-                "date": s.get("date", ""),
-                "opp":  opp_info.get("abbreviation", ""),
-                "ip":   stat.get("inningsPitched", "0.0"),
-                "bb":   int(_safe(stat.get("baseOnBalls", 0))),
-                "k":    int(_safe(stat.get("strikeOuts", 0))),
-                "er":   int(_safe(stat.get("earnedRuns", 0))),
+                "date":    s.get("date", ""),
+                "opp":     opp_info.get("abbreviation", ""),
+                "ip":      stat.get("inningsPitched", "0.0"),
+                "bb":      int(_safe(stat.get("baseOnBalls", 0))),
+                "k":       int(_safe(stat.get("strikeOuts", 0))),
+                "er":      int(_safe(stat.get("earnedRuns", 0))),
+                "pitches": pitches,
+                "bf":      bf,
             })
 
         last_start = starts[-1] if starts else {}
@@ -184,30 +196,64 @@ def _poisson_under(lam: float, line: float) -> float:
 
 # ── Pitcher K scoring ────────────────────────────────────────────────────────
 
+def _pitcher_putaway_pct(pitcher_id: int, pitcher_arsenal: dict) -> float:
+    """Usage-weighted putaway% (2-strike K rate) across pitcher's arsenal."""
+    pid = str(pitcher_id)
+    arsenal = pitcher_arsenal.get(pid, [])
+    total_usage = sum(_safe(p.get("usage_pct")) for p in arsenal)
+    if not arsenal or total_usage == 0:
+        return 0.0
+    weighted = sum(
+        _safe(p.get("usage_pct")) * _safe(p.get("put_away_pct"))
+        for p in arsenal
+    )
+    return round(weighted / total_usage, 1)
+
+
 def _pitcher_k_score(pitcher_id: int, pitcher_k_data: dict, pitcher_arsenal: dict) -> dict:
     """
     0-100 K Score for a pitcher.
-    swstr_pct here = whiff% per swing (from Savant custom leaderboard),
-    typically 18-34% range (league avg ~24%).
+    swstr_pct = whiff% per swing (Savant whiff_percent, avg ~24%, elite ~32%).
+    putaway_pct = usage-weighted 2-strike K rate from arsenal (avg ~19%, elite ~26%).
+    p_per_pa = pitches per plate appearance (avg ~3.85).
     """
     pid = str(pitcher_id)
     d   = pitcher_k_data.get(pid, {})
-    arsenal = pitcher_arsenal.get(pid, [])
 
-    swstr  = _safe(d.get("swstr_pct"))  # whiff% per swing (18-34% range)
-    k_pct  = _safe(d.get("k_pct"))      # strikeout %
-    bb_pct = _safe(d.get("bb_pct"))     # walk %
+    swstr    = _safe(d.get("swstr_pct"))   # whiff/swing, 18-34% range
+    k_pct    = _safe(d.get("k_pct"))       # season K%
+    bb_pct   = _safe(d.get("bb_pct"))      # walk %
+    p_per_pa = _safe(d.get("p_per_pa"))    # pitches per PA from Savant custom LB
+    putaway  = _pitcher_putaway_pct(pitcher_id, pitcher_arsenal)  # 2-strike K rate
 
-    # Scale — swstr is whiff/swing (avg ~24%, elite ~32%)
-    s_swstr   = _scale(swstr,  16.0, 24.0, 34.0)       # 24% = avg, 34% = elite
-    s_k       = _scale(k_pct,  13.0, 22.0, 35.0)        # 22% = avg, 35% = elite
-    s_command = _scale(14.0 - bb_pct, 3.0, 7.0, 11.0)   # low BB% = good command
+    s_swstr   = _scale(swstr,   16.0, 24.0, 34.0)        # avg 24%, elite 34%
+    s_k       = _scale(k_pct,   13.0, 22.0, 35.0)         # avg 22%, elite 35%
+    s_command = _scale(14.0 - bb_pct, 3.0, 7.0, 11.0)    # low BB% = good command
+    s_putaway = _scale(putaway, 12.0, 19.0, 27.0)         # avg 19%, elite 27%
 
     data_sparse = (swstr == 0 and k_pct == 0)
     if data_sparse:
         score = 0.0
+    elif putaway > 0:
+        # Full formula: putaway replaces some K% weight (K% and putaway are correlated
+        # but putaway specifically captures 2-strike conversion, the direct K driver)
+        score = (s_swstr * 0.42 + s_k * 0.24 + s_putaway * 0.22 + s_command * 0.12)
     else:
+        # Fallback when arsenal putaway data unavailable
         score = (s_swstr * 0.55 + s_k * 0.30 + s_command * 0.15)
+
+    # P/PA bonus: more pitches per AB = deeper counts = more swing chances
+    # Bounded to avoid inflating past 100
+    if p_per_pa >= 4.00:
+        ppa_bonus = 4.0
+    elif p_per_pa >= 3.95:
+        ppa_bonus = 2.5
+    elif p_per_pa >= 3.88:
+        ppa_bonus = 1.0
+    else:
+        ppa_bonus = 0.0
+    if not data_sparse:
+        score = min(100.0, score + ppa_bonus)
 
     # Tier
     if data_sparse:
@@ -220,22 +266,27 @@ def _pitcher_k_score(pitcher_id: int, pitcher_k_data: dict, pitcher_arsenal: dic
         tier = "Manageable"
 
     # Top whiff pitches (by pitcher whiff% per pitch type)
+    arsenal = pitcher_arsenal.get(pid, [])
     top_whiff = sorted(
         [p for p in arsenal if (p.get("whiff_pct") or 0) >= 15],
         key=lambda x: -(x.get("whiff_pct") or 0)
     )[:3]
 
     return {
-        "score":    round(score, 1),
-        "tier":     tier,
-        "swstr_pct": swstr,
-        "k_pct":    k_pct,
-        "bb_pct":   bb_pct,
+        "score":      round(score, 1),
+        "tier":       tier,
+        "swstr_pct":  swstr,
+        "k_pct":      k_pct,
+        "bb_pct":     bb_pct,
+        "putaway_pct": putaway,
+        "p_per_pa":   p_per_pa,
+        "ppa_bonus":  ppa_bonus,
         "top_whiff_pitches": top_whiff,
         "components": {
-            "s_swstr": round(s_swstr, 1),
-            "s_k":     round(s_k, 1),
-            "s_cmd":   round(s_command, 1),
+            "s_swstr":   round(s_swstr, 1),
+            "s_k":       round(s_k, 1),
+            "s_putaway": round(s_putaway, 1),
+            "s_cmd":     round(s_command, 1),
         },
     }
 
@@ -302,17 +353,18 @@ def _proj_k_line(pitcher_k_data: dict, pitcher_id: int, opp_k_pct: float,
         confidence = "PUSH ZONE"
 
     return {
-        "proj_k":    round(lam, 1),
-        "line":      line,
-        "over_pct":  over_pct,
-        "under_pct": under_pct,
-        "over_odds": _to_odds(over_pct),
-        "under_odds": _to_odds(under_pct),
-        "confidence": confidence,
+        "proj_k":      round(lam, 1),
+        "line":        line,
+        "edge_vs_line": round(lam - line, 2),   # positive = model projects over
+        "over_pct":    over_pct,
+        "under_pct":   under_pct,
+        "over_odds":   _to_odds(over_pct),
+        "under_odds":  _to_odds(under_pct),
+        "confidence":  confidence,
         "blended_k_pct": round(blended_k_pct * 100, 1),
         "pitcher_k_pct": round(p_k_pct, 1),
-        "opp_k_pct": round(opp, 1),
-        "effective_bf":  round(effective_bf, 1),
+        "opp_k_pct":   round(opp, 1),
+        "effective_bf": round(effective_bf, 1),
     }
 
 
@@ -497,6 +549,51 @@ def build_k_board(game_date: str) -> list:
                 swstr_pct=swstr_pct,
             )
 
+            # Compute P/PA from game-log pitch counts (Savant CSV field is empty).
+            # MLB game log provides numberOfPitches + battersFaced per start.
+            start_logs_raw = recent_form.get("start_logs", [])
+            ppa_starts = [(l["pitches"], l["bf"])
+                          for l in start_logs_raw if l.get("pitches", 0) > 0 and l.get("bf", 0) > 0]
+            if ppa_starts:
+                avg_p_per_pa = round(
+                    sum(p / b for p, b in ppa_starts) / len(ppa_starts), 2
+                )
+                recent_form["p_per_pa"] = avg_p_per_pa
+                # Always store p_per_pa in k_score for display; only apply bonus
+                # when Savant CSV didn't already supply it (p_per_pa was 0).
+                k_score_data["p_per_pa"] = avg_p_per_pa
+                if k_score_data.get("ppa_bonus", 0) == 0:
+                    if avg_p_per_pa >= 4.00:
+                        ppa_bonus_calc = 4.0
+                    elif avg_p_per_pa >= 3.95:
+                        ppa_bonus_calc = 2.5
+                    elif avg_p_per_pa >= 3.88:
+                        ppa_bonus_calc = 1.0
+                    else:
+                        ppa_bonus_calc = 0.0
+                    if ppa_bonus_calc > 0:
+                        k_score_data["ppa_bonus"] = ppa_bonus_calc
+                        k_score_data["score"]     = min(100.0, k_score_data["score"] + ppa_bonus_calc)
+                        s = k_score_data["score"]
+                        k_score_data["tier"] = (
+                            "K ELITE"    if s >= 72 else
+                            "K Threat"   if s >= 55 else
+                            "Manageable"
+                        )
+
+            # Recent K surge: flag when avg K/start over last 3 is ≥1.35× projection
+            start_logs = recent_form.get("start_logs", [])
+            if len(start_logs) >= 2:
+                avg_k_recent = sum(l.get("k", 0) for l in start_logs) / len(start_logs)
+                proj_k_val   = proj.get("proj_k", 0)
+                if proj_k_val > 0 and avg_k_recent >= proj_k_val * 1.35:
+                    recent_form["k_surge"]     = True
+                    recent_form["k_surge_avg"] = round(avg_k_recent, 1)
+                else:
+                    recent_form["k_surge"] = False
+            else:
+                recent_form["k_surge"] = False
+
             # Arsenal display (top 3 by usage)
             arsenal_raw = pitcher_arsenal.get(str(pitcher_id), [])
             arsenal_display = sorted(arsenal_raw,
@@ -553,17 +650,20 @@ def _fmt(val, fmt=".1f", suffix="", none_str="  -"):
 
 def format_k_board(results: list, game_date: str) -> str:
     lines = []
-    W = 94
+    W = 108
 
     lines.append("=" * W)
     lines.append(f"  K PROP BOARD — {game_date}")
-    lines.append("  Pitcher K Score: SwStr%(40) + CSW%(35) + K%(15) + Command(10)  |  Batter Vuln: K% + ArsnlWhiff + SwStr%")
+    lines.append("  K Score: Whiff/Sw(42) + K%(24) + Putaway%(22) + Command(12) + P/PA bonus  |  Batter Vuln: K% + ArsnlWhiff + SwStr%")
     lines.append("=" * W)
 
     # Summary table header
     lines.append("")
-    lines.append(f"  {'PITCHER':<22} {'OPP':<5} {'K_SCR':>6} {'TIER':<14} {'K%':>6} {'Whiff/Sw':>9} {'BB%':>5} {'PROJ':>5} {'LINE':>5} {'OPP_K%':>7}")
-    lines.append("  " + "-" * 90)
+    lines.append(
+        f"  {'PITCHER':<22} {'OPP':<5} {'K_SCR':>6} {'TIER':<14} {'K%':>6} "
+        f"{'Whiff/Sw':>9} {'PUTAWAY':>8} {'P/PA':>5} {'BB%':>5} {'PROJ':>5} {'LINE':>5} {'EDGE':>6} {'OPP_K%':>7}"
+    )
+    lines.append("  " + "-" * 106)
 
     for r in results:
         ks   = r["k_score"]
@@ -574,17 +674,23 @@ def format_k_board(results: list, game_date: str) -> str:
                     else "○")
         tier_str = f"{tier_sym} {ks['tier']}"
 
-        k_pct    = _fmt(ks["k_pct"],    ".1f", "%", "   -")
-        swstr    = _fmt(ks["swstr_pct"], ".1f", "%", "   -")
-        bb       = _fmt(ks["bb_pct"],    ".1f", "%", "   -")
-        proj_k   = _fmt(proj["proj_k"],  ".1f", "",  "  -")
+        k_pct    = _fmt(ks["k_pct"],      ".1f", "%", "   -")
+        swstr    = _fmt(ks["swstr_pct"],  ".1f", "%", "   -")
+        putaway  = _fmt(ks.get("putaway_pct"), ".1f", "%", "     -")
+        ppa      = _fmt(ks.get("p_per_pa"),    ".2f", "",  "   -")
+        bb       = _fmt(ks["bb_pct"],     ".1f", "%", "   -")
+        proj_k   = _fmt(proj["proj_k"],   ".1f", "",  "  -")
         line_str = f"{proj['line']:.1f}"
-        opp_k    = _fmt(r["opp_k_pct"], ".1f", "%", "   -")
+        edge     = proj.get("edge_vs_line", 0)
+        edge_str = f"+{edge:.2f}" if edge >= 0 else f"{edge:.2f}"
+        opp_k    = _fmt(r["opp_k_pct"],  ".1f", "%", "   -")
 
+        surge_flag = " ⚡K-SURGE" if r.get("recent_form", {}).get("k_surge") else ""
         sparse_note = "  ← no Savant data, monitor manually" if ks["tier"] == "DATA SPARSE" else ""
         lines.append(
             f"  {r['pitcher_name']:<22} {r['opp_team']:<5} {ks['score']:>6.1f} {tier_str:<14} "
-            f"{k_pct:>6} {swstr:>9} {bb:>5} {proj_k:>5} {line_str:>5} {opp_k:>7}{sparse_note}"
+            f"{k_pct:>6} {swstr:>9} {putaway:>8} {ppa:>5} {bb:>5} {proj_k:>5} {line_str:>5} {edge_str:>6} {opp_k:>7}"
+            f"{surge_flag}{sparse_note}"
         )
 
     lines.append("")
@@ -623,18 +729,26 @@ def format_k_board(results: list, game_date: str) -> str:
         lines.append(
             f"  ┌─ {r['pitcher_name']} ({r['pitcher_team']})  vs {r['opp_team']}  │  {r['game']}"
         )
+        putaway_str = _fmt(ks.get("putaway_pct"), ".1f", "%", "-")
+        ppa_str     = _fmt(ks.get("p_per_pa"),    ".2f", "", "-")
+        ppa_bonus   = ks.get("ppa_bonus", 0.0)
+        ppa_bonus_str = f" (+{ppa_bonus:.1f})" if ppa_bonus > 0 else ""
+        edge        = proj.get("edge_vs_line", 0)
+        edge_str    = f"+{edge:.2f}" if edge >= 0 else f"{edge:.2f}"
+
         lines.append(
             f"  │  K Score: {ks['score']} {tier_sym} {ks['tier']}  │  "
-            f"K%: {_fmt(ks['k_pct'],'.1f','%')}  Whiff/Swing: {_fmt(ks['swstr_pct'],'.1f','%')}  "
-            f"BB%: {_fmt(ks['bb_pct'],'.1f','%')}"
+            f"K%: {_fmt(ks['k_pct'],'.1f','%')}  Whiff/Sw: {_fmt(ks['swstr_pct'],'.1f','%')}  "
+            f"Putaway: {putaway_str}  P/PA: {ppa_str}{ppa_bonus_str}  BB%: {_fmt(ks['bb_pct'],'.1f','%')}"
         )
         rf = r.get("recent_form", {})
         rf_label = rf.get("form_label", "")
+        surge_note = f"  ⚡ K-SURGE avg {rf.get('k_surge_avg')}K/start" if rf.get("k_surge") else ""
         lines.append(
-            f"  │  Proj K: {proj['proj_k']}  Line: {proj['line']:.1f}  "
+            f"  │  Proj K: {proj['proj_k']}  Line: {proj['line']:.1f}  Edge: {edge_str}  "
             f"Over: {proj['over_pct']}% ({proj['over_odds']})  "
             f"Under: {proj['under_pct']}% ({proj['under_odds']})"
-            f"{conf_badge}"
+            f"{conf_badge}{surge_note}"
         )
         lines.append(
             f"  │  Opp {r['opp_team']} lineup K%: {_fmt(r['opp_k_pct'],'.1f','%')}  "

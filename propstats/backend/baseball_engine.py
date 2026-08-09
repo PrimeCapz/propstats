@@ -1309,7 +1309,7 @@ SAVANT_BAT_TRACK_URL = "https://baseballsavant.mlb.com/leaderboard/bat-tracking?
 SAVANT_PITCHER_K_URL = (
     "https://baseballsavant.mlb.com/leaderboard/custom?year={year}&type=pitcher"
     "&filter=&sort=4&sortDir=desc&min=20"
-    "&selections=k_percent,bb_percent,whiff_percent,f_strike_percent,groundballs_percent,flyballs_percent,hard_hit_percent"
+    "&selections=k_percent,bb_percent,whiff_percent,f_strike_percent,groundballs_percent,flyballs_percent,hard_hit_percent,p_per_pa"
     "&csv=true"
 )
 # Custom leaderboard: batter K% and whiff% (not in statcast leaderboard CSV)
@@ -1517,6 +1517,7 @@ def load_savant_pitcher_k(season: int = None) -> dict:
                 "gb_pct":       _safe_float(row.get("groundballs_percent")),
                 "fb_pct":       _safe_float(row.get("flyballs_percent")),
                 "hh_pct":       _safe_float(row.get("hard_hit_percent")),
+                "p_per_pa":     _safe_float(row.get("p_per_pa")),
             }
     if result:
         _savant_pitcher_k[season] = result
