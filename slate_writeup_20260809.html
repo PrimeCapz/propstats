@@ -3,554 +3,787 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Slate Writeup — August 9, 2026</title>
+<title>Full Slate — August 9, 2026</title>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 body{background:#090D14;color:#C8D6E8;font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",Arial,sans-serif;font-size:14px;line-height:1.6;-webkit-font-smoothing:antialiased}
-.page{max-width:860px;margin:0 auto;padding:24px 20px 60px}
-h1{font-size:22px;font-weight:800;color:#DDE6F0;letter-spacing:-.02em;margin-bottom:2px}
-h2{font-size:13px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#3B5270;margin:32px 0 12px;padding-bottom:6px;border-bottom:1px solid #1A2A3E}
+.page{max-width:900px;margin:0 auto;padding:24px 20px 60px}
+
+h1{font-size:24px;font-weight:800;color:#DDE6F0;letter-spacing:-.02em;margin-bottom:2px}
+h2{font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:#3B5270;margin:30px 0 12px;padding-bottom:6px;border-bottom:1px solid #1A2A3E}
 h3{font-size:13px;font-weight:700;color:#7B92AB;margin:18px 0 6px}
 p{margin-bottom:10px;color:#8AA3BC}
 strong{color:#DDE6F0}
-.eyebrow{font-size:10px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:#3B5270;margin-bottom:6px}
-.subtitle{font-size:12px;color:#3B5270;margin-bottom:24px}
+em{color:#D4A017;font-style:normal;font-weight:600}
 
-/* Stars */
-.star{color:#D4A017;font-weight:700}
-.star3{color:#D4A017}
-.star2{color:#84CC16}
-.star1{color:#3B82F6}
+.eyebrow{font-size:10px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:#3B5270}
+.meta{font-size:12px;color:#3B5270;margin:4px 0 28px}
 
-/* Play cards */
-.play-card{border:1px solid #1A2A3E;border-radius:6px;padding:14px 16px;margin-bottom:10px;background:#0C1420}
-.play-card.tier1{border-color:#D4A017;background:rgba(212,160,23,.04)}
-.play-card.tier2{border-color:#2563EB;background:rgba(37,99,235,.03)}
-.play-card.tier3{border-color:#1A2A3E}
-.play-header{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:8px}
+/* ── Ranked play cards ── */
+.plays-stack{display:flex;flex-direction:column;gap:8px}
+.play{display:grid;grid-template-columns:32px 1fr;gap:0;border-radius:6px;overflow:hidden;border:1px solid #1A2A3E}
+.play.s3{border-color:#D4A017}
+.play.s2{border-color:#3B82F6}
+.play.s1{border-color:#1A2A3E}
+.play.snew{border-color:#10B981}
+
+.play-rank{display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;writing-mode:vertical-rl;letter-spacing:.05em;padding:0 6px}
+.play.s3 .play-rank{background:rgba(212,160,23,.18);color:#D4A017}
+.play.s2 .play-rank{background:rgba(59,130,246,.14);color:#60A5FA}
+.play.s1 .play-rank{background:rgba(90,112,144,.10);color:#5A7090}
+.play.snew .play-rank{background:rgba(16,185,129,.15);color:#34D399}
+
+.play-body{padding:12px 14px;background:#0C1420}
+.play.s3 .play-body{background:rgba(212,160,23,.03)}
+.play.s2 .play-body{background:rgba(37,99,235,.025)}
+.play.snew .play-body{background:rgba(16,185,129,.03)}
+
+.play-header{display:flex;align-items:center;gap:10px;margin-bottom:6px;flex-wrap:wrap}
 .play-title{font-size:15px;font-weight:800;color:#DDE6F0;letter-spacing:-.01em}
-.play-badge{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:3px 7px;border-radius:3px;white-space:nowrap}
-.badge-k{background:rgba(168,85,247,.15);color:#C084FC;border:1px solid rgba(168,85,247,.3)}
-.badge-walk{background:rgba(59,130,246,.15);color:#60A5FA;border:1px solid rgba(59,130,246,.3)}
-.badge-hr{background:rgba(212,160,23,.15);color:#D4A017;border:1px solid rgba(212,160,23,.3)}
-.badge-nrfi{background:rgba(16,185,129,.15);color:#34D399;border:1px solid rgba(16,185,129,.3)}
-.badge-yrfi{background:rgba(239,68,68,.15);color:#F87171;border:1px solid rgba(239,68,68,.3)}
-.badge-hit{background:rgba(6,182,212,.15);color:#22D3EE;border:1px solid rgba(6,182,212,.3)}
-.play-body{font-size:12px;color:#7B92AB;line-height:1.5}
-.signal-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
-.sig{font-size:10px;font-weight:600;padding:2px 7px;border-radius:3px}
-.sig-pow{background:rgba(212,160,23,.12);color:#D4A017;border:1px solid rgba(212,160,23,.25)}
-.sig-k{background:rgba(168,85,247,.12);color:#C084FC;border:1px solid rgba(168,85,247,.25)}
-.sig-walk{background:rgba(59,130,246,.12);color:#60A5FA;border:1px solid rgba(59,130,246,.25)}
-.sig-neutral{background:rgba(90,112,144,.12);color:#5A7090;border:1px solid rgba(90,112,144,.2)}
-.sig-warn{background:rgba(239,68,68,.10);color:#F87171;border:1px solid rgba(239,68,68,.2)}
-.sig-green{background:rgba(34,197,94,.10);color:#4ADE80;border:1px solid rgba(34,197,94,.2)}
+.type-pill{font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:2px 7px;border-radius:3px}
+.pill-k{background:rgba(168,85,247,.15);color:#C084FC;border:1px solid rgba(168,85,247,.3)}
+.pill-walk{background:rgba(59,130,246,.15);color:#60A5FA;border:1px solid rgba(59,130,246,.3)}
+.pill-hr{background:rgba(212,160,23,.15);color:#D4A017;border:1px solid rgba(212,160,23,.3)}
+.pill-nrfi{background:rgba(16,185,129,.15);color:#34D399;border:1px solid rgba(16,185,129,.3)}
+.pill-yrfi{background:rgba(239,68,68,.15);color:#F87171;border:1px solid rgba(239,68,68,.3)}
+.pill-hit{background:rgba(6,182,212,.15);color:#22D3EE;border:1px solid rgba(6,182,212,.3)}
+.pill-new{background:rgba(16,185,129,.2);color:#34D399;border:1px solid rgba(16,185,129,.35);font-size:9px;padding:2px 6px;border-radius:3px;font-weight:700}
 
-/* Tables */
-table{width:100%;border-collapse:collapse;font-size:11px;margin-bottom:6px;font-variant-numeric:tabular-nums}
-th{text-align:left;padding:5px 8px;color:#3B5270;font-weight:700;letter-spacing:.06em;text-transform:uppercase;border-bottom:1px solid #1A2A3E}
-td{padding:5px 8px;border-bottom:1px solid rgba(26,42,62,.5);color:#8AA3BC}
-tr:hover td{background:rgba(26,42,62,.4)}
-.td-name{color:#DDE6F0;font-weight:600}
-.td-win{color:#4ADE80}
-.td-lose{color:#F87171}
-.td-push{color:#FBBF24}
-.score-hi{color:#D4A017;font-weight:700}
-.score-med{color:#3B82F6;font-weight:600}
+.play-desc{font-size:12px;color:#7B92AB;line-height:1.55;margin-bottom:8px}
+.sigs{display:flex;flex-wrap:wrap;gap:5px}
+.sig{font-size:10px;font-weight:600;padding:2px 7px;border-radius:3px;letter-spacing:.02em}
+.sg{background:rgba(34,197,94,.10);color:#4ADE80;border:1px solid rgba(34,197,94,.2)}
+.sr{background:rgba(239,68,68,.10);color:#F87171;border:1px solid rgba(239,68,68,.2)}
+.sb{background:rgba(59,130,246,.10);color:#60A5FA;border:1px solid rgba(59,130,246,.2)}
+.sy{background:rgba(212,160,23,.10);color:#D4A017;border:1px solid rgba(212,160,23,.2)}
+.sn{background:rgba(90,112,144,.10);color:#5A7090;border:1px solid rgba(90,112,144,.2)}
+.sp{background:rgba(168,85,247,.10);color:#C084FC;border:1px solid rgba(168,85,247,.2)}
 
-/* Post-mortem result rows */
-.result-row{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border-bottom:1px solid rgba(26,42,62,.4)}
-.result-row:last-child{border-bottom:none}
-.result-box{border:1px solid #1A2A3E;border-radius:5px;overflow:hidden;margin-bottom:20px}
-.result-label{font-size:12px;font-weight:600;color:#C8D6E8}
-.result-sub{font-size:10px;color:#5A7090;margin-top:1px}
-.result-outcome{font-size:11px;font-weight:700;padding:3px 9px;border-radius:3px}
-.out-win{background:rgba(34,197,94,.12);color:#4ADE80;border:1px solid rgba(34,197,94,.25)}
-.out-loss{background:rgba(239,68,68,.10);color:#F87171;border:1px solid rgba(239,68,68,.2)}
-.out-push{background:rgba(251,191,36,.10);color:#FBBF24;border:1px solid rgba(251,191,36,.2)}
+/* ── Tables ── */
+table{width:100%;border-collapse:collapse;font-size:11px;font-variant-numeric:tabular-nums;overflow-x:auto;display:block}
+th{text-align:left;padding:5px 9px;color:#3B5270;font-weight:700;letter-spacing:.06em;text-transform:uppercase;border-bottom:1px solid #1A2A3E;white-space:nowrap}
+td{padding:5px 9px;border-bottom:1px solid rgba(26,42,62,.4);color:#8AA3BC;white-space:nowrap}
+tr:hover td{background:rgba(26,42,62,.35)}
+.tn{color:#DDE6F0;font-weight:600}
+.thi{color:#D4A017;font-weight:700}
+.tmd{color:#3B82F6;font-weight:600}
+.tgn{color:#4ADE80;font-weight:600}
+.trd{color:#F87171}
+.dim{color:#3B5270}
 
-/* Scores grid */
-.scores-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:6px;margin-bottom:20px}
-.score-card{background:#0C1420;border:1px solid #1A2A3E;border-radius:4px;padding:8px 10px}
-.score-teams{font-size:11px;font-weight:700;color:#DDE6F0}
-.score-final{font-size:12px;font-weight:800;color:#60A5FA;margin:2px 0}
-.score-1st{font-size:10px;color:#5A7090}
-.score-1st .yrfi{color:#F87171;font-weight:700}
-.score-1st .nrfi{color:#4ADE80;font-weight:700}
+/* ── NRFI / YRFI grid ── */
+.nrfi-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:8px}
+.nrfi-card{border:1px solid #1A2A3E;border-radius:5px;padding:10px 12px;background:#0C1420}
+.nrfi-card.lean-nrfi{border-color:#10B981}
+.nrfi-card.lean-yrfi{border-color:#EF4444}
+.nrfi-card.lean-n{border-color:#1A2A3E}
+.nc-game{font-size:12px;font-weight:700;color:#DDE6F0;margin-bottom:3px}
+.nc-pitchers{font-size:10px;color:#5A7090;margin-bottom:5px}
+.nc-lean{font-size:10px;font-weight:700;margin-bottom:4px}
+.lean-nrfi .nc-lean{color:#34D399}
+.lean-yrfi .nc-lean{color:#F87171}
+.lean-n .nc-lean{color:#5A7090}
+.nc-reason{font-size:10px;color:#5A7090;line-height:1.4}
 
-/* Section divider */
-.section-div{height:1px;background:linear-gradient(to right,#1A2A3E,transparent);margin:28px 0 0}
+/* ── Sections ── */
+.game-block{border:1px solid #1A2A3E;border-radius:5px;margin-bottom:8px;overflow:hidden}
+.game-block-hdr{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:#060910;border-bottom:1px solid #1A2A3E}
+.gb-title{font-size:12px;font-weight:700;color:#DDE6F0}
+.gb-meta{font-size:10px;color:#5A7090}
+.game-block-body{padding:10px 12px;font-size:11px;color:#7B92AB;line-height:1.55}
+.game-block-body strong{color:#C8D6E8}
+
+/* ── Fades ── */
+.fade-row{display:flex;justify-content:space-between;align-items:center;padding:7px 12px;border-bottom:1px solid rgba(26,42,62,.4)}
+.fade-row:last-child{border-bottom:none}
+.fade-label{font-size:12px;font-weight:600;color:#C8D6E8}
+.fade-sub{font-size:10px;color:#5A7090}
+.fade-badge{font-size:10px;font-weight:700;padding:2px 8px;border-radius:3px}
+.fb-skip{background:rgba(239,68,68,.10);color:#F87171;border:1px solid rgba(239,68,68,.2)}
+.fb-check{background:rgba(251,191,36,.10);color:#FBBF24;border:1px solid rgba(251,191,36,.2)}
+.fade-box{border:1px solid #1A2A3E;border-radius:5px;overflow:hidden}
+
+.upd-tag{display:inline-block;font-size:9px;font-weight:700;background:rgba(16,185,129,.2);color:#34D399;border:1px solid rgba(16,185,129,.35);border-radius:3px;padding:1px 5px;letter-spacing:.05em;margin-left:6px;vertical-align:middle}
 </style>
 </head>
 <body>
 <div class="page">
 
-<div class="eyebrow">PropStats Engine</div>
-<h1>Sunday Slate — August 9, 2026</h1>
-<div class="subtitle">Model outputs: K · Walk · HR · Fantasy · NRFI/YRFI | 15 games</div>
+<div class="eyebrow">PropStats Engine · Verified</div>
+<h1>Full Slate — August 9, 2026</h1>
+<div class="meta">15 games · All starters confirmed · Lineups verified · Fantasy integrated</div>
 
-<!-- ═══════════════════════════════════════════════════════════════
-     8/8 POST-MORTEM
-════════════════════════════════════════════════════════════════════ -->
-<h2>8/8 Saturday Results &amp; Model Audit</h2>
+<!-- ══════════════════════════════════════════════
+     CONFIRMED STARTERS
+═══════════════════════════════════════════════ -->
+<h2>Confirmed Starters &amp; Verifications</h2>
 
-<div class="scores-grid">
-  <div class="score-card"><div class="score-teams">OAK @ BOS</div><div class="score-final">7–3 OAK</div><div class="score-1st"><span class="yrfi">YRFI 2R</span></div></div>
-  <div class="score-card"><div class="score-teams">TOR @ PHI</div><div class="score-final">7–5 TOR</div><div class="score-1st"><span class="yrfi">YRFI 1R</span></div></div>
-  <div class="score-card"><div class="score-teams">NYM @ PIT</div><div class="score-final">0–9 PIT</div><div class="score-1st"><span class="yrfi">YRFI 3R</span></div></div>
-  <div class="score-card"><div class="score-teams">CIN @ WSH</div><div class="score-final">2–8 WSH</div><div class="score-1st"><span class="nrfi">NRFI</span></div></div>
-  <div class="score-card"><div class="score-teams">CHC @ KC</div><div class="score-final">3–6 KC</div><div class="score-1st"><span class="yrfi">YRFI 1R</span></div></div>
-  <div class="score-card"><div class="score-teams">MIN @ MIL</div><div class="score-final">3–4 MIL</div><div class="score-1st"><span class="yrfi">YRFI 1R</span></div></div>
-  <div class="score-card"><div class="score-teams">HOU @ SD</div><div class="score-final">2–3 SD</div><div class="score-1st"><span class="yrfi">YRFI 1R</span></div></div>
-  <div class="score-card"><div class="score-teams">DET @ SF</div><div class="score-final">8–0 DET</div><div class="score-1st"><span class="nrfi">NRFI</span></div></div>
-  <div class="score-card"><div class="score-teams">COL @ STL</div><div class="score-final">8–6 STL</div><div class="score-1st"><span class="yrfi">YRFI 3R</span></div></div>
-  <div class="score-card"><div class="score-teams">BAL @ TEX</div><div class="score-final">1–5 TEX</div><div class="score-1st"><span class="yrfi">YRFI 1R</span></div></div>
-  <div class="score-card"><div class="score-teams">ATL @ NYY</div><div class="score-final">4–5 NYY</div><div class="score-1st"><span class="nrfi">NRFI</span></div></div>
-  <div class="score-card"><div class="score-teams">CLE @ CWS</div><div class="score-final">3–6 CWS</div><div class="score-1st"><span class="nrfi">NRFI</span></div></div>
-  <div class="score-card"><div class="score-teams">LAA @ MIA</div><div class="score-final">0–7 MIA</div><div class="score-1st"><span class="nrfi">NRFI</span></div></div>
-  <div class="score-card"><div class="score-teams">LAD @ AZ</div><div class="score-final">1–0 LAD</div><div class="score-1st"><span class="nrfi">NRFI</span></div></div>
-  <div class="score-card"><div class="score-teams">TB @ SEA</div><div class="score-final">0–1 SEA</div><div class="score-1st"><span class="nrfi">NRFI</span></div></div>
-</div>
-
-<h3>Top Plays — How We Did</h3>
-<div class="result-box">
-  <div class="result-row">
-    <div><div class="result-label">★★★ Schwarber HR</div><div class="result-sub">LOFT 21° · Scherzer Attackable · Citizens Bank ×1.14 | H=1 HR=0 BB=1 (3 AB)</div></div>
-    <span class="result-outcome out-loss">MISS</span>
-  </div>
-  <div class="result-row">
-    <div><div class="result-label">★★★ Chandler Walk o1.5</div><div class="result-sub">WALK MACHINE 69.0 · vs NYM | 6.0 IP, 5K, 1 BB</div></div>
-    <span class="result-outcome out-loss">MISS — 1BB</span>
-  </div>
-  <div class="result-row">
-    <div><div class="result-label">★★ YRFI TOR@PHI</div><div class="result-sub">Citizens Bank · Nola/Scherzer both walk threats | 1R in 1st</div></div>
-    <span class="result-outcome out-win">WIN ✓</span>
-  </div>
-  <div class="result-row">
-    <div><div class="result-label">★★ Bradley Walk o1.5</div><div class="result-sub">WALK MACHINE 69.9 · vs MIL | 5.0 IP, 7K, 2 BB</div></div>
-    <span class="result-outcome out-win">WIN ✓ (2BB)</span>
-  </div>
-  <div class="result-row">
-    <div><div class="result-label">★ Olson HR (NYY)</div><div class="result-sub">Yankee Stadium ×1.19 · vs Sale | 0-4, 2K, Cole shut down ATL</div></div>
-    <span class="result-outcome out-loss">MISS</span>
-  </div>
-</div>
-
-<h3>K Board Results</h3>
 <table>
-  <tr><th>Pitcher</th><th>Score</th><th>Line</th><th>Actual</th><th>Result</th></tr>
-  <tr><td class="td-name">Jacob deGrom (TEX)</td><td class="score-hi">84.9 K ELITE</td><td>Faded</td><td>5.0 IP, 9K</td><td class="td-lose">FADED (correct profile, wrong fade?)</td></tr>
-  <tr><td class="td-name">Gavin Williams (CLE)</td><td class="score-hi">82.0 K ELITE</td><td>6.5?</td><td>5.2 IP, 7K</td><td class="td-win">HIT if ≤6.5</td></tr>
-  <tr><td class="td-name">Chris Sale (ATL)</td><td class="score-hi">80.9 K ELITE</td><td>7.5?</td><td>6.0 IP, 8K</td><td class="td-win">HIT if ≤7.5</td></tr>
-  <tr><td class="td-name">Chase Burns (CIN)</td><td class="score-hi">75.4 K ELITE</td><td>6.5?</td><td>5.1 IP, 6K</td><td class="td-win">HIT if ≤5.5</td></tr>
-  <tr><td class="td-name">Taj Bradley (MIN)</td><td>55.5 K Threat</td><td>6.5?</td><td>5.0 IP, 7K</td><td class="td-win">HIT if ≤6.5</td></tr>
-  <tr><td class="td-name">Aaron Nola (PHI)</td><td>58.2 K Threat</td><td>6.5?</td><td>5.0 IP, 8K</td><td class="td-win">HIT if ≤7.5</td></tr>
-  <tr><td class="td-name">Gerrit Cole (NYY)</td><td>48.4 Manageable</td><td>—</td><td>7.0 IP, 9K</td><td class="td-lose">MODEL MISS</td></tr>
-  <tr><td class="td-name">Gage Jump (OAK)</td><td>49.7 Manageable</td><td>—</td><td>6.0 IP, 11K</td><td class="td-lose">MODEL MISS</td></tr>
+  <tr>
+    <th>Game</th><th>Away Starter</th><th>Home Starter</th><th>Park</th><th>Status</th>
+  </tr>
+  <tr><td class="tn">CIN@WSH</td><td>Brady Singer (CIN)</td><td>Brad Lord (WSH)</td><td>Nationals Park</td><td class="tgn">✓ Confirmed</td></tr>
+  <tr><td class="tn">OAK@BOS</td><td>J.T. Ginn (OAK)</td><td><strong>Erik Miller (BOS)</strong> <span class="upd-tag">OPENER</span></td><td>Fenway ×1.04</td><td class="tgn">✓ Confirmed</td></tr>
+  <tr><td class="tn">NYM@PIT</td><td>Sean Manaea (NYM)</td><td>Jared Jones (PIT)</td><td>PNC Park</td><td class="tgn">✓ Confirmed</td></tr>
+  <tr><td class="tn">TOR@PHI</td><td>Shane Bieber (TOR)</td><td>Jesús Luzardo (PHI)</td><td>Citizens Bank ×1.14</td><td class="tgn">✓ Confirmed</td></tr>
+  <tr><td class="tn">ATL@NYY</td><td>Grant Holmes (ATL)</td><td>Cam Schlittler (NYY)</td><td>Yankee Stadium ×1.19</td><td class="tgn">✓ Confirmed</td></tr>
+  <tr><td class="tn">LAA@MIA</td><td>Grayson Rodriguez (LAA)</td><td>Ryan Gusto (MIA)</td><td>loanDepot ×0.87</td><td class="tgn">✓ Confirmed</td></tr>
+  <tr><td class="tn">CHC@KC</td><td>Matthew Boyd (CHC)</td><td>Randy Dobnak (KC)</td><td>Kauffman Stadium</td><td class="tgn">✓ Confirmed</td></tr>
+  <tr><td class="tn">CLE@CWS</td><td>Joey Cantillo (CLE)</td><td>Davis Martin (CWS)</td><td>Rate Field</td><td class="tgn">✓ Confirmed</td></tr>
+  <tr><td class="tn">MIN@MIL</td><td>Connor Prielipp (MIN)</td><td>Jacob Misiorowski (MIL)</td><td>Am. Family Field</td><td class="tgn">✓ Confirmed</td></tr>
+  <tr><td class="tn">COL@STL</td><td>Michael Lorenzen (COL)</td><td>Michael McGreevy (STL)</td><td>Busch Stadium</td><td class="tgn">✓ Confirmed</td></tr>
+  <tr><td class="tn">BAL@TEX</td><td>Cade Povich (BAL)</td><td>Kumar Rocker (TEX)</td><td>Globe Life ×0.91</td><td class="tgn">✓ Confirmed</td></tr>
+  <tr><td class="tn">DET@SF</td><td>Troy Melton (DET)</td><td>Logan Webb (SF)</td><td>Oracle ×0.74</td><td class="tgn">✓ Confirmed</td></tr>
+  <tr><td class="tn">LAD@AZ</td><td>Justin Wrobleski (LAD)</td><td>Eduardo Rodriguez (AZ)</td><td>Chase Field ×1.02</td><td class="tgn">✓ Confirmed</td></tr>
+  <tr><td class="tn">TB@SEA</td><td><strong>Ian Seymour (TB)</strong> <span class="upd-tag">ADDED</span></td><td>Emerson Hancock (SEA)</td><td>T-Mobile ×0.91</td><td class="tgn">✓ Confirmed</td></tr>
+  <tr><td class="tn">HOU@SD</td><td>Cristian Javier (HOU)</td><td><span class="trd">TBD (SD)</span></td><td>Petco ×0.88</td><td class="trd">SD TBD</td></tr>
 </table>
+<p style="margin-top:8px"><strong>Erik Miller (BOS)</strong> — opener role. Last 3 appearances: 2 IP, 1 IP, 1 IP. Hands to bulk arm after 1–2 innings. Ginn walk prop vs BOS batters is unaffected. <strong>Ian Seymour (TB)</strong> — last start 9K in 6.0 IP, 0 BB. Prior: 7K in 6.0 IP. swstr% 29.2, k_pct 28.4. Full K play added below.</p>
 
-<div class="play-card tier3">
-  <p><strong>Why we missed Cole + Jump:</strong> Both pitchers were rated "Manageable" (48–50 score), which means our model had their historical K% as ordinary. <strong>Jump's 11K</strong> is the bigger miss — a newer pitcher whose Statcast data is sparse, so the model underweighted his true stuff grade. Cole is a consistent elite performer but may have been showing flattening K% vs righty-heavy lineups in recent starts before a breakout night. The fix for future: flag pitchers whose last 2 starts dramatically exceed their season K% (recent breakout flag) and add a BF-normalized recent K rate to avoid sparse-data underrating.</p>
-  <p><strong>deGrom note:</strong> Model correctly graded him K ELITE (84.9) — the fade was written into the writeup manually due to batter fatigue concerns. He went 9K in 5IP. The underlying score was right; the narrative fade was wrong. Going forward, trust the k_score over qualitative overrides unless there's a hard injury/rest signal.</p>
-</div>
+<!-- ══════════════════════════════════════════════
+     TOP PLAYS
+═══════════════════════════════════════════════ -->
+<h2>Top Plays — Ranked</h2>
 
-<h3>Walk Board Results</h3>
-<table>
-  <tr><th>Pitcher</th><th>Score</th><th>Actual BB</th><th>Result</th></tr>
-  <tr><td class="td-name">Chandler (PIT)</td><td>69.0 WALK MACHINE</td><td>1 BB in 6.0 IP</td><td class="td-lose">MISS — clean control</td></tr>
-  <tr><td class="td-name">Bradley (MIN)</td><td>69.9 WALK MACHINE</td><td>2 BB in 5.0 IP</td><td class="td-win">WIN ✓</td></tr>
-  <tr><td class="td-name">Ureña (LAA)</td><td>75.9 WALK MACHINE (FALLING)</td><td>3 BB in 2.1 IP</td><td class="td-win">WIN ✓ (got pulled early)</td></tr>
-  <tr><td class="td-name">Burns (CIN)</td><td>61.1 WALK THREAT</td><td>3 BB in 5.1 IP</td><td class="td-win">WIN ✓</td></tr>
-  <tr><td class="td-name">Jump (OAK)</td><td>71.9 WALK MACHINE</td><td>2 BB in 6.0 IP</td><td class="td-win">WIN ✓</td></tr>
-  <tr><td class="td-name">Alvarez (WSH)</td><td>77.2 WALK MACHINE</td><td>1 BB in 5.1 IP</td><td class="td-lose">MISS — efficient</td></tr>
-</table>
+<div class="plays-stack">
 
-<h3>NRFI/YRFI — 5-for-5 Night</h3>
-<table>
-  <tr><th>Game</th><th>Pick</th><th>1st Inning</th><th>Result</th></tr>
-  <tr><td>TOR@PHI ★★</td><td>YRFI</td><td>1R scored</td><td class="td-win">WIN ✓</td></tr>
-  <tr><td>LAD@AZ ★★</td><td>NRFI</td><td>0R (1-0 final)</td><td class="td-win">WIN ✓</td></tr>
-  <tr><td>TB@SEA ★</td><td>NRFI</td><td>0R (0-1 final)</td><td class="td-win">WIN ✓</td></tr>
-  <tr><td>NYM@PIT ★</td><td>YRFI</td><td>3R scored</td><td class="td-win">WIN ✓</td></tr>
-  <tr><td>BAL@TEX</td><td>YRFI lean</td><td>1R scored</td><td class="td-win">WIN ✓</td></tr>
-</table>
+  <!-- 1 -->
+  <div class="play s3">
+    <div class="play-rank">★★★</div>
+    <div class="play-body">
+      <div class="play-header">
+        <span class="play-title">Misiorowski K Over</span>
+        <span class="type-pill pill-k">K Prop</span>
+      </div>
+      <div class="play-desc">
+        <strong>Jacob Misiorowski (MIL) vs Connor Prielipp / MIN lineup</strong> · American Family Field<br>
+        K score 94.4 — highest on the full 15-game slate. Last start: <em>10K in 7.0 IP</em> (8/2). swstr rate and pitch mix generate elite whiff across all zones. MIN lineup (Larnach, Lewis, Bell, Clemens) is confirmed in. This is the cleanest K play of the day — line shop anything up to 7.5K. Prielipp on the other side is a walk threat (56.7) which tends to go hand-in-hand with shorter outings and high pitch counts, potentially reducing MIN's deep AB counts early.
+      </div>
+      <div class="sigs">
+        <span class="sig sp">K ELITE 94.4</span>
+        <span class="sig sg">L1: 10K / 7.0 IP</span>
+        <span class="sig sg">Home Park</span>
+        <span class="sig sn">#1 K Score — Slate</span>
+      </div>
+    </div>
+  </div>
 
-<div class="play-card tier3">
-  <p><strong>Why Fantasy Scores Weren't Used (and what changes today):</strong> The hitter_fantasy_engine generates power_score, contact_score, obp_score, proj_hits, proj_hr, proj_dk, and xwOBA per batter every day — but none of that data was making it into the writeup or HR board display. The engine ran, the JSON was saved, and it sat unused. Starting 8/9: the HR board HTML now shows <strong>PwrScore</strong>, <strong>projH</strong>, and <strong>DK</strong> on every batter card. The writeup now has dedicated Hit Props and Fantasy/DFS sections. Walk props are cross-referenced with batter OBP score to confirm both sides of the matchup. This adds a confirmation layer: when HR engine + fantasy power_score both point the same direction, that's the highest-confidence play.</p>
-</div>
+  <!-- 2 -->
+  <div class="play s3">
+    <div class="play-rank">★★★</div>
+    <div class="play-body">
+      <div class="play-header">
+        <span class="play-title">Schwarber HR</span>
+        <span class="type-pill pill-hr">HR Prop</span>
+      </div>
+      <div class="play-desc">
+        <strong>Kyle Schwarber (PHI) vs Shane Bieber (TOR)</strong> · Citizens Bank Park ×1.14 · Batting 1st (confirmed)<br>
+        HR score 80.7 · Fantasy power_score 81.5 · LOFT HITTER 21° avg launch angle · brl/PA 17.0% · EV 93.2. Both the HR engine and fantasy engine agree on Schwarber here — dual-model confirmation at the highest level today. Citizens Bank is a +14% HR park. Bieber is Neutral Lean GB⬇ (61.1, gb_pct 46.3%): the GB tag means when Schwarber makes contact in the air, the pitcher can't suppress it. Schwarber's pure loft profile makes every air-ball a threat. proj_hr=0.099, proj_bb=0.53 — also has walk upside.
+      </div>
+      <div class="sigs">
+        <span class="sig sy">HR Score 80.7</span>
+        <span class="sig sy">Pow Score 81.5</span>
+        <span class="sig sy">LOFT HITTER 21°</span>
+        <span class="sig sg">Citizens Bank ×1.14</span>
+        <span class="sig sn">brl/PA 17.0%</span>
+        <span class="sig sn">Batting 1st ✓</span>
+      </div>
+    </div>
+  </div>
 
-<!-- ═══════════════════════════════════════════════════════════════
-     8/9 TOP PLAYS
-════════════════════════════════════════════════════════════════════ -->
-<h2>8/9 Top Plays</h2>
+  <!-- 3 — NEW Seymour -->
+  <div class="play snew">
+    <div class="play-rank">★★★</div>
+    <div class="play-body">
+      <div class="play-header">
+        <span class="play-title">Seymour K Over</span>
+        <span class="type-pill pill-k">K Prop</span>
+        <span class="pill-new">ADDED · STARTER CONFIRMED</span>
+      </div>
+      <div class="play-desc">
+        <strong>Ian Seymour (TB) vs Emerson Hancock / SEA lineup</strong> · T-Mobile Park ×0.91<br>
+        Seymour was listed as TBD this morning — now confirmed starting. His recent form is exceptional: <em>9K in 6.0 IP, 0 BB</em> last start (8/3); <em>7K in 6.0 IP, 1 BB</em> prior start (7/29). Season swstr% 29.2, k_pct 28.4 — K Threat to K ELITE boundary. He's been touching 6+ full innings consistently, giving him the counting volume for K overs. SEA lineup includes Raleigh, Kelenic, and a right-heavy group that plays into Seymour's arsenal. T-Mobile park is neutral-suppressive (×0.91) but K props are park-neutral. Line ≤6.5K recommended — this edges into ≤7.5 range given his last start.
+      </div>
+      <div class="sigs">
+        <span class="sig sg">L1: 9K / 6.0 IP / 0 BB</span>
+        <span class="sig sg">L2: 7K / 6.0 IP / 1 BB</span>
+        <span class="sig sp">swstr 29.2% · K% 28.4</span>
+        <span class="sig sn">T-Mobile ×0.91 (K-neutral)</span>
+        <span class="sig sg">Full IP recent history</span>
+      </div>
+    </div>
+  </div>
 
-<div class="play-card tier1">
-  <div class="play-header">
-    <div class="play-title"><span class="star3">★★★</span> Misiorowski K OVER</div>
-    <span class="play-badge badge-k">K PROP</span>
+  <!-- 4 -->
+  <div class="play s2">
+    <div class="play-rank">★★</div>
+    <div class="play-body">
+      <div class="play-header">
+        <span class="play-title">Ginn Walk o1.5</span>
+        <span class="type-pill pill-walk">Walk Prop</span>
+      </div>
+      <div class="play-desc">
+        <strong>J.T. Ginn (OAK) vs BOS lineup</strong> · Fenway Park ×1.04<br>
+        Walk score 70.9 (WALK MACHINE — #1 on board). F-strike% 54.9% — he falls behind regularly, forcing him to come into the zone. BOS lineup: Sogard, Rafaela, Abreu, <em>Contreras</em> (batting 4th, confirmed) — patient lineup that works counts. Contreras has OBP score 74.5 with proj_bb 0.43 vs Ginn — dual-confirmed on the batter side. Erik Miller opens for BOS (1–2 IP) so Ginn faces the full BOS order from inning 1 through at least 5. Best walk play on the board.
+      </div>
+      <div class="sigs">
+        <span class="sig sb">WALK MACHINE 70.9</span>
+        <span class="sig sb">F-Strike 54.9%</span>
+        <span class="sig sg">Contreras OBP 74.5 (dual-confirm)</span>
+        <span class="sig sn">vs Full BOS Lineup</span>
+        <span class="sig sn">Fenway ×1.04</span>
+      </div>
+    </div>
   </div>
-  <div class="play-body">
-    <strong>Jacob Misiorowski (MIL) vs MIN</strong> · American Family Field<br>
-    K score: 94.4 (K ELITE — #1 on board). Last start: 7.0 IP, 10K (2026-08-02). This is the highest K score of any pitcher across the full 15-game slate. MIN lineup runs average K% but Misiorowski's stuff is pure — above-average swinging strike rate, elite vertical break. This is a line-shop play: anything up to 7.5K is value.
-  </div>
-  <div class="signal-row">
-    <span class="sig sig-k">K ELITE 94.4</span>
-    <span class="sig sig-green">L1: 10K in 7IP</span>
-    <span class="sig sig-neutral">HOME PARK</span>
-    <span class="sig sig-k">Top K Score — Slate</span>
-  </div>
-</div>
 
-<div class="play-card tier1">
-  <div class="play-header">
-    <div class="play-title"><span class="star3">★★★</span> Schwarber HR</div>
-    <span class="play-badge badge-hr">HR PROP</span>
+  <!-- 5 -->
+  <div class="play s2">
+    <div class="play-rank">★★</div>
+    <div class="play-body">
+      <div class="play-header">
+        <span class="play-title">Luzardo K Over</span>
+        <span class="type-pill pill-k">K Prop</span>
+      </div>
+      <div class="play-desc">
+        <strong>Jesús Luzardo (PHI) vs Shane Bieber / TOR lineup</strong> · Citizens Bank Park<br>
+        K score 77.3 (K ELITE). Last start: <em>8.0 IP, 7K</em> (8/4) — went the full distance. Elite whiff on his slider/changeup combo. TOR lineup is aggressive early in counts, plays into Luzardo's strength. Citizens Bank is a hitter's park but K props are count-based, not park-based. Line ≤7.5K is value; under 6.5K is a strong edge. Note Bieber (TOR) facing PHI is also an HR angle — both sides of the Citizens Bank game are active today.
+      </div>
+      <div class="sigs">
+        <span class="sig sp">K ELITE 77.3</span>
+        <span class="sig sg">L1: 8.0 IP / 7K</span>
+        <span class="sig sn">TOR aggressive lineup</span>
+      </div>
+    </div>
   </div>
-  <div class="play-body">
-    <strong>Kyle Schwarber (PHI) vs Shane Bieber (TOR)</strong> · Citizens Bank Park ×1.14<br>
-    HR score: 80.7 · Fantasy power_score: 81.5 · wt=42.9. Both models agree. Schwarber is the LOFT HITTER profile (21° avg launch angle) — when he gets the ball in the air it carries in a +14% HR park. Bieber is Neutral Lean (61.1) with GB⬇ flag, meaning when batters do hit it in the air, it stays in the air — the suppressor is on groundballs, not fly balls. Bieber gives up fly balls at a rate that maps onto Schwarber's pull profile. Missed yesterday vs Scherzer — same setup plays again at a better number today.
-  </div>
-  <div class="signal-row">
-    <span class="sig sig-pow">HR Score 80.7</span>
-    <span class="sig sig-pow">PwrScore 81.5</span>
-    <span class="sig sig-pow">LOFT HITTER 21°</span>
-    <span class="sig sig-green">Citizens Bank ×1.14</span>
-    <span class="sig sig-neutral">Bieber Neutral Lean 61.1</span>
-  </div>
-</div>
 
-<div class="play-card tier2">
-  <div class="play-header">
-    <div class="play-title"><span class="star2">★★</span> Ginn Walk o1.5</div>
-    <span class="play-badge badge-walk">WALK PROP</span>
+  <!-- 6 -->
+  <div class="play s2">
+    <div class="play-rank">★★</div>
+    <div class="play-body">
+      <div class="play-header">
+        <span class="play-title">Harper HR</span>
+        <span class="type-pill pill-hr">HR Prop</span>
+      </div>
+      <div class="play-desc">
+        <strong>Bryce Harper (PHI) vs Shane Bieber (TOR)</strong> · Citizens Bank Park ×1.14 · Batting 3rd (confirmed)<br>
+        wt=45.4 (highest weighted score on board) · HR score 60.4 · pow_score 70 · OBP score 80. Harper's matchup grade vs Bieber is elite — his swing profile generates air contact at a rate that Citizens Bank amplifies. proj_hr 0.093, proj_bb 0.54. The OBP score (80) also means Harper has strong walk upside here — if K prop books look thin, Harper o1.5 total bases or walk is a live alternative.
+      </div>
+      <div class="sigs">
+        <span class="sig sy">wt=45.4 (Top Board)</span>
+        <span class="sig sy">Pow Score 70</span>
+        <span class="sig sb">OBP Score 80 (walk upside)</span>
+        <span class="sig sg">Citizens Bank ×1.14</span>
+        <span class="sig sn">Batting 3rd ✓</span>
+      </div>
+    </div>
   </div>
-  <div class="play-body">
-    <strong>J.T. Ginn (ATH) vs BOS</strong> · Fenway Park ×1.04<br>
-    Walk score: 70.9 (WALK MACHINE — #1 on today's board). F-strike%: 54.9% (low — often falls behind in counts). BOS lineup is one of the most patient in baseball — high BB%, works counts, forces pitchers to throw strikes. Ginn facing a team that will grind him toward walks at Fenway. Best walk play on the board.
-  </div>
-  <div class="signal-row">
-    <span class="sig sig-walk">WALK MACHINE 70.9</span>
-    <span class="sig sig-walk">F-Strike 54.9% (low)</span>
-    <span class="sig sig-neutral">vs Patient BOS Lineup</span>
-    <span class="sig sig-neutral">Fenway ×1.04</span>
-  </div>
-</div>
 
-<div class="play-card tier2">
-  <div class="play-header">
-    <div class="play-title"><span class="star2">★★</span> Luzardo K OVER</div>
-    <span class="play-badge badge-k">K PROP</span>
+  <!-- 7 -->
+  <div class="play s2">
+    <div class="play-rank">★★</div>
+    <div class="play-body">
+      <div class="play-header">
+        <span class="play-title">NRFI DET@SF</span>
+        <span class="type-pill pill-nrfi">NRFI</span>
+      </div>
+      <div class="play-desc">
+        <strong>Troy Melton (DET) @ Logan Webb (SF)</strong> · Oracle Park ×0.74 (strongest suppressor in baseball)<br>
+        Webb is the anchor here — vuln score 8.7 (Avoid GB⬇), gb_pct_allowed 52.3%. Webb's sinker-heavy repertoire kills first-inning run scoring. His first-inning ERA is consistently among the best in MLB because he locates his sinker to induce weak ground-ball contact immediately. Oracle ×0.74 compounds it. Melton on the DET side is a contact-to-contact arm (Manageable 53.7), won't give up big innings early. DET went 8-0 yesterday but that was against Roupp — Webb is a fundamentally different matchup.
+      </div>
+      <div class="sigs">
+        <span class="sig sg">Oracle ×0.74</span>
+        <span class="sig sg">Webb GB⬇ 52.3%</span>
+        <span class="sig sn">Webb vuln 8.7</span>
+        <span class="sig sn">Melton Manageable 53.7</span>
+      </div>
+    </div>
   </div>
-  <div class="play-body">
-    <strong>Jesús Luzardo (PHI) vs TOR</strong> · Citizens Bank Park ×1.14<br>
-    K score: 77.3 (K ELITE). Last start: 8.0 IP, 7K. Luzardo's pitch mix generates elite whiff rates. TOR lineup swings with aggression — their chase rate plays into Luzardo's strength. In a hitter-friendly park but K props are park-neutral. Line needs to be ≤7.5 for value.
-  </div>
-  <div class="signal-row">
-    <span class="sig sig-k">K ELITE 77.3</span>
-    <span class="sig sig-green">L1: 8IP, 7K</span>
-    <span class="sig sig-neutral">TOR aggressive lineup</span>
-  </div>
-</div>
 
-<div class="play-card tier2">
-  <div class="play-header">
-    <div class="play-title"><span class="star2">★★</span> Harper HR</div>
-    <span class="play-badge badge-hr">HR PROP</span>
+  <!-- 8 -->
+  <div class="play s2">
+    <div class="play-rank">★★</div>
+    <div class="play-body">
+      <div class="play-header">
+        <span class="play-title">Ohtani HR</span>
+        <span class="type-pill pill-hr">HR Prop</span>
+        <span class="pill-new">UPGRADED</span>
+      </div>
+      <div class="play-desc">
+        <strong>Shohei Ohtani (LAD) vs Eduardo Rodriguez (AZ)</strong> · Chase Field ×1.02 · HOT streak<br>
+        HR score 76.4 (vs E-Rod in HR board) · Fantasy pow_score 92 (2nd highest overall) · E-Rod vuln 51.3 (Neutral Lean, gb_pct 41.9%). Ohtani's numbers: EV 93.4, brl% 16.6%, proj_hr 0.103. HOT form, proj_hits 1.05, proj_dk 10.3 (top fantasy value). Chase Field is slightly HR-friendly indoors. E-Rod gives up enough fly-ball contact to make Ohtani's pure power grade actionable. Both the HR engine (hr=76.4) and power_score (92) align — this is a dual-model confirmation.
+      </div>
+      <div class="sigs">
+        <span class="sig sy">HR Score 76.4</span>
+        <span class="sig sy">Pow Score 92</span>
+        <span class="sig sg">HOT Form</span>
+        <span class="sig sn">E-Rod Neutral Lean 51.3</span>
+        <span class="sig sn">Chase Field ×1.02</span>
+      </div>
+    </div>
   </div>
-  <div class="play-body">
-    <strong>Bryce Harper (PHI) vs Shane Bieber (TOR)</strong> · Citizens Bank Park ×1.14<br>
-    wt=45.4 (highest on board) · HR score: 60.4 · Fantasy power_score: 70.3 · ms=68.1. Harper's matchup grade is the best of any PHI batter vs Bieber — he's rated HOT and the xwOBA vs Bieber's arm-slot plays to Harper's strengths. Both Harper and Schwarber playing today against the same arm at the same park: if you can only play one, Schwarber has the better raw power metrics; Harper has the higher composite wt score. Different play profiles — Schwarber is the pure power upside, Harper is the balanced pick.
-  </div>
-  <div class="signal-row">
-    <span class="sig sig-pow">wt=45.4</span>
-    <span class="sig sig-pow">PwrScore 70.3</span>
-    <span class="sig sig-green">Citizens Bank ×1.14</span>
-    <span class="sig sig-neutral">ms=68.1 (high matchup)</span>
-  </div>
-</div>
 
-<div class="play-card tier2">
-  <div class="play-header">
-    <div class="play-title"><span class="star2">★★</span> NRFI DET@SF</div>
-    <span class="play-badge badge-nrfi">NRFI</span>
+  <!-- 9 -->
+  <div class="play s1">
+    <div class="play-rank">★</div>
+    <div class="play-body">
+      <div class="play-header">
+        <span class="play-title">NRFI TB@SEA</span>
+        <span class="type-pill pill-nrfi">NRFI</span>
+        <span class="pill-new">UPGRADED</span>
+      </div>
+      <div class="play-desc">
+        <strong>Ian Seymour (TB) @ Emerson Hancock (SEA)</strong> · T-Mobile Park ×0.91<br>
+        Was listed as "TB TBD" this morning — now Seymour confirmed, which <em>strengthens</em> the NRFI. Seymour's last start was 9K in 6.0 IP with 0 BB — clean, controlled, no free baserunners. Hancock on the SEA side: K score 50.8 (Manageable), last start 6.0 IP, 6K, 2BB. Both starters have clean recent first-inning profiles. T-Mobile park suppresses (×0.91). The confirmation of Seymour (a quality arm, not a wild card) removes the unknown-starter risk from this play.
+      </div>
+      <div class="sigs">
+        <span class="sig sg">Seymour L1: 9K / 0 BB</span>
+        <span class="sig sg">T-Mobile ×0.91</span>
+        <span class="sig sn">Hancock Manageable</span>
+        <span class="sig sg">Both starters clean recent</span>
+      </div>
+    </div>
   </div>
-  <div class="play-body">
-    <strong>Detroit Tigers @ San Francisco Giants</strong> · Oracle Park ×0.74 (STRONG SUPPRESSOR)<br>
-    Logan Webb (SF starter) is an elite GB inducer — vuln score 8.7 (Avoid GB⬇), gb_pct_allowed 52.3%. Webb actively kills home run upside. Troy Melton (DET) is an average pitch-to-contact arm. Oracle Park ×0.74 is the most suppressive park in baseball. First inning of a Webb start is almost always clean — his 1st-inning ERA is consistently low because he locates sinkers and limits hard contact early. <strong>DET also went 8-0 yesterday</strong> — their offense is productive but that was against Roupp who got shelled. vs Webb is a different story.
-  </div>
-  <div class="signal-row">
-    <span class="sig sig-green">Oracle Park ×0.74</span>
-    <span class="sig sig-green">Webb GB⬇ 52.3%</span>
-    <span class="sig sig-neutral">Webb vuln 8.7 (Avoid)</span>
-    <span class="sig sig-neutral">Low-scoring environment</span>
-  </div>
-</div>
 
-<div class="play-card tier3">
-  <div class="play-header">
-    <div class="play-title"><span class="star1">★</span> Conine HR (MIA vs Rodriguez)</div>
-    <span class="play-badge badge-hr">HR PROP</span>
+  <!-- 10 -->
+  <div class="play s1">
+    <div class="play-rank">★</div>
+    <div class="play-body">
+      <div class="play-header">
+        <span class="play-title">Conine HR</span>
+        <span class="type-pill pill-hr">HR Prop</span>
+      </div>
+      <div class="play-desc">
+        <strong>Griffin Conine (MIA) vs Grayson Rodriguez (LAA)</strong> · loanDepot Park ×0.87 · Batting 4th (confirmed)<br>
+        Rodriguez vuln 80.2 (Attackable — most vulnerable pitcher today, gb_pct only 30.9%). Conine: hr_score 72.5, barrel_score 97.8 (elite). brl% 15.6%, EV 91.5, BARREL SIGNAL tag. Park suppressor (×0.87) caps this at ★ — the setup is excellent but loanDepot eats 13% of HR probability. Best as a total-bases or alt-line play. Also in the frame: Caissie (MIA, hr=67.2, BARREL SIGNAL) and Stowers (MIA, hr=65.8, AIR PULL, la=18.6°).
+      </div>
+      <div class="sigs">
+        <span class="sig sy">Rodriguez Attackable 80.2</span>
+        <span class="sig sy">Barrel Score 97.8</span>
+        <span class="sig sr">loanDepot ×0.87</span>
+        <span class="sig sn">Batting 4th ✓</span>
+      </div>
+    </div>
   </div>
-  <div class="play-body">
-    <strong>Griffin Conine (MIA) vs Grayson Rodriguez (LAA)</strong> · loanDepot Park ×0.87<br>
-    Rodriguez vuln: 80.2 (Attackable — #1 pitcher vulnerability on board). Conine hr_score: 72.5, barrel_score: 97.8. High barrel rate (15.6%) at an elite level. Park suppressor (×0.87) keeps this a ★ rather than ★★ — the HR upside is dampened at loanDepot. Better as a total-bases play than outright HR prop.
-  </div>
-  <div class="signal-row">
-    <span class="sig sig-pow">Rodriguez Attackable 80.2</span>
-    <span class="sig sig-pow">Barrel Score 97.8</span>
-    <span class="sig sig-warn">loanDepot ×0.87</span>
-  </div>
-</div>
 
-<div class="play-card tier3">
-  <div class="play-header">
-    <div class="play-title"><span class="star1">★</span> YRFI TOR@PHI</div>
-    <span class="play-badge badge-yrfi">YRFI</span>
+  <!-- 11 -->
+  <div class="play s1">
+    <div class="play-rank">★</div>
+    <div class="play-body">
+      <div class="play-header">
+        <span class="play-title">YRFI TOR@PHI</span>
+        <span class="type-pill pill-yrfi">YRFI</span>
+      </div>
+      <div class="play-desc">
+        <strong>Shane Bieber (TOR) @ Jesús Luzardo (PHI)</strong> · Citizens Bank Park<br>
+        Same matchup hit yesterday (1R in 1st). PHI lineup: Schwarber, Turner, Harper, Arraez, De La Cruz — aggressive, powerful order against a starter who's a walk threat (Bieber 56.7). Citizens Bank plays big. Luzardo is a K elite but can be touched early. TOR lineup also scored 7 runs yesterday. First inning exposure is real in a park this size with these offenses. Second consecutive ★ lean — if the line inflates due to yesterday's hit, check value.
+      </div>
+      <div class="sigs">
+        <span class="sig sg">Citizens Bank ×1.14</span>
+        <span class="sig sg">Hit yesterday same matchup</span>
+        <span class="sig sb">Bieber Walk Threat 56.7</span>
+        <span class="sig sn">PHI stacked lineup confirmed</span>
+      </div>
+    </div>
   </div>
-  <div class="play-body">
-    <strong>Toronto Blue Jays @ Philadelphia Phillies</strong> · Citizens Bank Park<br>
-    YRFI hit yesterday in this exact matchup. Today Luzardo (walk threat) opens for PHI vs Bieber (walk threat) for TOR. Citizens Bank plays big. Both lineups are productive — PHI has Harper/Schwarber/Turner/De La Cruz running through the heart of the order. PHI lineup alone averages 5R/game. Even in a good Bieber outing the PHI bats will press early. On the other side, Luzardo is a K pitcher but TOR was 7-5 yesterday.
-  </div>
-  <div class="signal-row">
-    <span class="sig sig-green">Citizens Bank (hitter park)</span>
-    <span class="sig sig-walk">Bieber walk threat 56.7</span>
-    <span class="sig sig-walk">Luzardo walk threat 47.5</span>
-    <span class="sig sig-green">Hit yesterday same game</span>
-  </div>
-</div>
 
-<!-- ═══════════════════════════════════════════════════════════════
+</div><!-- /plays-stack -->
+
+<!-- ══════════════════════════════════════════════
      K BOARD
-════════════════════════════════════════════════════════════════════ -->
-<h2>K Board — August 9</h2>
+═══════════════════════════════════════════════ -->
+<h2>K Board — Full</h2>
 <table>
-  <tr><th>Pitcher</th><th>Team</th><th>vs</th><th>K Score</th><th>Tier</th><th>Last Start</th><th>Signal</th></tr>
-  <tr><td class="td-name">Jacob Misiorowski</td><td>MIL</td><td>MIN</td><td class="score-hi">94.4</td><td>K ELITE</td><td>7.0IP, 10K (8/2)</td><td>Top play</td></tr>
-  <tr><td class="td-name">Jesús Luzardo</td><td>PHI</td><td>TOR</td><td class="score-hi">77.3</td><td>K ELITE</td><td>8.0IP, 7K (8/4)</td><td>Pound TOR</td></tr>
-  <tr><td class="td-name">Jared Jones</td><td>PIT</td><td>NYM</td><td class="score-hi">74.3</td><td>K ELITE</td><td>4.0IP, 4K (8/4)</td><td>Check IP limit</td></tr>
-  <tr><td class="td-name">Cam Schlittler</td><td>NYY</td><td>ATL</td><td class="score-hi">73.8</td><td>K ELITE</td><td>3.0IP, 6K (8/3)</td><td>Short history</td></tr>
-  <tr><td class="td-name">Joey Cantillo</td><td>CLE</td><td>CWS</td><td class="score-med">64.0</td><td>K Threat</td><td>5.0IP, 5K (8/4)</td><td>Walk threat also</td></tr>
-  <tr><td class="td-name">Troy Melton</td><td>DET</td><td>SF</td><td>53.7</td><td>Manageable</td><td>7.0IP, 4K (8/4)</td><td>Low K ceiling</td></tr>
-  <tr><td class="td-name">J.T. Ginn</td><td>ATH</td><td>BOS</td><td>52.3</td><td>Manageable</td><td>6.0IP, 5K (8/4)</td><td>Walk play instead</td></tr>
-  <tr><td class="td-name">Kumar Rocker</td><td>TEX</td><td>BAL</td><td>51.4</td><td>Manageable</td><td>5.1IP, 5K (8/2)</td><td>—</td></tr>
-  <tr><td class="td-name">Emerson Hancock</td><td>SEA</td><td>TB</td><td>50.8</td><td>Manageable</td><td>6.0IP, 6K (8/4)</td><td>T-Mobile suppresses</td></tr>
+  <tr><th>Pitcher</th><th>Team</th><th>vs</th><th>K Score</th><th>Tier</th><th>Last Start</th><th>Note</th></tr>
+  <tr><td class="tn">Jacob Misiorowski</td><td>MIL</td><td>MIN</td><td class="thi">94.4</td><td>K ELITE</td><td>7.0IP / 10K / 1BB (8/2)</td><td class="tgn">★★★ Top play</td></tr>
+  <tr><td class="tn">Jesús Luzardo</td><td>PHI</td><td>TOR</td><td class="thi">77.3</td><td>K ELITE</td><td>8.0IP / 7K / 2BB (8/4)</td><td class="tgn">★★ Play</td></tr>
+  <tr><td class="tn">Jared Jones</td><td>PIT</td><td>NYM</td><td class="thi">74.3</td><td>K ELITE</td><td>4.0IP / 4K / 1BB (8/4)</td><td class="trd">Short outing risk</td></tr>
+  <tr><td class="tn">Cam Schlittler</td><td>NYY</td><td>ATL</td><td class="thi">73.8</td><td>K ELITE</td><td>3.0IP / 6K / 5BB (8/3)</td><td class="trd">Very short + 5BB — skip</td></tr>
+  <tr><td class="tn">Ian Seymour</td><td>TB</td><td>SEA</td><td class="tgn">~68*</td><td>K Threat+</td><td>6.0IP / 9K / 0BB (8/3)</td><td class="tgn">★★★ Added (confirmed today)</td></tr>
+  <tr><td class="tn">Joey Cantillo</td><td>CLE</td><td>CWS</td><td class="tmd">64.0</td><td>K Threat</td><td>5.0IP / 5K / 2BB (8/4)</td><td>Also walk play</td></tr>
+  <tr><td class="tn">Troy Melton</td><td>DET</td><td>SF</td><td>53.7</td><td>Manageable</td><td>7.0IP / 4K / 2BB (8/4)</td><td class="dim">Low K ceiling</td></tr>
+  <tr><td class="tn">J.T. Ginn</td><td>OAK</td><td>BOS</td><td>52.3</td><td>Manageable</td><td>6.0IP / 5K / 2BB (8/4)</td><td>Walk play instead</td></tr>
+  <tr><td class="tn">Emerson Hancock</td><td>SEA</td><td>TB</td><td>50.8</td><td>Manageable</td><td>6.0IP / 6K / 2BB (8/4)</td><td class="dim">T-Mobile suppresses</td></tr>
+  <tr><td class="tn">Brady Singer</td><td>CIN</td><td>WSH</td><td>49.2</td><td>Manageable</td><td>6.0IP / 6K / 3BB (8/4)</td><td class="dim">—</td></tr>
+  <tr><td class="tn">Cade Povich</td><td>BAL</td><td>TEX</td><td>47.3</td><td>Manageable</td><td>6.0IP / 7K / 1BB (8/4)</td><td class="dim">—</td></tr>
+  <tr><td class="tn">Logan Webb</td><td>SF</td><td>DET</td><td>38.4</td><td>Manageable</td><td>6.0IP / 8K / 1BB (8/3)</td><td class="dim">NRFI play, not K</td></tr>
 </table>
+<p style="margin-top:6px;font-size:11px;color:#5A7090">*Seymour estimated score based on swstr 29.2%, k_pct 28.4%, and recent form. Engine will confirm on next full build. Schlittler (73.8 K ELITE) skip — 3IP/5BB last start suggests opener role or control issues. Jones (74.3) — IP limit concern given 4IP last outing.</p>
 
-<p><strong>Flags:</strong> Jones (PIT) has 4-inning recent starts — IP limit risk on K overs. Schlittler (NYY) has very short track record (3IP last time); back carefully. Misiorowski is the only clear top-end play on this board.</p>
-
-<!-- ═══════════════════════════════════════════════════════════════
+<!-- ══════════════════════════════════════════════
      WALK BOARD
-════════════════════════════════════════════════════════════════════ -->
-<h2>Walk Board — August 9</h2>
+═══════════════════════════════════════════════ -->
+<h2>Walk Board — Full</h2>
 <table>
-  <tr><th>Pitcher</th><th>Team</th><th>vs</th><th>Walk Score</th><th>Tier</th><th>F-Strike%</th><th>Note</th></tr>
-  <tr><td class="td-name">J.T. Ginn</td><td>ATH</td><td>BOS</td><td class="score-hi">70.9</td><td>WALK MACHINE</td><td>54.9%</td><td>★★ Best play</td></tr>
-  <tr><td class="td-name">Randy Dobnak</td><td>KC</td><td>CHC</td><td class="score-hi">67.9</td><td>WALK THREAT</td><td>57.5%</td><td>CHC is patient</td></tr>
-  <tr><td class="td-name">Joey Cantillo</td><td>CLE</td><td>CWS</td><td class="score-med">64.2</td><td>WALK THREAT</td><td>55.4%</td><td>K + Walk combo</td></tr>
-  <tr><td class="td-name">Sean Manaea</td><td>NYM</td><td>PIT</td><td class="score-med">61.4</td><td>WALK THREAT</td><td>56.9%</td><td>Good lineup matchup</td></tr>
-  <tr><td class="td-name">Shane Bieber</td><td>TOR</td><td>PHI</td><td>56.7</td><td>WALK THREAT</td><td>59.2%</td><td>PHI patient</td></tr>
-  <tr><td class="td-name">Connor Prielipp</td><td>MIN</td><td>MIL</td><td>56.7</td><td>WALK THREAT</td><td>64.9%</td><td>MIL is selective</td></tr>
-  <tr><td class="td-name">Troy Melton</td><td>DET</td><td>SF</td><td>56.6</td><td>WALK THREAT</td><td>58.6%</td><td>Skip — Webb pitches better</td></tr>
-  <tr><td class="td-name">Cristian Javier</td><td>HOU</td><td>SD</td><td>56.1</td><td>WALK THREAT</td><td>64.8%</td><td>SD very patient lineup</td></tr>
-  <tr><td class="td-name">Kumar Rocker</td><td>TEX</td><td>BAL</td><td>55.6</td><td>WALK THREAT</td><td>56.6%</td><td>BAL lineup swings free</td></tr>
-  <tr><td class="td-name">Brady Singer</td><td>CIN</td><td>WSH</td><td>52.6</td><td>WALK THREAT</td><td>56.5%</td><td>WSH lineup selective</td></tr>
+  <tr><th>Pitcher</th><th>Team</th><th>vs</th><th>Score</th><th>Tier</th><th>F-Strike%</th><th>Top Batter Confirm</th><th>Play</th></tr>
+  <tr><td class="tn">J.T. Ginn</td><td>OAK</td><td>BOS</td><td class="thi">70.9</td><td>WALK MACHINE</td><td>54.9%</td><td>Contreras OBP 74.5</td><td class="tgn">★★ Best walk</td></tr>
+  <tr><td class="tn">Randy Dobnak</td><td>KC</td><td>CHC</td><td class="thi">67.9</td><td>WALK THREAT</td><td>57.5%</td><td>Crow-Armstrong OBP 71.8</td><td>★ Check line</td></tr>
+  <tr><td class="tn">Joey Cantillo</td><td>CLE</td><td>CWS</td><td class="tmd">64.2</td><td>WALK THREAT</td><td>55.4%</td><td>Murakami OBP 78.2</td><td>★ K+Walk combo</td></tr>
+  <tr><td class="tn">Sean Manaea</td><td>NYM</td><td>PIT</td><td class="tmd">61.4</td><td>WALK THREAT</td><td>56.9%</td><td>Flores Jr. OBP 86.4</td><td>Value if -120 or better</td></tr>
+  <tr><td class="tn">Shane Bieber</td><td>TOR</td><td>PHI</td><td>56.7</td><td>WALK THREAT</td><td>59.2%</td><td>Harper OBP 80.0</td><td>Harper walk o0.5</td></tr>
+  <tr><td class="tn">Connor Prielipp</td><td>MIN</td><td>MIL</td><td>56.7</td><td>WALK THREAT</td><td>64.9%</td><td>Sánchez OBP 75.9</td><td>Secondary</td></tr>
+  <tr><td class="tn">Cristian Javier</td><td>HOU</td><td>SD</td><td>56.1</td><td>WALK THREAT</td><td>64.8%</td><td>SD lineup patient</td><td>SD still TBD — wait</td></tr>
+  <tr><td class="tn">Kumar Rocker</td><td>TEX</td><td>BAL</td><td>55.6</td><td>WALK THREAT</td><td>56.6%</td><td>—</td><td class="dim">Secondary</td></tr>
+  <tr><td class="tn">Brad Lord</td><td>WSH</td><td>CIN</td><td>54.1</td><td>WALK THREAT</td><td>64.8%</td><td>—</td><td class="dim">Secondary</td></tr>
+  <tr><td class="tn">Brady Singer</td><td>CIN</td><td>WSH</td><td>52.6</td><td>WALK THREAT</td><td>56.5%</td><td>—</td><td class="dim">Secondary</td></tr>
+  <tr><td class="tn">Grant Holmes</td><td>ATL</td><td>NYY</td><td>52.5</td><td>WALK THREAT</td><td>59.2%</td><td>Rice OBP 71.2</td><td class="dim">Secondary</td></tr>
+  <tr><td class="tn">Grayson Rodriguez</td><td>LAA</td><td>MIA</td><td>52.4</td><td>WALK THREAT</td><td>58.1%</td><td>—</td><td class="dim">Skip — use HR angle</td></tr>
 </table>
 
-<!-- ═══════════════════════════════════════════════════════════════
+<!-- ══════════════════════════════════════════════
      HR BOARD
-════════════════════════════════════════════════════════════════════ -->
-<h2>HR Attack Board — August 9</h2>
+═══════════════════════════════════════════════ -->
+<h2>HR Attack Board — Ranked by Pitcher Vulnerability</h2>
 <table>
-  <tr><th>Pitcher</th><th>Team</th><th>vs</th><th>Vuln</th><th>Tier</th><th>GB%</th><th>Top Pick</th><th>HR Sc</th><th>Pow</th></tr>
-  <tr><td class="td-name">Grayson Rodriguez</td><td>LAA</td><td>MIA</td><td class="score-hi">80.2</td><td>Attackable</td><td>30.9%</td><td>Conine, Caissie</td><td>72.5</td><td>—</td></tr>
-  <tr><td class="td-name">Cristian Javier</td><td>HOU</td><td>SD</td><td class="score-hi">63.7</td><td>Attackable</td><td>25.9%</td><td>Workman, Merrill</td><td>69.0</td><td>—</td></tr>
-  <tr><td class="td-name">Shane Bieber</td><td>TOR</td><td>PHI</td><td>61.1</td><td>Neutral Lean GB⬇</td><td>46.3%</td><td>Schwarber, Harper</td><td>80.7</td><td>81.5</td></tr>
-  <tr><td class="td-name">Justin Wrobleski</td><td>LAD</td><td>AZ</td><td>58.4</td><td>Neutral Lean</td><td>39.9%</td><td>Carroll, Marte</td><td>58.8</td><td>—</td></tr>
-  <tr><td class="td-name">Edu. Rodriguez</td><td>AZ</td><td>LAD</td><td>51.3</td><td>Neutral Lean</td><td>41.9%</td><td>Ohtani, Freeman</td><td>—</td><td>92.3</td></tr>
-  <tr><td class="td-name">Grant Holmes</td><td>ATL</td><td>NYY</td><td>49.9</td><td>Neutral Lean</td><td>41.8%</td><td>Ben Rice</td><td>—</td><td>77.5</td></tr>
+  <tr><th>Pitcher</th><th>vs</th><th>Vuln</th><th>Tier</th><th>GB%</th><th>Park</th><th>Top Picks</th><th>HR Sc · Pow</th></tr>
+  <tr><td class="tn">Grayson Rodriguez (LAA)</td><td>MIA</td><td class="thi">80.2</td><td>Attackable</td><td>30.9</td><td>×0.87</td><td>Conine, Caissie, Stowers</td><td>72.5 · 76</td></tr>
+  <tr><td class="tn">Cristian Javier (HOU)</td><td>SD</td><td class="thi">63.7</td><td>Attackable</td><td>25.9</td><td>×0.88</td><td>Workman (69.0), Merrill (58.4), Machado</td><td>69.0 · —</td></tr>
+  <tr><td class="tn">Shane Bieber (TOR)</td><td>PHI</td><td class="tmd">61.1</td><td>Neutral Lean GB⬇</td><td>46.3</td><td>×1.14</td><td class="tgn">Schwarber (80.7★★★), Harper (60.4★★)</td><td>80.7 · 82</td></tr>
+  <tr><td class="tn">Justin Wrobleski (LAD)</td><td>AZ</td><td class="tmd">58.4</td><td>Neutral Lean</td><td>39.9</td><td>×1.02</td><td>Carroll (58.8), Marte (59.0), Kepler</td><td>59.0 · —</td></tr>
+  <tr><td class="tn">M. McGreevy (STL)</td><td>COL</td><td>54.7</td><td>Neutral Lean GB⬇</td><td>44.9</td><td>—</td><td>Goodman (71.4), Moniak (64.1)</td><td>71.4 · —</td></tr>
+  <tr><td class="tn">Michael Lorenzen (COL)</td><td>STL</td><td>52.7</td><td>Neutral Lean GB⬇</td><td>43.9</td><td>—</td><td>Burleson (65.3), Walker (61.1)</td><td>65.3 · 76</td></tr>
+  <tr><td class="tn">Sean Manaea (NYM)</td><td>PIT</td><td>51.9</td><td>Neutral Lean</td><td>40.3</td><td>—</td><td>Endy Rodriguez (60.6), Valdez</td><td>60.6 · —</td></tr>
+  <tr><td class="tn">Eduardo Rodriguez (AZ)</td><td>LAD</td><td>51.3</td><td>Neutral Lean</td><td>41.9</td><td>×1.02</td><td class="tgn">Ohtani (76.4★★), Freeman (63.4)</td><td>76.4 · 92</td></tr>
+  <tr><td class="tn">Grant Holmes (ATL)</td><td>NYY</td><td>49.9</td><td>Neutral Lean</td><td>41.8</td><td>×1.19</td><td>Ben Rice (71.5), Grisham</td><td>71.5 · 78</td></tr>
+  <tr><td class="tn">M. Boyd (CHC)</td><td>KC</td><td>47.1</td><td>Neutral Lean</td><td>42.5</td><td>—</td><td>John Rave (71.0), Witt Jr. (58.4)</td><td>71.0 · 74</td></tr>
+  <tr><td class="tn">Emerson Hancock (SEA)</td><td>TB</td><td>45.4</td><td>Neutral Lean</td><td>42.3</td><td>×0.91</td><td>Aranda (50.6), Caminero (46.4)</td><td>50.6 · —</td></tr>
+  <tr><td class="tn">Ryan Gusto (MIA)</td><td>LAA</td><td>43.4</td><td>Avoid</td><td>41.7</td><td>×0.87</td><td>Trout (69.4), Schanuel</td><td>69.4 · 82</td></tr>
+  <tr><td class="tn">Joey Cantillo (CLE)</td><td>CWS</td><td>31.5</td><td>Avoid GB⬇</td><td>45.3</td><td>—</td><td>Murakami (69.9)</td><td>69.9 · 90</td></tr>
+  <tr><td class="tn">Logan Webb (SF)</td><td>DET</td><td>8.7</td><td>Avoid GB⬇</td><td>52.3</td><td>×0.74</td><td>None playable</td><td>— · —</td></tr>
 </table>
 
-<!-- ═══════════════════════════════════════════════════════════════
-     FANTASY / HIT PROPS (NEW SECTION)
-════════════════════════════════════════════════════════════════════ -->
-<h2>Fantasy Scores &amp; Hit Props — August 9</h2>
+<p><strong>Ben Rice (NYY) vs Holmes note:</strong> hr_score 71.5, pow_score 78, batting 2nd at Yankee Stadium ×1.19 vs Holmes (Neutral Lean 49.9, Walk Threat 52.5). If the line is under +400, this has value — Rice showed pop in early season and Yankee Stadium is the second-best HR park on today's board behind Citizens Bank.</p>
 
-<p>The hitter_fantasy_engine scores every batter across five dimensions: fantasy_score (overall), power_score (HR potential), contact_score (hit rate), obp_score (walk/OBP), and speed_score. These are now cross-referenced with the HR and walk boards. Below are the batter-side plays the engine surfaces for 8/9.</p>
-
-<h3>Top Fantasy Scores (Overall)</h3>
+<!-- ══════════════════════════════════════════════
+     FANTASY / BATTER SCORES
+═══════════════════════════════════════════════ -->
+<h2>Fantasy &amp; Batter Scores — Key Players (Lineup Confirmed)</h2>
 <table>
   <tr><th>Batter</th><th>Team</th><th>Pitcher</th><th>FS</th><th>Pow</th><th>Cnt</th><th>OBP</th><th>projH</th><th>projHR</th><th>projBB</th><th>DK</th><th>Form</th></tr>
-  <tr><td class="td-name">Yordan Alvarez</td><td>HOU</td><td>TBD</td><td class="score-hi">79.7</td><td>95.6</td><td>80.9</td><td>100.0</td><td>1.15</td><td>0.112</td><td>0.32</td><td>10.8</td><td>HOT</td></tr>
-  <tr><td class="td-name">Shohei Ohtani</td><td>LAD</td><td>E. Rodriguez</td><td class="score-hi">75.5</td><td>92.3</td><td>63.2</td><td>87.3</td><td>1.05</td><td>0.103</td><td>0.44</td><td>10.3</td><td>HOT</td></tr>
-  <tr><td class="td-name">Bryan De La Cruz</td><td>PHI</td><td>Bieber</td><td class="score-med">72.4</td><td>61.9</td><td>78.5</td><td>76.9</td><td>1.10</td><td>0.084</td><td>0.38</td><td>9.9</td><td>HOT</td></tr>
-  <tr><td class="td-name">Alec Burleson</td><td>STL</td><td>M. Lorenzen</td><td class="score-med">70.0</td><td>75.8</td><td>66.2</td><td>59.5</td><td>1.02</td><td>0.078</td><td>0.33</td><td>9.0</td><td>HOT</td></tr>
-  <tr><td class="td-name">Bryce Harper</td><td>PHI</td><td>Bieber</td><td class="score-med">66.0</td><td>70.3</td><td>52.7</td><td>80.0</td><td>0.94</td><td>0.093</td><td>0.54</td><td>9.7</td><td>WARM</td></tr>
-  <tr><td class="td-name">Bobby Witt Jr.</td><td>KC</td><td>M. Boyd</td><td class="score-med">65.9</td><td>74.2</td><td>68.6</td><td>63.3</td><td>1.06</td><td>0.068</td><td>0.33</td><td>9.5</td><td>HOT</td></tr>
-  <tr><td class="td-name">Angel Genao</td><td>CLE</td><td>D. Martin</td><td class="score-med">65.7</td><td>76.6</td><td>85.1</td><td>32.8</td><td>1.08</td><td>0.062</td><td>0.30</td><td>8.6</td><td>WARM</td></tr>
-  <tr><td class="td-name">Mike Trout</td><td>LAA</td><td>R. Gusto</td><td>64.9</td><td>82.2</td><td>43.4</td><td>82.1</td><td>0.82</td><td>0.078</td><td>0.49</td><td>9.0</td><td>WARM</td></tr>
-  <tr><td class="td-name">Willson Contreras</td><td>BOS</td><td>J.T. Ginn</td><td>64.0</td><td>77.6</td><td>48.5</td><td>74.5</td><td>0.97</td><td>0.089</td><td>0.43</td><td>9.6</td><td>HOT</td></tr>
-  <tr><td class="td-name">Junior Caminero</td><td>TB</td><td>Hancock</td><td>65.1</td><td>80.6</td><td>55.2</td><td>74.8</td><td>0.92</td><td>0.077</td><td>0.37</td><td>8.6</td><td>WARM</td></tr>
+  <tr><td class="tn">Yordan Alvarez</td><td>HOU</td><td>TBD (SD)</td><td class="thi">80</td><td class="thi">96</td><td>81</td><td>100</td><td>1.15</td><td>.112</td><td>.32</td><td class="thi">10.8</td><td class="tgn">HOT</td></tr>
+  <tr><td class="tn">Shohei Ohtani</td><td>LAD</td><td>E. Rodriguez</td><td class="thi">76</td><td class="thi">92</td><td>63</td><td>87</td><td>1.05</td><td>.103</td><td>.44</td><td class="thi">10.3</td><td class="tgn">HOT</td></tr>
+  <tr><td class="tn">Bryan De La Cruz</td><td>PHI</td><td>Bieber</td><td class="tmd">72</td><td>62</td><td class="tmd">78</td><td>77</td><td class="tmd">1.10</td><td>.084</td><td>.38</td><td>9.9</td><td class="tgn">HOT</td></tr>
+  <tr><td class="tn">Alec Burleson</td><td>STL</td><td>Lorenzen</td><td class="tmd">70</td><td>76</td><td>66</td><td>60</td><td>1.02</td><td>.078</td><td>.33</td><td>9.0</td><td class="tgn">HOT</td></tr>
+  <tr><td class="tn">Bryce Harper</td><td>PHI</td><td>Bieber</td><td class="tmd">66</td><td>70</td><td>53</td><td class="tmd">80</td><td>.94</td><td>.093</td><td>.54</td><td>9.7</td><td>WARM</td></tr>
+  <tr><td class="tn">Bobby Witt Jr.</td><td>KC</td><td>Boyd</td><td class="tmd">66</td><td>74</td><td class="tmd">69</td><td>63</td><td>1.06</td><td>.068</td><td>.33</td><td>9.5</td><td class="tgn">HOT</td></tr>
+  <tr><td class="tn">Angel Genao</td><td>CLE</td><td>D. Martin</td><td class="tmd">66</td><td>77</td><td class="thi">85</td><td>33</td><td>1.08</td><td>.062</td><td>.30</td><td>8.6</td><td>WARM</td></tr>
+  <tr><td class="tn">Junior Caminero</td><td>TB</td><td>Hancock</td><td class="tmd">65</td><td class="tmd">81</td><td>55</td><td>75</td><td>.92</td><td>.077</td><td>.37</td><td>8.6</td><td>WARM</td></tr>
+  <tr><td class="tn">Mike Trout</td><td>LAA</td><td>Gusto</td><td>65</td><td class="tmd">82</td><td>43</td><td class="tmd">82</td><td>.82</td><td>.078</td><td>.49</td><td>9.0</td><td>WARM</td></tr>
+  <tr><td class="tn">Willson Contreras</td><td>BOS</td><td>Ginn</td><td>64</td><td>78</td><td>48</td><td>74</td><td>.97</td><td>.089</td><td>.43</td><td>9.6</td><td class="tgn">HOT</td></tr>
+  <tr><td class="tn">Abimelec Ortiz</td><td>WSH</td><td>Singer</td><td>63</td><td class="tmd">88</td><td>64</td><td>37</td><td>.94</td><td class="thi">.121</td><td>.32</td><td>9.7</td><td>DUE</td></tr>
+  <tr><td class="tn">Ben Rice</td><td>NYY</td><td>Holmes</td><td>63</td><td>78</td><td>49</td><td>71</td><td>.92</td><td>.101</td><td>.44</td><td>9.2</td><td>WARM</td></tr>
+  <tr><td class="tn">Kyle Schwarber</td><td>PHI</td><td>Bieber</td><td>60</td><td class="tmd">82</td><td>34</td><td>75</td><td>.80</td><td>.099</td><td>.53</td><td>9.0</td><td>WARM</td></tr>
+  <tr><td class="tn">Munetaka Murakami</td><td>CWS</td><td>Cantillo</td><td>60</td><td class="thi">90</td><td>26</td><td class="tmd">78</td><td>.71</td><td>.099</td><td>.56</td><td>8.8</td><td>DUE</td></tr>
+  <tr><td class="tn">Griffin Conine</td><td>MIA</td><td>Rodriguez</td><td>61</td><td>76</td><td>44</td><td>62</td><td>.86</td><td>.071</td><td>.39</td><td>8.2</td><td>WARM</td></tr>
 </table>
 
-<h3>Hit Props — Top proj_hits Batters</h3>
+<h3>Hit Props — Best projH Plays</h3>
 <table>
-  <tr><th>Batter</th><th>Team</th><th>Pitcher</th><th>projH</th><th>xBA</th><th>Cnt Score</th><th>Form</th><th>Play</th></tr>
-  <tr><td class="td-name">Andrew Pinckney</td><td>WSH</td><td>Brady Singer</td><td class="score-hi">1.68</td><td>.474</td><td>75.0</td><td>—</td><td>o1.5 hits</td></tr>
-  <tr><td class="td-name">Yordan Alvarez</td><td>HOU</td><td>TBD</td><td class="score-hi">1.15</td><td>.336</td><td>80.9</td><td>HOT</td><td>o1.5 hits</td></tr>
-  <tr><td class="td-name">Bryan De La Cruz</td><td>PHI</td><td>Bieber</td><td class="score-hi">1.10</td><td>.306</td><td>78.5</td><td>HOT</td><td>o0.5/1.5 hits</td></tr>
-  <tr><td class="td-name">Brett Bateman</td><td>TOR</td><td>Luzardo</td><td class="score-hi">1.10</td><td>.304</td><td>75.0</td><td>—</td><td>o0.5 hits</td></tr>
-  <tr><td class="td-name">Angel Genao</td><td>CLE</td><td>D. Martin</td><td class="score-med">1.08</td><td>.305</td><td>85.1</td><td>WARM</td><td>o0.5 hits</td></tr>
-  <tr><td class="td-name">Bobby Witt Jr.</td><td>KC</td><td>M. Boyd</td><td class="score-med">1.06</td><td>.307</td><td>68.6</td><td>HOT</td><td>o0.5 hits</td></tr>
-  <tr><td class="td-name">Gabriel Moreno</td><td>AZ</td><td>Wrobleski</td><td class="score-med">1.06</td><td>.293</td><td>68.7</td><td>—</td><td>o0.5 hits</td></tr>
-  <tr><td class="td-name">Freddie Freeman</td><td>LAD</td><td>E. Rodriguez</td><td class="score-med">1.07</td><td>.300</td><td>68.9</td><td>WARM</td><td>o0.5 hits</td></tr>
-  <tr><td class="td-name">Shohei Ohtani</td><td>LAD</td><td>E. Rodriguez</td><td class="score-med">1.05</td><td>.339</td><td>63.2</td><td>HOT</td><td>o0.5 hits</td></tr>
-  <tr><td class="td-name">Luis Arraez</td><td>PHI</td><td>Bieber</td><td class="score-med">1.05</td><td>.285</td><td>71.0</td><td>—</td><td>o0.5 hits</td></tr>
+  <tr><th>Batter</th><th>Team</th><th>Pitcher</th><th>projH</th><th>xBA</th><th>Cnt</th><th>Form</th><th>Prop</th></tr>
+  <tr><td class="tn">Andrew Pinckney</td><td>WSH</td><td>Brady Singer</td><td class="thi">1.68</td><td>.474</td><td>75.0</td><td>—</td><td>o1.5H — verify batting order</td></tr>
+  <tr><td class="tn">Yordan Alvarez</td><td>HOU</td><td>TBD</td><td class="thi">1.15</td><td>.336</td><td>80.9</td><td class="tgn">HOT</td><td>o1.5H (pitcher TBD — hold)</td></tr>
+  <tr><td class="tn">Bryan De La Cruz</td><td>PHI</td><td>Bieber</td><td class="tmd">1.10</td><td>.306</td><td>78.5</td><td class="tgn">HOT</td><td>o0.5H / o1.5H — play</td></tr>
+  <tr><td class="tn">Angel Genao</td><td>CLE</td><td>D. Martin</td><td class="tmd">1.08</td><td>.305</td><td>85.1</td><td>WARM</td><td>o0.5H — solid spot</td></tr>
+  <tr><td class="tn">Luis Arraez</td><td>PHI</td><td>Bieber</td><td class="tmd">1.05</td><td>.285</td><td>71.0</td><td>WARM</td><td>o0.5H (contact-only play)</td></tr>
+  <tr><td class="tn">Freddie Freeman</td><td>LAD</td><td>E. Rodriguez</td><td class="tmd">1.07</td><td>.300</td><td>68.9</td><td>WARM</td><td>o0.5H</td></tr>
+  <tr><td class="tn">Bobby Witt Jr.</td><td>KC</td><td>M. Boyd</td><td class="tmd">1.06</td><td>.307</td><td>68.6</td><td class="tgn">HOT</td><td>o0.5H</td></tr>
+  <tr><td class="tn">Shohei Ohtani</td><td>LAD</td><td>E. Rodriguez</td><td class="tmd">1.05</td><td>.339</td><td>63.2</td><td class="tgn">HOT</td><td>o0.5H — likely -160 or worse</td></tr>
+  <tr><td class="tn">Alec Burleson</td><td>STL</td><td>Lorenzen</td><td>1.02</td><td>.297</td><td>66.2</td><td class="tgn">HOT</td><td>o0.5H — Lorenzen walk threat 48.4</td></tr>
 </table>
-<p><strong>Note — Pinckney (1.68 projH, .474 xBA):</strong> Huge outlier number. Singer (CIN) has given up extreme contact to WSH-type lineups per recent splits. If available as a player prop, this is the top hit play on the board, but verify batting order position and recent usage — the model scores plate appearances, so a lineup move changes the denominator.</p>
+<p><strong>Pinckney (1.68 projH, xBA .474):</strong> Largest projH outlier by a wide margin. Singer (CIN) has given up elite contact to the WSH lineup. Verify Pinckney is starting and his batting order position — model assumes full AB count. If he's batting 1–5, this is the top hit prop on the board.</p>
 
-<h3>Batter Walk Props (OBP Score Confirmations)</h3>
+<h3>Dual-Confirm Walk Props (Batter OBP + Pitcher Walk Score)</h3>
 <table>
-  <tr><th>Batter</th><th>Team</th><th>Pitcher</th><th>OBP Score</th><th>projBB</th><th>BB%</th><th>Pitcher Walk Tier</th><th>Signal</th></tr>
-  <tr><td class="td-name">Rafael Flores Jr.</td><td>PIT</td><td>Sean Manaea</td><td class="score-hi">86.4</td><td>0.59</td><td>21.4%</td><td>WALK THREAT 61.4</td><td>Both sides confirmed</td></tr>
-  <tr><td class="td-name">Bryce Harper</td><td>PHI</td><td>Shane Bieber</td><td class="score-hi">80.0</td><td>0.54</td><td>15.0%</td><td>WALK THREAT 56.7</td><td>Both sides confirmed</td></tr>
-  <tr><td class="td-name">Munetaka Murakami</td><td>CWS</td><td>Joey Cantillo</td><td class="score-hi">78.2</td><td>0.56</td><td>17.1%</td><td>WALK THREAT 64.2</td><td>Both sides confirmed</td></tr>
-  <tr><td class="td-name">Gary Sánchez</td><td>MIL</td><td>Connor Prielipp</td><td>75.9</td><td>0.55</td><td>18.4%</td><td>WALK THREAT 56.7</td><td>Both sides confirmed</td></tr>
-  <tr><td class="td-name">Kyle Schwarber</td><td>PHI</td><td>Shane Bieber</td><td>74.8</td><td>0.53</td><td>14.6%</td><td>WALK THREAT 56.7</td><td>Both sides confirmed</td></tr>
-  <tr><td class="td-name">Willson Contreras</td><td>BOS</td><td>J.T. Ginn</td><td>74.5</td><td>0.43</td><td>10.9%</td><td>WALK MACHINE 70.9</td><td>Both sides confirmed</td></tr>
-  <tr><td class="td-name">Pete Crow-Armstrong</td><td>CHC</td><td>Randy Dobnak</td><td>71.8</td><td>0.44</td><td>12.0%</td><td>WALK THREAT 67.9</td><td>Both sides confirmed</td></tr>
-  <tr><td class="td-name">Jake Bauers</td><td>MIL</td><td>Connor Prielipp</td><td>72.8</td><td>0.45</td><td>13.7%</td><td>WALK THREAT 56.7</td><td>Both sides confirmed</td></tr>
+  <tr><th>Batter</th><th>Team</th><th>Pitcher</th><th>Batter OBP</th><th>Pitcher Walk</th><th>projBB</th><th>Strength</th></tr>
+  <tr><td class="tn">Willson Contreras</td><td>BOS</td><td>J.T. Ginn</td><td class="thi">74.5</td><td class="thi">70.9 MACHINE</td><td>.43</td><td class="tgn">★★ Strongest dual-confirm</td></tr>
+  <tr><td class="tn">Bryce Harper</td><td>PHI</td><td>Shane Bieber</td><td class="thi">80.0</td><td>56.7 THREAT</td><td>.54</td><td class="tgn">★★ Strong</td></tr>
+  <tr><td class="tn">Munetaka Murakami</td><td>CWS</td><td>Joey Cantillo</td><td class="thi">78.2</td><td>64.2 THREAT</td><td>.56</td><td class="tgn">★ Solid</td></tr>
+  <tr><td class="tn">Rafael Flores Jr.</td><td>PIT</td><td>Sean Manaea</td><td class="thi">86.4</td><td>61.4 THREAT</td><td>.59</td><td class="tgn">★ Solid (verify PA count)</td></tr>
+  <tr><td class="tn">Pete Crow-Armstrong</td><td>CHC</td><td>Randy Dobnak</td><td>71.8</td><td>67.9 THREAT</td><td>.44</td><td>Secondary</td></tr>
+  <tr><td class="tn">Gary Sánchez</td><td>MIL</td><td>Connor Prielipp</td><td>75.9</td><td>56.7 THREAT</td><td>.55</td><td>Secondary</td></tr>
+  <tr><td class="tn">Kyle Schwarber</td><td>PHI</td><td>Shane Bieber</td><td>74.8</td><td>56.7 THREAT</td><td>.53</td><td>Alt angle on Schwarber</td></tr>
 </table>
-<p><strong>Dual-confirmation plays:</strong> When both the pitcher walk score AND the batter OBP score are elevated, both sides of the matchup are pointing toward walks. The strongest dual-confirms today: <strong>Contreras vs Ginn</strong> (pitcher WALK MACHINE 70.9 + batter OBP 74.5), <strong>Harper vs Bieber</strong>, <strong>Murakami vs Cantillo</strong>, and <strong>Flores vs Manaea</strong>.</p>
 
-<!-- ═══════════════════════════════════════════════════════════════
+<!-- ══════════════════════════════════════════════
      NRFI / YRFI
-════════════════════════════════════════════════════════════════════ -->
-<h2>NRFI / YRFI Grid — August 9</h2>
-<table>
-  <tr><th>Game</th><th>Pitchers</th><th>Park</th><th>NRFI Signal</th><th>YRFI Signal</th><th>Lean</th></tr>
-  <tr><td class="td-name">DET@SF</td><td>Melton / Webb</td><td>Oracle ×0.74</td><td>Webb GB⬇ 52.3%, extreme suppressor</td><td>DET 8-0 yesterday (diff pitcher)</td><td class="sig-green"><strong>NRFI ★★</strong></td></tr>
-  <tr><td class="td-name">TOR@PHI</td><td>Bieber / Luzardo</td><td>Citizens Bank</td><td>Luzardo K elite</td><td>PHI bats explosive, hitter park, YRFI hit yesterday</td><td class="sig-warn"><strong>YRFI ★</strong></td></tr>
-  <tr><td class="td-name">TB@SEA</td><td>TBD / Hancock</td><td>T-Mobile ×0.91</td><td>Hancock good 1st innings, park suppresses</td><td>TB starter TBD (unknown quality)</td><td class="sig-green">NRFI lean</td></tr>
-  <tr><td class="td-name">LAD@AZ</td><td>Wrobleski / E.Rod</td><td>Chase Field ×1.02</td><td>Both capable starters</td><td>AZ and LAD both productive offenses</td><td class="sig-neutral">Neutral</td></tr>
-  <tr><td class="td-name">ATL@NYY</td><td>Holmes / Schlittler</td><td>Yankee Stadium ×1.19</td><td>Both pitchers decent</td><td>NYY scored 5 yesterday, Yankee Stadium plays up</td><td class="sig-neutral">Slight YRFI lean</td></tr>
-  <tr><td class="td-name">CIN@WSH</td><td>Singer / Lord</td><td>Nationals Park</td><td>Singer manageable start</td><td>WSH had 8 runs yesterday, Lord walk threat</td><td class="sig-neutral">Slight YRFI lean</td></tr>
-  <tr><td class="td-name">HOU@SD</td><td>Javier / TBD</td><td>Petco ×0.88</td><td>Petco suppresses heavily</td><td>Javier walk threat 56.1</td><td class="sig-green">NRFI lean</td></tr>
-  <tr><td class="td-name">COL@STL</td><td>Lorenzen / McGreevy</td><td>Busch Stadium</td><td>McGreevy decent control</td><td>COL scored 8 yesterday, can't suppress them</td><td class="sig-warn">YRFI lean</td></tr>
-  <tr><td class="td-name">MIN@MIL</td><td>Prielipp / Misiorowski</td><td>Am. Family Field</td><td>Misiorowski K elite — shuts down 1st</td><td>Prielipp walk threat, MIL lineup patient</td><td class="sig-green">NRFI lean (Misiorowski effect)</td></tr>
-</table>
+═══════════════════════════════════════════════ -->
+<h2>NRFI / YRFI Grid</h2>
+<div class="nrfi-grid">
+  <div class="nrfi-card lean-nrfi">
+    <div class="nc-game">DET @ SF ★★</div>
+    <div class="nc-pitchers">Melton (DET) vs Webb (SF)</div>
+    <div class="nc-lean">NRFI ★★</div>
+    <div class="nc-reason">Webb GB⬇ 52.3% + Oracle ×0.74. Best NRFI anchor on slate. Webb's sinker kills first-inning run scoring.</div>
+  </div>
+  <div class="nrfi-card lean-nrfi">
+    <div class="nc-game">TB @ SEA ★</div>
+    <div class="nc-pitchers">Seymour (TB) vs Hancock (SEA) ✓UPDATED</div>
+    <div class="nc-lean">NRFI ★ (Upgraded)</div>
+    <div class="nc-reason">Seymour confirmed — 9K/0BB last start. Clean arm, not wild card. Hancock also solid. T-Mobile ×0.91. Both starters run clean first innings.</div>
+  </div>
+  <div class="nrfi-card lean-nrfi">
+    <div class="nc-game">HOU @ SD (lean)</div>
+    <div class="nc-pitchers">Javier (HOU) vs TBD (SD)</div>
+    <div class="nc-lean">NRFI lean</div>
+    <div class="nc-reason">Petco ×0.88, Javier manageable. Wait until SD starter is announced — if it's a quality arm this becomes ★.</div>
+  </div>
+  <div class="nrfi-card lean-nrfi">
+    <div class="nc-game">MIN @ MIL (lean)</div>
+    <div class="nc-pitchers">Prielipp (MIN) vs Misiorowski (MIL)</div>
+    <div class="nc-lean">NRFI lean</div>
+    <div class="nc-reason">Misiorowski K ELITE shuts batters down in 1st. His first-inning stats are elite. Prielipp is walk threat but usually doesn't give up runs early.</div>
+  </div>
+  <div class="nrfi-card lean-yrfi">
+    <div class="nc-game">TOR @ PHI ★</div>
+    <div class="nc-pitchers">Bieber (TOR) vs Luzardo (PHI)</div>
+    <div class="nc-lean">YRFI ★</div>
+    <div class="nc-reason">Citizens Bank, hit yesterday (1R). PHI's explosive lineup bats 1-4 (Schwarber, Turner, Harper, Arraez). Bieber is a walk threat. High first-inning run probability.</div>
+  </div>
+  <div class="nrfi-card lean-yrfi">
+    <div class="nc-game">COL @ STL (lean)</div>
+    <div class="nc-pitchers">Lorenzen (COL) vs McGreevy (STL)</div>
+    <div class="nc-lean">YRFI lean</div>
+    <div class="nc-reason">COL scored 8 runs yesterday. Lorenzen walk threat 48.4, sometimes loses the zone early. STL lineup active. Both average arms in a neutral park.</div>
+  </div>
+  <div class="nrfi-card lean-yrfi">
+    <div class="nc-game">ATL @ NYY (lean)</div>
+    <div class="nc-pitchers">Holmes (ATL) vs Schlittler (NYY)</div>
+    <div class="nc-lean">YRFI lean</div>
+    <div class="nc-reason">Yankee Stadium ×1.19. Holmes neutral arm. Schlittler's walk concerns (5BB last short outing). NYY scored 5 yesterday.</div>
+  </div>
+  <div class="nrfi-card lean-n">
+    <div class="nc-game">LAD @ AZ</div>
+    <div class="nc-pitchers">Wrobleski (LAD) vs E. Rodriguez (AZ)</div>
+    <div class="nc-lean">Neutral</div>
+    <div class="nc-reason">Both capable starters, average park. LAD NRFI hit yesterday. Neither strongly suppresses or allows early runs.</div>
+  </div>
+  <div class="nrfi-card lean-n">
+    <div class="nc-game">CLE @ CWS</div>
+    <div class="nc-pitchers">Cantillo (CLE) vs Martin (CWS)</div>
+    <div class="nc-lean">Slight YRFI</div>
+    <div class="nc-reason">Martin is weak arm (Avoid 37.2). CLE offense will find ways. Cantillo walk threat on other side.</div>
+  </div>
+  <div class="nrfi-card lean-n">
+    <div class="nc-game">OAK @ BOS</div>
+    <div class="nc-pitchers">Ginn (OAK) vs Miller opener (BOS)</div>
+    <div class="nc-lean">Skip</div>
+    <div class="nc-reason">Miller opener (1-2 IP) complicates NRFI — could be swapped for a bulk arm. NRFI model doesn't price opener transitions well.</div>
+  </div>
+</div>
 
-<!-- ═══════════════════════════════════════════════════════════════
+<!-- ══════════════════════════════════════════════
      GAME BREAKDOWNS
-════════════════════════════════════════════════════════════════════ -->
-<h2>Game-by-Game Breakdown</h2>
+═══════════════════════════════════════════════ -->
+<h2>Game-by-Game</h2>
 
-<h3>TOR@PHI — Citizens Bank Park</h3>
-<p><strong>Pitchers:</strong> Shane Bieber (TOR, Neutral Lean GB⬇ 61.1, Walk Threat 56.7) vs Jesús Luzardo (PHI, K ELITE 77.3, Walk Neutral 47.5). <strong>Batter props:</strong> Schwarber HR ★★★ (wt=42.9, pow=81.5), Harper HR ★★ (wt=45.4), De La Cruz hit (projH=1.10, HOT), Arraez hit (projH=1.05). <strong>YRFI lean</strong> — PHI lineup is one of the best in baseball, park plays big. <strong>Walk props:</strong> Harper vs Bieber is dual-confirmed (Harper OBP=80.0, Bieber walk threat 56.7). Yesterday's 7-5 TOR win shows offense on both sides is alive.</p>
+<div class="game-block">
+  <div class="game-block-hdr">
+    <span class="gb-title">TOR @ PHI — Citizens Bank Park ×1.14</span>
+    <span class="gb-meta">Bieber (TOR) vs Luzardo (PHI)</span>
+  </div>
+  <div class="game-block-body">
+    <strong>HR plays:</strong> Schwarber ★★★ (wt=42.9, hr=80.7, pow=82, LOFT 21°), Harper ★★ (wt=45.4, pow=70, obp=80). <strong>K play:</strong> Luzardo ★★ (77.3 K ELITE, last: 8IP/7K). <strong>Walk plays:</strong> Harper walk o0.5 (dual-confirm: OBP=80 + Bieber WALK THREAT 56.7); Schwarber walk alt (OBP=75). <strong>Hit props:</strong> De La Cruz o1.5H (projH=1.10, HOT), Arraez o0.5H (projH=1.05, xBA=.285, contact machine). <strong>YRFI ★</strong> — same game hit yesterday. Richest game on the slate: 3 active angles (HR, K, YRFI) all pointing into Citizens Bank.
+  </div>
+</div>
 
-<h3>LAD@AZ — Chase Field ×1.02</h3>
-<p><strong>Pitchers:</strong> Wrobleski (LAD, Neutral Lean 58.4) vs E. Rodriguez (AZ, Neutral Lean 51.3). <strong>Batter props:</strong> Ohtani HR (pow=92.3, projHR=0.103), Freeman hit (projH=1.07), Carroll HR (hr_score=58.8). Both pitchers in the mid-range vulnerability zone. <strong>NRFI hit yesterday</strong> — model confidence for first inning is slightly toward clean but the offenses are both productive.</p>
+<div class="game-block">
+  <div class="game-block-hdr">
+    <span class="gb-title">TB @ SEA — T-Mobile Park ×0.91</span>
+    <span class="gb-meta">Seymour (TB) vs Hancock (SEA) · CONFIRMED THIS MORNING</span>
+  </div>
+  <div class="game-block-body">
+    <strong>K play:</strong> Seymour ★★★ (9K/0BB last start, 7K prior — line ≤7.5K). <strong>NRFI ★:</strong> Both starters clean, T-Mobile suppresses. <strong>Caminero (TB):</strong> pow=81, OBP=75, projHR=0.077 — vs Hancock (Neutral Lean 45.4). Best TB batter play if a prop is available. Seymour's K prop is the priority for this game.
+  </div>
+</div>
 
-<h3>DET@SF — Oracle Park ×0.74</h3>
-<p><strong>Pitchers:</strong> Melton (DET, Manageable 53.7, Walk Threat 56.6) vs Webb (SF, Avoid GB⬇ 8.7). <strong>NRFI ★★</strong> — Webb's extreme sinker/GB profile + Oracle suppressor is the best NRFI setup on the board. DET went 8-0 yesterday but against a different arm. <strong>HR props avoid</strong> — park eats HR upside completely (×0.74). Valencia (DET) has 91.6 power_score but Oracle destroys that. <strong>Watch hit props instead</strong>: Genao contact play vs weaker pitching.</p>
+<div class="game-block">
+  <div class="game-block-hdr">
+    <span class="gb-title">MIN @ MIL — American Family Field</span>
+    <span class="gb-meta">Prielipp (MIN) vs Misiorowski (MIL)</span>
+  </div>
+  <div class="game-block-body">
+    <strong>K play:</strong> Misiorowski ★★★ (94.4 K ELITE — top score on slate, 10K last start). <strong>Walk play:</strong> Prielipp (56.7 WALK THREAT, F-strike 64.9%) — vs MIL patient lineup. Sánchez (MIL) dual-confirm: OBP=75.9, projBB=0.55. <strong>NRFI lean:</strong> Misiorowski tends to dominate first innings. Prielipp may be shaky early but usually doesn't give up runs first inning.
+  </div>
+</div>
 
-<h3>ATL@NYY — Yankee Stadium ×1.19</h3>
-<p><strong>Pitchers:</strong> Holmes (ATL, Neutral Lean 49.9) vs Schlittler (NYY, K ELITE 73.8). <strong>Batter props:</strong> Ben Rice HR (wt=41.7, pow=77.5), Olson HR (pow=83.5, projHR=0.113). Schlittler's K score is elite but his recent history is a 3IP start — IP limit concern. NYY scored 5 yesterday, ATL will find ways. <strong>Slight YRFI lean</strong> at Yankee Stadium.</p>
+<div class="game-block">
+  <div class="game-block-hdr">
+    <span class="gb-title">LAD @ AZ — Chase Field ×1.02</span>
+    <span class="gb-meta">Wrobleski (LAD) vs Eduardo Rodriguez (AZ)</span>
+  </div>
+  <div class="game-block-body">
+    <strong>HR play:</strong> Ohtani ★★ (hr=76.4, pow=92, HOT, projHR=0.103 vs E-Rod Neutral Lean 51.3). Freeman hit (projH=1.07, xBA=.300). Carroll HR (hr=58.8, AIR PULL). <strong>Note:</strong> LAD NRFI hit yesterday 1-0 — Wrobleski has been keeping early innings clean. Slight NRFI lean for today, but Ohtani HR in later innings is the primary play.
+  </div>
+</div>
 
-<h3>LAA@MIA — loanDepot ×0.87</h3>
-<p><strong>Pitchers:</strong> Rodriguez (LAA, Attackable 80.2) vs Gusto (MIA, Avoid 43.4). <strong>HR board:</strong> Rodriguez is the most vulnerable pitcher on the board today (80.2 Attackable, only 30.9% GB rate). MIA batters: Conine (hr_score=72.5, barrel_score=97.8), Caissie (hr_score=67.2). Park suppresses by ×0.87 so the HR props are ★ not ★★, but total-bases and alternative lines have value. <strong>Trout</strong> (LAA) facing Gusto: pow=82.2, projHR=0.078.</p>
+<div class="game-block">
+  <div class="game-block-hdr">
+    <span class="gb-title">DET @ SF — Oracle Park ×0.74</span>
+    <span class="gb-meta">Melton (DET) vs Webb (SF)</span>
+  </div>
+  <div class="game-block-body">
+    <strong>NRFI ★★:</strong> Webb GB⬇ (gb_pct 52.3%, vuln 8.7), Oracle ×0.74 — best NRFI spot on the board. <strong>Avoid HR props entirely</strong> — Oracle destroys HR upside regardless of batter power scores. <strong>Hit focus:</strong> Valencia (DET, pow=92, projH=0.90 vs Webb) — Webb suppresses power but gives up groundball singles. Genao (CLE, not this game). <strong>Melton walk play:</strong> 56.6 walk threat — SF lineup will work counts vs this arm.
+  </div>
+</div>
 
-<h3>HOU@SD — Petco Park ×0.88</h3>
-<p><strong>Pitchers:</strong> Javier (HOU, Attackable 63.7, Walk Threat 56.1) vs TBD. <strong>Batter props:</strong> Workman (SD) hr_score=69.0, Machado hr_score=57.3. Alvarez (HOU) top fantasy score (79.7) but Petco suppresses. <strong>Walk prop:</strong> Javier walk threat + patient SD lineup. Best angle here may be Javier o2.5 walks vs SD.</p>
+<div class="game-block">
+  <div class="game-block-hdr">
+    <span class="gb-title">OAK @ BOS — Fenway Park ×1.04</span>
+    <span class="gb-meta">Ginn (OAK) vs Miller opener (BOS)</span>
+  </div>
+  <div class="game-block-body">
+    <strong>Walk play:</strong> Ginn ★★ (70.9 WALK MACHINE, F-strike 54.9%) — BOS lineup confirmed: Sogard, Rafaela, Abreu, Contreras (4th). Contreras OBP=74.5 dual-confirm. Miller as BOS opener (1–2 IP) means OAK batters see an elite arm early (swstr 35.2%) but then a bulk arm — creates volatile run environment mid-game. <strong>NRFI skip</strong> — opener transitions make first-inning prediction unreliable.
+  </div>
+</div>
 
-<h3>OAK@BOS — Fenway Park ×1.04</h3>
-<p><strong>Pitchers:</strong> Ginn (ATH, Walk MACHINE 70.9) vs TBD. <strong>Walk play ★★:</strong> Ginn's 70.9 walk score + BOS lineup patience + Fenway (hitter park means BOS will work counts even harder). Contreras (BOS) has 74.5 OBP score vs Ginn — dual-confirmed walk side. <strong>Best walk play on the board after Ginn himself.</strong></p>
+<div class="game-block">
+  <div class="game-block-hdr">
+    <span class="gb-title">CLE @ CWS — Rate Field</span>
+    <span class="gb-meta">Cantillo (CLE) vs Martin (CWS)</span>
+  </div>
+  <div class="game-block-body">
+    <strong>Walk play:</strong> Cantillo ★ (64.2 WALK THREAT, F-strike 55.4%) — Murakami (CWS) dual-confirm: OBP=78.2, projBB=0.56. <strong>Hit play:</strong> Genao (CLE, contact_score=85.1 — top on board, projH=1.08) vs Martin (Avoid 37.2 vuln — weakest pitching matchup for K upside but great for hit props). Murakami HR (pow=90, projHR=0.099 vs Cantillo Avoid 31.5 GB⬇ — note Avoid tier suppresses).
+  </div>
+</div>
 
-<h3>CLE@CWS — Rate Field</h3>
-<p><strong>Pitchers:</strong> Cantillo (CLE, K Threat 64.0, Walk Threat 64.2) vs Martin (CWS, Manageable). Both K and Walk props point to Cantillo. Dual-confirm: Murakami (CWS) has OBP=78.2 vs Cantillo walk threat 64.2. Martin is a weak arm — CLE lineup should score. Genao (CLE) contact_score=85.1 (top on board), projH=1.08 vs Martin. <strong>Cantillo walk o1.5 ★ and Genao hit o0.5 are the plays.</strong></p>
+<div class="game-block">
+  <div class="game-block-hdr">
+    <span class="gb-title">ATL @ NYY — Yankee Stadium ×1.19</span>
+    <span class="gb-meta">Holmes (ATL) vs Schlittler (NYY)</span>
+  </div>
+  <div class="game-block-body">
+    <strong>HR play:</strong> Ben Rice (hr=71.5, pow=78, batting 2nd confirmed, Yankee Stadium ×1.19 vs Holmes Neutral Lean 49.9). <strong>Walk concern:</strong> Schlittler had 5BB in his last 3-IP outing — possible control issue or opener role. Verify his expected IP before playing K props. Holmes walk threat 52.5 — ATL lineup will work him. <strong>Skip K props on Schlittler</strong> until start type confirmed.
+  </div>
+</div>
 
-<h3>COL@STL — Busch Stadium</h3>
-<p><strong>Pitchers:</strong> Lorenzen (COL, Neutral Lean GB⬇ 52.7) vs McGreevy (STL, Neutral Lean 54.7). <strong>Batter props:</strong> Burleson (STL) top fantasy performer today (FS=70.0, projH=1.02, HOT), Walker (STL) FS=62.9. STL lineup vs Colorado pitching is typically productive. COL went 8-6 yesterday. <strong>YRFI lean</strong> — both teams showed they can score yesterday and these are two average arms.</p>
+<div class="game-block">
+  <div class="game-block-hdr">
+    <span class="gb-title">COL @ STL — Busch Stadium</span>
+    <span class="gb-meta">Lorenzen (COL) vs McGreevy (STL)</span>
+  </div>
+  <div class="game-block-body">
+    <strong>HR plays:</strong> Burleson (STL, hr=65.3, pow=76, HOT, batting 3rd confirmed), Walker (STL, hr=61.1, pow=71). Lorenzen is Neutral Lean GB⬇ (52.7) — STL batters who pull the ball in the air have solid upside. Goodman (COL) hr=71.4 vs McGreevy Neutral Lean GB⬇ (54.7). <strong>Hit play:</strong> Burleson hit o0.5/1.5 (projH=1.02, HOT). <strong>YRFI lean</strong> — COL scored 8 yesterday, Lorenzen sometimes loses control early.
+  </div>
+</div>
 
-<h3>MIN@MIL — American Family Field</h3>
-<p><strong>Pitchers:</strong> Prielipp (MIN, Walk Threat 56.7) vs Misiorowski (MIL, K ELITE 94.4). The matchup highlights a clear asymmetry — Misiorowski is the best pitcher on the board today while Prielipp is a walk threat. <strong>K play: Misiorowski ★★★.</strong> <strong>NRFI lean</strong> — Misiorowski typically dominates his first inning before pitch count kicks in. Walk play: Prielipp walk threat vs MIL's patient lineup (Sánchez OBP=75.9).</p>
+<div class="game-block">
+  <div class="game-block-hdr">
+    <span class="gb-title">LAA @ MIA — loanDepot Park ×0.87</span>
+    <span class="gb-meta">Rodriguez (LAA) vs Gusto (MIA)</span>
+  </div>
+  <div class="game-block-body">
+    <strong>HR play:</strong> Conine ★ (hr=72.5, barrel=97.8, batting 4th confirmed, vs Rodriguez Attackable 80.2). Also Caissie (hr=67.2) and Stowers (hr=65.8, la=18.6° LOFT). Park ×0.87 caps all to ★ — better as total bases or alt-line plays. Trout (LAA, pow=82) vs Gusto (Avoid 43.4) has potential but same park suppressor applies. <strong>Walk play:</strong> Rodriguez walk threat 52.4 — MIA lineup will work him.
+  </div>
+</div>
 
-<!-- ═══════════════════════════════════════════════════════════════
-     FADES & AVOIDS
-════════════════════════════════════════════════════════════════════ -->
+<div class="game-block">
+  <div class="game-block-hdr">
+    <span class="gb-title">CIN @ WSH — Nationals Park</span>
+    <span class="gb-meta">Singer (CIN) vs Lord (WSH)</span>
+  </div>
+  <div class="game-block-body">
+    <strong>Fantasy play:</strong> Ortiz (WSH, pow=88, projHR=0.121 — highest on board, DUE form). Singer Neutral Lean GB⬇ (48.5) — the GB flag dampens HR upside but Ortiz's raw power is the highest proj_hr on the entire slate. <strong>Hit play:</strong> Pinckney (WSH, projH=1.68, xBA=.474 — verify batting order). De La Cruz (CIN, pow=75, FS=64). Lord walk threat (54.1) — CIN bats will work him. <strong>Walk play:</strong> Singer walk threat 52.6 vs patient WSH lineup.
+  </div>
+</div>
+
+<div class="game-block">
+  <div class="game-block-hdr">
+    <span class="gb-title">BAL @ TEX — Globe Life Field ×0.91</span>
+    <span class="gb-meta">Povich (BAL) vs Rocker (TEX)</span>
+  </div>
+  <div class="game-block-body">
+    Povich (BAL): K score 47.3 (Manageable, last: 7K/6IP), walk score 42.5 (neutral). Rocker (TEX): K score 51.4 (Manageable), walk score 55.6 (WALK THREAT). Rocker walk o1.5 is a secondary play. BAL batters vs Rocker: Alonso (pow=80, projHR=0.077, Avoid tier). Globe Life suppresses (×0.91). Nimmo (TEX, projH=1.00, FS=62) is a decent hit play vs Povich. <strong>Skip as primary plays</strong> — both pitchers are mid-tier.
+  </div>
+</div>
+
+<div class="game-block">
+  <div class="game-block-hdr">
+    <span class="gb-title">HOU @ SD — Petco Park ×0.88</span>
+    <span class="gb-meta">Javier (HOU) vs TBD (SD)</span>
+  </div>
+  <div class="game-block-body">
+    <strong>Hold all SD-side props until starter is announced.</strong> Javier walk threat 56.1 — SD lineup is the most patient in NL. Once SD starter is confirmed, check their walk/K scores. Javier Attackable (63.7) with low GB% (25.9%) — SD batters hitting in the air have HR upside. Machado (hr=57.3), Merrill (hr=58.4), Workman (hr=69.0, brl=20.8%). Petco ×0.88 caps these to secondary plays. Alvarez (HOU, FS=80, pow=96) — top overall fantasy score — but also needs SD starter for full context.
+  </div>
+</div>
+
+<div class="game-block">
+  <div class="game-block-hdr">
+    <span class="gb-title">NYM @ PIT — PNC Park</span>
+    <span class="gb-meta">Manaea (NYM) vs Jones (PIT)</span>
+  </div>
+  <div class="game-block-body">
+    Jones ★ K (74.3 K ELITE) — but <strong>IP limit risk</strong>: last start was 4.0 IP. If Jones is on an innings cap, K overs fail by pitch count, not ability. Confirm Jones' expected workload. Manaea walk threat 61.4 — Flores Jr. (PIT, OBP=86.4) is the dual-confirm batter-walk play. Endy Rodriguez (PIT, hr=60.6) vs Manaea (Neutral Lean 51.9) is a secondary HR angle.
+  </div>
+</div>
+
+<div class="game-block">
+  <div class="game-block-hdr">
+    <span class="gb-title">CHC @ KC — Kauffman Stadium</span>
+    <span class="gb-meta">Boyd (CHC) vs Dobnak (KC)</span>
+  </div>
+  <div class="game-block-body">
+    Dobnak walk threat 67.9 (F-strike 57.5%). CHC lineup is disciplined — Crow-Armstrong dual-confirm (OBP=71.8). Boyd K score 46.2 (Manageable) — not a K play. <strong>Walk play:</strong> Dobnak o1.5 walks ★. <strong>HR:</strong> Rave (KC, hr=71.0) vs Boyd Neutral Lean 47.1 — secondary spot. Witt Jr. (KC, FS=66, HOT, projH=1.06) hit o0.5 is a clean value at Kauffman.
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     FADES
+═══════════════════════════════════════════════ -->
 <h2>Fades &amp; Avoids</h2>
-
-<div class="result-box">
-  <div class="result-row">
-    <div><div class="result-label">HR props at Oracle Park (DET@SF)</div><div class="result-sub">Logan Webb + ×0.74 suppressor = no HR upside regardless of batter power scores</div></div>
-    <span class="result-outcome out-loss">FADE</span>
+<div class="fade-box">
+  <div class="fade-row">
+    <div><div class="fade-label">Schlittler K prop (NYY)</div><div class="fade-sub">K ELITE 73.8 but last outing: 3 IP, 5 BB. May be in opener/piggyback role. Verify start type before touching.</div></div>
+    <span class="fade-badge fb-check">VERIFY ROLE</span>
   </div>
-  <div class="result-row">
-    <div><div class="result-label">Jared Jones K prop</div><div class="result-sub">K ELITE 74.3 but recent starts show 4IP pattern — IP limit makes K overs risky</div></div>
-    <span class="result-outcome out-push">CHECK LINE</span>
+  <div class="fade-row">
+    <div><div class="fade-label">Jones K prop (PIT) at standard lines</div><div class="fade-sub">K ELITE 74.3 but last start 4.0 IP. IP limit kills K overs. Only play if line ≤4.5K.</div></div>
+    <span class="fade-badge fb-check">IP LIMIT RISK</span>
   </div>
-  <div class="result-row">
-    <div><div class="result-label">Cam Schlittler K prop</div><div class="result-sub">K ELITE 73.8 but 3IP last start — very short history, possibly an opener/piggyback</div></div>
-    <span class="result-outcome out-push">CHECK IP ROLE</span>
+  <div class="fade-row">
+    <div><div class="fade-label">All HR props at Oracle Park (DET@SF)</div><div class="fade-sub">Webb's sinker + ×0.74 park. No HR upside regardless of batter power score. Fade completely.</div></div>
+    <span class="fade-badge fb-skip">FADE</span>
   </div>
-  <div class="result-row">
-    <div><div class="result-label">HR props at Petco (HOU@SD)</div><div class="result-sub">Attackable Javier but Petco ×0.88 significantly eats into HR probability</div></div>
-    <span class="result-outcome out-push">ADJUST (TB instead)</span>
+  <div class="fade-row">
+    <div><div class="fade-label">HOU@SD props (SD side) until starter announced</div><div class="fade-sub">SD starter still TBD. Don't price K, walk, or HR props on SD batters or vs SD pitcher yet.</div></div>
+    <span class="fade-badge fb-check">WAIT FOR ANNOUNCE</span>
   </div>
-  <div class="result-row">
-    <div><div class="result-label">Dobnak Walk prop (KC)</div><div class="result-sub">Walk Threat 67.9 but CHC can be passive early — verify CHC lineup patience before firing</div></div>
-    <span class="result-outcome out-push">CONFIRM LINEUP</span>
+  <div class="fade-row">
+    <div><div class="fade-label">NRFI OAK@BOS</div><div class="fade-sub">Miller opener (1-2 IP) creates transition risk. Model doesn't price opener hand-offs accurately for NRFI.</div></div>
+    <span class="fade-badge fb-skip">SKIP</span>
+  </div>
+  <div class="fade-row">
+    <div><div class="fade-label">HR props in Petco (HOU@SD)</div><div class="fade-sub">Even with Attackable Javier (63.7), Petco ×0.88 eats 12% of HR probability. Use total bases instead.</div></div>
+    <span class="fade-badge fb-check">ALT LINES ONLY</span>
   </div>
 </div>
 
-<!-- ═══════════════════════════════════════════════════════════════
-     MODEL IMPROVEMENTS
-════════════════════════════════════════════════════════════════════ -->
-<h2>Model Weaknesses Identified &amp; Next Steps</h2>
-
-<div class="play-card tier3">
-  <h3>1. K Score Undersells Recent-Breakout Pitchers</h3>
-  <p><strong>Evidence:</strong> Jump (11K) and Cole (9K) were both rated "Manageable" (48–50 range). Their K scores reflect season-long K%, not recent hot streaks. A pitcher who's struck out 9+ in 3 of his last 5 starts should get a multiplier.</p>
-  <p><strong>Fix to add:</strong> recent_k_surge flag — when avg_k_per_9 over last 3 starts &gt; 1.5× season K/9, add +8–12 to k_score. This would have caught both Jump and the correct deGrom output.</p>
-</div>
-
-<div class="play-card tier3">
-  <h3>2. Walk Prop False Positives (Chandler, Alvarez)</h3>
-  <p><strong>Evidence:</strong> Chandler (69.0 WALK MACHINE) had only 1 BB in 6 clean innings. Alvarez (77.2 WALK MACHINE) had 1 BB in 5.1 IP. Both were top-2 walk scores yet both pitched efficiently. Walk score is built on career BB% which can include old injury seasons or early-career wildness that doesn't reflect current command.</p>
-  <p><strong>Fix to add:</strong> weight recent 30-day BB% at 60% (currently season-long). Chandler's recent control work is better than his career average suggests. A "trending control" flag — when trailing 30-day F-strike% is 5%+ better than career average — would suppress the WALK MACHINE label.</p>
-</div>
-
-<div class="play-card tier3">
-  <h3>3. Fantasy Engine Integration (FIXED today)</h3>
-  <p><strong>Gap:</strong> hitter_fantasy_engine has been running daily since 7/31 but its power_score, contact_score, obp_score, proj_hits, proj_dk were not surfaced in any output. This left hit props, DFS lineup value, and batter-side walk confirmations completely invisible.</p>
-  <p><strong>What's fixed:</strong> gen_hr_board.py now shows PwrScore, projH, and DK on each player card. Slate writeup now has dedicated Hit Props and Batter OBP sections. Dual-confirmation walk plays (pitcher walk score + batter OBP score) are now identified explicitly.</p>
-</div>
-
-<div class="play-card tier3">
-  <h3>4. HR Props Need Batter-Side Confirmation</h3>
-  <p><strong>Evidence:</strong> Schwarber missed yesterday despite correct pitcher vulnerability and park factor. The HR engine ranks batters but doesn't use fantasy power_score as a cross-check. Today power_score is now displayed alongside hr_score — when both are 70+, it's the highest-confidence play.</p>
-  <p><strong>Rule going forward:</strong> Best HR picks = hr_score ≥ 70 AND power_score ≥ 70 AND pitcher Neutral Lean or better AND park factor ≥ 1.0. Today: Schwarber qualifies (hr=80.7, pow=81.5, Bieber NL, CBP ×1.14).</p>
-</div>
-
-<!-- ═══════════════════════════════════════════════════════════════
-     SUMMARY
-════════════════════════════════════════════════════════════════════ -->
-<h2>Slate Summary — August 9</h2>
-
+<!-- ══════════════════════════════════════════════
+     RANKED SUMMARY
+═══════════════════════════════════════════════ -->
+<h2>Full Play List — Ranked</h2>
 <table>
-  <tr><th>Rank</th><th>Play</th><th>Type</th><th>Signal</th></tr>
-  <tr><td>1</td><td class="td-name">★★★ Misiorowski K OVER (MIL)</td><td>K Prop</td><td>94.4 K ELITE · 10K last start</td></tr>
-  <tr><td>2</td><td class="td-name">★★★ Schwarber HR (PHI)</td><td>HR Prop</td><td>hr=80.7 + pow=81.5 + LOFT 21° + CBP ×1.14</td></tr>
-  <tr><td>3</td><td class="td-name">★★ Ginn Walk o1.5 (OAK)</td><td>Walk Prop</td><td>70.9 WALK MACHINE · F-Strike 54.9% · vs BOS</td></tr>
-  <tr><td>4</td><td class="td-name">★★ Luzardo K OVER (PHI)</td><td>K Prop</td><td>77.3 K ELITE · 7K last start</td></tr>
-  <tr><td>5</td><td class="td-name">★★ Harper HR (PHI)</td><td>HR Prop</td><td>wt=45.4 (top board) · pow=70.3 · CBP ×1.14</td></tr>
-  <tr><td>6</td><td class="td-name">★★ NRFI DET@SF</td><td>NRFI</td><td>Webb GB⬇ 52.3% · Oracle ×0.74</td></tr>
-  <tr><td>7</td><td class="td-name">★ Conine HR (MIA)</td><td>HR Prop</td><td>Rodriguez Attackable 80.2 · barrel=97.8</td></tr>
-  <tr><td>8</td><td class="td-name">★ YRFI TOR@PHI</td><td>YRFI</td><td>CBP park · PHI bats · hit yesterday</td></tr>
-  <tr><td>9</td><td class="td-name">De La Cruz Hit o1.5 (PHI)</td><td>Hit Prop</td><td>projH=1.10 · cnt=78.5 · HOT · vs Bieber</td></tr>
-  <tr><td>10</td><td class="td-name">Contreras Walk/OBP (BOS)</td><td>Walk Prop</td><td>OBP=74.5 · vs Ginn WALK MACHINE 70.9</td></tr>
+  <tr><th>#</th><th>Play</th><th>Type</th><th>Key Signal</th><th>Confidence</th></tr>
+  <tr><td>1</td><td class="tn">Misiorowski K Over (MIL)</td><td>K Prop</td><td>94.4 K ELITE · 10K last start</td><td class="thi">★★★</td></tr>
+  <tr><td>2</td><td class="tn">Schwarber HR (PHI)</td><td>HR Prop</td><td>hr=80.7 · pow=82 · LOFT 21° · CBP ×1.14</td><td class="thi">★★★</td></tr>
+  <tr><td>3</td><td class="tn">Seymour K Over (TB) <span class="upd-tag">NEW</span></td><td>K Prop</td><td>9K/0BB last start · swstr 29.2% · confirmed</td><td class="thi">★★★</td></tr>
+  <tr><td>4</td><td class="tn">Ginn Walk o1.5 (OAK)</td><td>Walk</td><td>70.9 MACHINE · F-Strike 54.9% · vs BOS</td><td class="tmd">★★</td></tr>
+  <tr><td>5</td><td class="tn">Luzardo K Over (PHI)</td><td>K Prop</td><td>77.3 K ELITE · 8IP/7K last start</td><td class="tmd">★★</td></tr>
+  <tr><td>6</td><td class="tn">Harper HR (PHI)</td><td>HR Prop</td><td>wt=45.4 top board · pow=70 · CBP ×1.14</td><td class="tmd">★★</td></tr>
+  <tr><td>7</td><td class="tn">NRFI DET@SF</td><td>NRFI</td><td>Webb GB⬇ 52.3% · Oracle ×0.74</td><td class="tmd">★★</td></tr>
+  <tr><td>8</td><td class="tn">Ohtani HR (LAD) <span class="upd-tag">UPGRADED</span></td><td>HR Prop</td><td>hr=76.4 · pow=92 · HOT · E-Rod 51.3</td><td class="tmd">★★</td></tr>
+  <tr><td>9</td><td class="tn">NRFI TB@SEA <span class="upd-tag">UPGRADED</span></td><td>NRFI</td><td>Seymour 9K/0BB confirmed · T-Mobile ×0.91</td><td>★</td></tr>
+  <tr><td>10</td><td class="tn">Conine HR (MIA)</td><td>HR Prop</td><td>Rodriguez Attackable 80.2 · barrel=97.8</td><td>★</td></tr>
+  <tr><td>11</td><td class="tn">YRFI TOR@PHI</td><td>YRFI</td><td>CBP · PHI lineup · hit yesterday</td><td>★</td></tr>
+  <tr><td>12</td><td class="tn">De La Cruz Hit o1.5 (PHI)</td><td>Hit</td><td>projH=1.10 · cnt=78.5 · HOT · vs Bieber</td><td>★</td></tr>
+  <tr><td>13</td><td class="tn">Contreras Walk (BOS vs Ginn)</td><td>Walk</td><td>Dual-confirm: OBP=74.5 + pitcher 70.9</td><td>★</td></tr>
+  <tr><td>14</td><td class="tn">Cantillo Walk o1.5 (CLE)</td><td>Walk</td><td>64.2 THREAT · Murakami OBP=78.2</td><td>★</td></tr>
+  <tr><td>15</td><td class="tn">Ben Rice HR (NYY vs Holmes)</td><td>HR Prop</td><td>hr=71.5 · pow=78 · Yankee Stadium ×1.19</td><td>★</td></tr>
+  <tr><td>16</td><td class="tn">Genao Hit o0.5 (CLE)</td><td>Hit</td><td>cnt=85.1 top board · projH=1.08 · vs D. Martin</td><td>★</td></tr>
+  <tr><td>17</td><td class="tn">Burleson Hit o0.5/1.5 (STL)</td><td>Hit</td><td>projH=1.02 · HOT · vs Lorenzen</td><td>★</td></tr>
+  <tr><td>18</td><td class="tn">Dobnak Walk o1.5 (KC)</td><td>Walk</td><td>67.9 THREAT · F-Strike 57.5% · vs CHC</td><td>★</td></tr>
+  <tr><td>19</td><td class="tn">Pinckney Hit o1.5 (WSH)</td><td>Hit</td><td>projH=1.68 · xBA=.474 — verify batting order</td><td>★ (verify first)</td></tr>
 </table>
 
-<div class="subtitle" style="margin-top:24px">PropStats Engine · 8/9/2026 · 15 games · Model: K+Walk+HR+Fantasy+NRFI</div>
+<div class="meta" style="margin-top:28px">PropStats Engine · August 9, 2026 · All starters verified · 15 games · Updated 2 starters from TBD</div>
 
 </div>
 </body>
