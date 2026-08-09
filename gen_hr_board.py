@@ -15,7 +15,10 @@ DS = GAME_DATE.replace('-','')
 
 with open(f"{SP}/hr_board_{DS}.json") as f:
     hr_board = json.load(f)
-with open(f"{SP}/hitter_fantasy_{DS}.json") as f:
+_fantasy_path = f"{SP}/hitter_fantasy_{DS}.json"
+if not os.path.exists(_fantasy_path):
+    _fantasy_path = f"{SP}/fantasy_board_{DS}.json"
+with open(_fantasy_path) as f:
     fantasy = json.load(f)
 
 fantasy_lu = {str(b['batter_id']): b for b in fantasy}
@@ -183,6 +186,10 @@ for ge in hr_board:
         bats     = fb.get('bats', b.get('bats', 'R'))
         team     = fb.get('team', b.get('team', ''))
         fscore   = fb.get('fantasy_score', 50)
+        pow_score = fb.get('power_score', 0)
+        cnt_score = fb.get('contact_score', 0)
+        proj_dk  = proj.get('proj_dk', 0) or 0
+        proj_hits = proj.get('proj_hits', 0) or 0
         mg       = fb.get('matchup', {}).get('grade', 40)
         composite= round(fscore*0.40 + mg*0.60, 1)
         pf_row   = b.get('park_hr_factor', park_factor)
@@ -230,6 +237,8 @@ for ge in hr_board:
             'gb_pct_allowed': ge['vuln'].get('gb_pct_allowed', 0),
             'gb_suppressor': gb_suppressor,
             'ideal_setup': ideal_setup, 'persistent_due': persistent_due,
+            'pow_score': pow_score, 'cnt_score': cnt_score,
+            'proj_dk': proj_dk, 'proj_hits': proj_hits, 'fscore': fscore,
         })
 
 all_picks.sort(key=lambda x: x['wt'], reverse=True)
@@ -256,22 +265,25 @@ def metric_pill(label, val, highlight=False):
     return f'<span class="metric-pill" style="{hl}">{label} <b>{val}</b></span>'
 
 def player_row_html(pick):
-    wt      = pick['wt']
-    hr      = pick['hr']
-    eff     = pick.get('eff_hr', hr)
-    bats    = pick['bats']
-    name    = pick['name']
-    team    = pick['team']
-    pitcher = pick.get('pitcher', '')
-    grd     = pick['grade']
-    gbg     = pick['gbg']
-    gfg     = pick['gfg']
-    odds    = to_american(hr)
-    tags    = pick['tags']
-    brl     = pick['brl_pa']
-    ev50    = pick['ev50']
-    hh      = pick['hh']
-    pf      = pick['park_factor']
+    wt        = pick['wt']
+    hr        = pick['hr']
+    eff       = pick.get('eff_hr', hr)
+    bats      = pick['bats']
+    name      = pick['name']
+    team      = pick['team']
+    pitcher   = pick.get('pitcher', '')
+    grd       = pick['grade']
+    gbg       = pick['gbg']
+    gfg       = pick['gfg']
+    odds      = to_american(hr)
+    tags      = pick['tags']
+    brl       = pick['brl_pa']
+    ev50      = pick['ev50']
+    hh        = pick['hh']
+    pf        = pick['park_factor']
+    pow_score = pick.get('pow_score', 0)
+    proj_dk   = pick.get('proj_dk', 0)
+    proj_hits = pick.get('proj_hits', 0)
 
     # Outlier stripe
     if wt >= 50:   stripe_col = '#D4A017'; row_cls = 'player-row outlier-prime'
@@ -288,9 +300,16 @@ def player_row_html(pick):
     hh_hi   = hh >= 50
 
     metrics = ''
-    if brl > 0:  metrics += metric_pill('Brl/PA', f'{brl:.1f}%', brl_hi)
-    if ev50 > 0: metrics += metric_pill('EV50', f'{ev50:.1f}', ev50_hi)
-    if hh > 0:   metrics += metric_pill('HH%', f'{hh:.1f}%', hh_hi)
+    if brl > 0:      metrics += metric_pill('Brl/PA', f'{brl:.1f}%', brl_hi)
+    if ev50 > 0:     metrics += metric_pill('EV50', f'{ev50:.1f}', ev50_hi)
+    if hh > 0:       metrics += metric_pill('HH%', f'{hh:.1f}%', hh_hi)
+    if pow_score > 0:
+        ps_hi = pow_score >= 80
+        metrics += metric_pill('PwrScore', f'{pow_score:.0f}', ps_hi)
+    if proj_hits > 0:
+        metrics += metric_pill('projH', f'{proj_hits:.2f}', proj_hits >= 1.0)
+    if proj_dk > 0:
+        metrics += metric_pill('DK', f'{proj_dk:.1f}', proj_dk >= 10.0)
     if pf != 1.0:
         pf_col = '#D4A017' if pf >= 1.20 else ('#22C55E' if pf >= 1.07 else ('#EF4444' if pf <= 0.90 else '#5A7090'))
         metrics += f'<span class="metric-pill" style="color:{pf_col}">Park ×{pf:.2f}</span>'
