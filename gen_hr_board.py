@@ -213,7 +213,11 @@ for ge in hr_board:
             pass
 
         if game not in game_meta:
-            game_meta[game] = {'venue': venue, 'park_factor': pf_row}
+            game_meta[game] = {
+                'venue': venue,
+                'park_factor': pf_row,
+                'weather': ge.get('weather', {}),
+            }
 
         la_avg_batter   = b.get('la_avg') or 0
         gb_suppressor   = ge['vuln'].get('gb_suppressor', False)
@@ -222,6 +226,13 @@ for ge in hr_board:
                           persistent_due=persistent_due, ideal_setup=ideal_setup,
                           la_avg=la_avg_batter if la_avg_batter else None,
                           gb_suppressor=gb_suppressor)
+        # Wind tags — inserted at front so they appear prominently
+        w_component = b.get('wind_component_cf', 0)
+        w_mph       = b.get('wind_mph', 0)
+        if w_component >= 6:
+            tags.insert(0, (f'WIND BOOST {w_mph:.0f}mph→CF', '#3B82F6'))
+        elif w_component <= -6:
+            tags.insert(0, (f'WIND SUPPRESS {w_mph:.0f}mph←HP', '#6366F1'))
         grd, gbg, gfg = grade_info(composite, hr)
 
         all_picks.append({
@@ -381,6 +392,32 @@ def game_header_html(game):
     else:
         pitcher_html = ''
 
+    # Weather pill
+    weather    = meta.get('weather', {})
+    w_mph      = weather.get('wind_mph', 0)
+    w_comp     = weather.get('wind_component_cf', 0)
+    w_lbl      = weather.get('wind_from_label', '')
+    temp_f     = weather.get('temp_f', 0)
+    dome       = weather.get('dome', False)
+    retractable= weather.get('retractable', False)
+    if dome:
+        weather_html = '<span class="w-pill w-dome">DOME</span>'
+    elif w_mph >= 3:
+        if w_comp >= 6:
+            w_style = 'w-out'
+            w_text  = f'⬆ {w_mph:.0f}mph out→CF'
+        elif w_comp <= -6:
+            w_style = 'w-in'
+            w_text  = f'⬇ {w_mph:.0f}mph in←HP'
+        else:
+            w_style = 'w-cross'
+            w_text  = f'↔ {w_mph:.0f}mph {w_lbl}'
+        weather_html = f'<span class="w-pill {w_style}">{w_text}</span>'
+        if temp_f > 0:
+            weather_html += f'<span class="w-pill w-temp">{temp_f:.0f}°F</span>'
+    else:
+        weather_html = ''
+
     return f'''\
 <div class="game-hdr">
   <div class="game-hdr-left">
@@ -389,7 +426,7 @@ def game_header_html(game):
     <span class="game-venue">{esc(venue)}</span>
     {pitcher_html}
   </div>
-  <div class="game-hdr-right">{park_html}</div>
+  <div class="game-hdr-right">{park_html}{weather_html}</div>
 </div>'''
 
 # ── Assemble board ─────────────────────────────────────────────────────────────
@@ -450,6 +487,15 @@ body{{
   font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
   padding:2px 7px;border:1px solid;border-radius:999px
 }}
+.w-pill{{
+  font-size:9px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+  padding:2px 7px;border-radius:999px;margin-left:5px
+}}
+.w-out{{background:rgba(59,130,246,.15);color:#3B82F6;border:1px solid rgba(59,130,246,.35)}}
+.w-in{{background:rgba(99,102,241,.15);color:#818CF8;border:1px solid rgba(99,102,241,.35)}}
+.w-cross{{background:rgba(107,114,128,.10);color:#6B7280;border:1px solid rgba(107,114,128,.25)}}
+.w-dome{{background:rgba(90,112,144,.10);color:#5A7090;border:1px solid rgba(90,112,144,.25)}}
+.w-temp{{background:rgba(90,112,144,.08);color:#4A6080;border:1px solid rgba(90,112,144,.20)}}
 
 /* ── Player row ── */
 .player-row{{position:relative;display:flex;border-bottom:1px solid #0F1925}}

@@ -23,6 +23,12 @@ import time
 from datetime import datetime
 
 sys.path.insert(0, os.path.dirname(__file__))
+try:
+    from weather_engine import get_weather_for_all_games, wind_bonus_from_component
+    _WEATHER_AVAILABLE = True
+except Exception:
+    _WEATHER_AVAILABLE = False
+
 from baseball_engine import (
     _get, MLB_API,
     get_today_games,
@@ -1103,6 +1109,14 @@ def build_hr_attack_board(game_date: str) -> list:
     _pitcher_velo_cache   = load_savant_pitcher_velo(season)
     _pitcher_release_cache= load_savant_pitcher_release(season)
 
+    # Fetch game-time wind + temp for all venues (one API call per unique venue)
+    venue_weather: dict = {}
+    if _WEATHER_AVAILABLE:
+        try:
+            venue_weather = get_weather_for_all_games(games)
+        except Exception:
+            venue_weather = {}
+
     results = []
 
     for g in games:
@@ -1156,6 +1170,23 @@ def build_hr_attack_board(game_date: str) -> list:
                     entry["matchup_score"] = min(99.9, entry["matchup_score"] * off_mult)
                     entry["hr_prob"]       = min(65.0, entry["hr_prob"] * off_mult)
                     entry["offense_label"] = opp_offense.get("label", "")
+
+                # Apply weather wind bonus/penalty to matchup_score
+                w_data = venue_weather.get(venue, {})
+                wind_component = w_data.get("wind_component_cf", 0)
+                wind_bonus     = w_data.get("wind_bonus", 0)
+                wind_tag_str   = w_data.get("tag", "")
+                if not w_data.get("dome") and wind_bonus != 0:
+                    entry["matchup_score"] = min(99.9, max(0.0, entry["matchup_score"] + wind_bonus))
+                if wind_tag_str:
+                    entry.setdefault("tags", [])
+                    if wind_tag_str not in entry["tags"]:
+                        entry["tags"].insert(0, wind_tag_str)
+                entry["wind_mph"]          = w_data.get("wind_mph", 0)
+                entry["wind_component_cf"] = wind_component
+                entry["wind_bonus"]        = wind_bonus
+                entry["temp_f"]            = w_data.get("temp_f", 72)
+
                 # Rank by matchup_score — already includes vuln + zone fit + hr profile
                 rank_key = entry["matchup_score"]
                 batter_entries.append((rank_key, entry))
@@ -1178,6 +1209,7 @@ def build_hr_attack_board(game_date: str) -> list:
                 "arsenal":        arsenal_display,
                 "top_batters":    top_batters,
                 "opp_offense":    opp_offense,
+                "weather":        venue_weather.get(venue, {}),
             })
 
     results.sort(key=lambda x: -(x["vuln"]["score"]))
