@@ -1187,6 +1187,18 @@ def build_hr_attack_board(game_date: str) -> list:
                 entry["wind_bonus"]        = wind_bonus
                 entry["temp_f"]            = w_data.get("temp_f", 72)
 
+                # Dome park HR suppressor: controlled air suppresses ball flight regardless of batter profile
+                if w_data.get("dome"):
+                    entry["matchup_score"] = max(0.0, entry["matchup_score"] - 8.0)
+                    entry["dome_penalty"] = -8.0
+                    entry.setdefault("tags", [])
+                    dome_tag = "DOME PARK (-8 HR)"
+                    if dome_tag not in entry["tags"]:
+                        entry["tags"].insert(0, dome_tag)
+                else:
+                    entry["dome_penalty"] = 0.0
+                entry["is_dome"] = w_data.get("dome", False)
+
                 # Rank by matchup_score — already includes vuln + zone fit + hr profile
                 rank_key = entry["matchup_score"]
                 batter_entries.append((rank_key, entry))

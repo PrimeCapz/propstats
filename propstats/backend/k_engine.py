@@ -581,18 +581,49 @@ def build_k_board(game_date: str) -> list:
                             "Manageable"
                         )
 
-            # Recent K surge: flag when avg K/start over last 3 is ≥1.35× projection
+            # Recent K surge: flag when avg K/start over last 2 starts is ≥1.20× projection
             start_logs = recent_form.get("start_logs", [])
-            if len(start_logs) >= 2:
-                avg_k_recent = sum(l.get("k", 0) for l in start_logs) / len(start_logs)
+            surge_logs = start_logs[:2]  # most recent 2 starts carry the signal
+            if len(surge_logs) >= 2:
+                avg_k_recent = sum(l.get("k", 0) for l in surge_logs) / len(surge_logs)
+                proj_k_val   = proj.get("proj_k", 0)
+                if proj_k_val > 0 and avg_k_recent >= proj_k_val * 1.20:
+                    recent_form["k_surge"]     = True
+                    recent_form["k_surge_avg"] = round(avg_k_recent, 1)
+                    # Boost k_score: surge = pitcher is outperforming model, ranking should reflect it
+                    surge_boost = 4.0
+                    k_score_data["score"] = min(100.0, k_score_data["score"] + surge_boost)
+                    k_score_data["surge_boost"] = surge_boost
+                    s = k_score_data["score"]
+                    k_score_data["tier"] = (
+                        "K ELITE"    if s >= 72 else
+                        "K Threat"   if s >= 55 else
+                        "Manageable"
+                    )
+                else:
+                    recent_form["k_surge"] = False
+                    k_score_data["surge_boost"] = 0.0
+            elif len(start_logs) >= 1:
+                avg_k_recent = start_logs[0].get("k", 0)
                 proj_k_val   = proj.get("proj_k", 0)
                 if proj_k_val > 0 and avg_k_recent >= proj_k_val * 1.35:
                     recent_form["k_surge"]     = True
-                    recent_form["k_surge_avg"] = round(avg_k_recent, 1)
+                    recent_form["k_surge_avg"] = round(float(avg_k_recent), 1)
+                    surge_boost = 2.0
+                    k_score_data["score"] = min(100.0, k_score_data["score"] + surge_boost)
+                    k_score_data["surge_boost"] = surge_boost
+                    s = k_score_data["score"]
+                    k_score_data["tier"] = (
+                        "K ELITE"    if s >= 72 else
+                        "K Threat"   if s >= 55 else
+                        "Manageable"
+                    )
                 else:
                     recent_form["k_surge"] = False
+                    k_score_data["surge_boost"] = 0.0
             else:
                 recent_form["k_surge"] = False
+                k_score_data["surge_boost"] = 0.0
 
             # Arsenal display (top 3 by usage)
             arsenal_raw = pitcher_arsenal.get(str(pitcher_id), [])
