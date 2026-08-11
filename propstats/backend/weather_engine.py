@@ -41,7 +41,7 @@ STADIUM_DATA = {
     "Globe Life Field":           {"lat": 32.7473, "lon": -97.0819, "cf_bearing":  25, "dome": True,  "retractable": False},
     "Angel Stadium":              {"lat": 33.8003, "lon": -117.8827,"cf_bearing": 100, "dome": False, "retractable": False},
     "T-Mobile Park":              {"lat": 47.5914, "lon": -122.3326,"cf_bearing":  25, "dome": False, "retractable": True},
-    # A's playing at Sutter Health Park (Sacramento) — see Temp/relocated below
+    "Las Vegas Ballpark":         {"lat": 36.1718, "lon": -115.2318,"cf_bearing":  50, "dome": False, "retractable": False},
     # NL East
     "Truist Park":                {"lat": 33.8905, "lon": -84.4677, "cf_bearing":  65, "dome": False, "retractable": False},
     "Nationals Park":             {"lat": 38.8730, "lon": -77.0074, "cf_bearing":  35, "dome": False, "retractable": False},
@@ -62,6 +62,7 @@ STADIUM_DATA = {
     "Oracle Park":                {"lat": 37.7786, "lon": -122.3893,"cf_bearing": 310, "dome": False, "retractable": False},
     # Temp/relocated
     "Sutter Health Park":         {"lat": 38.5789, "lon": -121.5067,"cf_bearing":  85, "dome": False, "retractable": False},
+
 }
 
 
