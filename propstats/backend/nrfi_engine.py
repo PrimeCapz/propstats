@@ -296,6 +296,12 @@ def _game_nrfi_score(
     # Walk-board auto-flag: if either starter is walk-heavy, note it
     walk_flag = (bb_pct_away >= 11.0 or bb_pct_home >= 11.0)
 
+    # Downgrade NRFI LEAN to NEUTRAL when walk flag is set:
+    # a walk-heavy pitcher in a LEAN NRFI game adds enough scoring risk
+    # to make the play unreliable — 8/11 TB@ATH proved this pattern.
+    if verdict == "NRFI" and confidence == "LEAN" and walk_flag:
+        verdict, confidence = "NEUTRAL", "—"
+
     return {
         "score":      score,
         "verdict":    verdict,

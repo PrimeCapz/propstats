@@ -46,6 +46,7 @@ from baseball_engine import (
     load_bat_tracking,
     load_savant_pitcher_velo,
     load_savant_pitcher_release,
+    load_savant_pitcher_k,
     get_h2h_stats,
     PARK_FACTORS,
     PULL_WALLS,
@@ -1108,6 +1109,7 @@ def build_hr_attack_board(game_date: str) -> list:
     bat_track             = load_bat_tracking(season)
     _pitcher_velo_cache   = load_savant_pitcher_velo(season)
     _pitcher_release_cache= load_savant_pitcher_release(season)
+    pitcher_k_data        = load_savant_pitcher_k(season)
 
     # Fetch game-time wind + temp for all venues (one API call per unique venue)
     venue_weather: dict = {}
@@ -1198,6 +1200,36 @@ def build_hr_attack_board(game_date: str) -> list:
                 else:
                     entry["dome_penalty"] = 0.0
                 entry["is_dome"] = w_data.get("dome", False)
+
+                # Soft Arm Lock: submarine/sidearm pitcher + soft velo + no weak spots
+                # + multiple HR edges + walk-heavy pitcher = repeatable power spot.
+                # Joc Pederson vs Ryan Johnson 8/11 was the prototype: 1HR + 3BB.
+                p_arm_slot  = entry.get("arm_slot", "")
+                p_arm_mult  = entry.get("arm_mult", 1.0)
+                p_ff_velo   = entry.get("ff_velo", 0.0)
+                p_hr_edges  = entry.get("hr_edges", [])
+                p_weak_spots= entry.get("weak_spots", [])
+                p_bb_pct    = (pitcher_k_data.get(str(pitcher_id), {}) or {}).get("bb_pct", 0.0) or 0.0
+                batter_bats = entry.get("bats", "R") or "R"
+                opp_platoon_slg = 0.0
+                # Determine same-hand platoon SLG (we don't have live platoon here,
+                # but arm_mult >= 1.02 already encodes the opposite-hand advantage;
+                # use it as a proxy to confirm favorable platoon)
+                soft_arm_lock = (
+                    p_arm_slot in ("Submarine", "Sidearm")
+                    and p_arm_mult >= 1.02
+                    and 0 < p_ff_velo < 92.0
+                    and len(p_hr_edges) >= 2
+                    and len(p_weak_spots) == 0
+                    and p_bb_pct >= 9.5   # WALK THREAT threshold
+                )
+                if soft_arm_lock:
+                    entry["matchup_score"] = min(99.9, entry["matchup_score"] + 8.0)
+                    entry.setdefault("tags", [])
+                    lock_tag = "🔒 SOFT ARM LOCK (+8)"
+                    if lock_tag not in entry["tags"]:
+                        entry["tags"].insert(0, lock_tag)
+                entry["soft_arm_lock"] = soft_arm_lock
 
                 # Rank by matchup_score — already includes vuln + zone fit + hr profile
                 rank_key = entry["matchup_score"]

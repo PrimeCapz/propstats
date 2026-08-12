@@ -255,8 +255,19 @@ def _pitcher_k_score(pitcher_id: int, pitcher_k_data: dict, pitcher_arsenal: dic
     if not data_sparse:
         score = min(100.0, score + ppa_bonus)
 
+    # DATA SPARSE + stuff-elite floor: ERA from 1 start is noise; if underlying
+    # whiff/K metrics are elite (Snell pattern), floor the score at 55 so the
+    # pitcher isn't faded purely because of a small sample ERA blowup.
+    stuff_elite_override = False
+    if data_sparse and (swstr >= 28.0 or k_pct >= 30.0):
+        score = max(score, 55.0)
+        data_sparse = False
+        stuff_elite_override = True
+
     # Tier
-    if data_sparse:
+    if stuff_elite_override:
+        tier = "K Threat"      # upgraded from DATA SPARSE — trust the stuff, not the ERA
+    elif data_sparse:
         tier = "DATA SPARSE"   # no Savant data — monitor manually; could be K threat
     elif score >= 72:
         tier = "K ELITE"
@@ -273,14 +284,15 @@ def _pitcher_k_score(pitcher_id: int, pitcher_k_data: dict, pitcher_arsenal: dic
     )[:3]
 
     return {
-        "score":      round(score, 1),
-        "tier":       tier,
-        "swstr_pct":  swstr,
-        "k_pct":      k_pct,
-        "bb_pct":     bb_pct,
-        "putaway_pct": putaway,
-        "p_per_pa":   p_per_pa,
-        "ppa_bonus":  ppa_bonus,
+        "score":              round(score, 1),
+        "tier":               tier,
+        "stuff_elite":        stuff_elite_override,
+        "swstr_pct":          swstr,
+        "k_pct":              k_pct,
+        "bb_pct":             bb_pct,
+        "putaway_pct":        putaway,
+        "p_per_pa":           p_per_pa,
+        "ppa_bonus":          ppa_bonus,
         "top_whiff_pitches": top_whiff,
         "components": {
             "s_swstr":   round(s_swstr, 1),
@@ -624,6 +636,22 @@ def build_k_board(game_date: str) -> list:
             else:
                 recent_form["k_surge"] = False
                 k_score_data["surge_boost"] = 0.0
+
+            # Early Hook Risk: high ERA + short outings cap K accumulation
+            # regardless of stuff quality. Reduce proj_k by 20% and flag.
+            # Triggered when recent ERA > 5.0 AND avg IP/G < 5.5.
+            rf_era = recent_form.get("recent_era") or 0.0
+            rf_ip  = recent_form.get("recent_ip_pg") or 5.5
+            if rf_era > 5.0 and rf_ip < 5.5 and recent_form.get("n_starts", 0) >= 1:
+                capped_proj_k = round(proj.get("proj_k", 0) * 0.80, 1)
+                proj = dict(proj)
+                proj["proj_k"]      = capped_proj_k
+                proj["early_hook"]  = True
+                if proj.get("line", 0) > 0:
+                    proj["edge_vs_line"] = round(capped_proj_k - proj["line"], 2)
+                recent_form["early_hook_risk"] = True
+            else:
+                recent_form["early_hook_risk"] = False
 
             # Arsenal display (top 3 by usage)
             arsenal_raw = pitcher_arsenal.get(str(pitcher_id), [])
