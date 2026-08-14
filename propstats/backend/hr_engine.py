@@ -853,6 +853,37 @@ def _hand_vuln_score(pitcher_vuln: dict, bats: str, pitcher_throws: str = "R") -
 
 _pitcher_velo_cache: dict = {}     # module-level, populated by build_hr_attack_board
 _pitcher_release_cache: dict = {}  # {player_id: {arm_angle, release_ext}}
+_pitcher_mlb_hand_splits_cache: dict = {}  # {pitcher_id: {vl: {slg, hr9, bb_pct}, vr: {...}}}
+
+
+def _fetch_pitcher_hand_splits(pitcher_id: int, season: int) -> dict:
+    """Fetch pitcher's LHB/RHB season splits from MLB API. Returns {vl: {...}, vr: {...}}."""
+    ckey = f"{pitcher_id}_{season}"
+    if ckey in _pitcher_mlb_hand_splits_cache:
+        return _pitcher_mlb_hand_splits_cache[ckey]
+    try:
+        url = (f"{MLB_API}/people/{pitcher_id}/stats"
+               f"?stats=statSplits&group=pitching&season={season}&sitCodes=vl,vr")
+        data = _get(url)
+        result = {}
+        for sp in (data or {}).get("stats", [{}])[0].get("splits", []):
+            code = sp.get("split", {}).get("code", "")
+            st = sp.get("stat", {})
+            bf = st.get("battersFaced", 0) or 1
+            try:
+                slg = float(st.get("slg") or 0)
+            except (ValueError, TypeError):
+                slg = 0.0
+            result[code] = {
+                "slg":    slg,
+                "hr9":    float(st.get("homeRunsPer9") or 0),
+                "bb_pct": round(st.get("baseOnBalls", 0) / bf * 100, 1),
+                "bf":     bf,
+            }
+        _pitcher_mlb_hand_splits_cache[ckey] = result
+        return result
+    except Exception:
+        return {}
 
 
 def _quick_batter_entry(batter_id: int, batter_name: str, bats: str,
@@ -860,7 +891,8 @@ def _quick_batter_entry(batter_id: int, batter_name: str, bats: str,
                         pitcher_vuln: dict, pitcher_throws: str,
                         batter_hr_data: dict, savant_batting: dict,
                         bat_track: dict, pitcher_arsenal: dict,
-                        batter_pitch_splits: dict) -> dict:
+                        batter_pitch_splits: dict,
+                        pitcher_mlb_splits: dict = None) -> dict:
     """
     Savant-only batter profile — no per-batter API calls.
     Uses season xISO as HR rate proxy when no game log available.
@@ -949,6 +981,21 @@ def _quick_batter_entry(batter_id: int, batter_name: str, bats: str,
     if arm_mult != 1.0:
         matchup_score = min(100.0, max(0.0, matchup_score * arm_mult))
 
+    # Pitcher MLB hand-split bonus: actual season SLG allowed by batter hand
+    hand_split_bonus = 0.0
+    hand_split_tag   = None
+    if pitcher_mlb_splits and bats in ("L", "R"):
+        hand_code  = "vl" if bats == "L" else "vr"
+        other_code = "vr" if bats == "L" else "vl"
+        my_slg    = pitcher_mlb_splits.get(hand_code, {}).get("slg", 0.0)
+        other_slg = pitcher_mlb_splits.get(other_code, {}).get("slg", 0.0)
+        my_bf     = pitcher_mlb_splits.get(hand_code, {}).get("bf", 0)
+        if my_bf >= 50 and my_slg > 0 and (my_slg - other_slg) >= 0.04:
+            hand_split_bonus = min(10.0, (my_slg - other_slg - 0.04) * 80)
+            hand_label = "LHB" if bats == "L" else "RHB"
+            hand_split_tag = f"HAND SPLIT: vs{hand_label} SLG .{int(my_slg*1000):03d}"
+            matchup_score = min(100.0, matchup_score + hand_split_bonus)
+
     # Velocity tier
     velo_tier = _velo_tier(ff_velo)
 
@@ -1024,6 +1071,8 @@ def _quick_batter_entry(batter_id: int, batter_name: str, bats: str,
         tags.append(f"VELO: {velo_tier} ({ff_velo:.1f}mph)")
     if arm_slot and arm_mult != 1.0:
         tags.append(f"ARM: {arm_slot} (×{arm_mult:.2f})")
+    if hand_split_tag:
+        tags.append(hand_split_tag)
 
     return {
         "batter_id":      batter_id,
@@ -1082,6 +1131,7 @@ def _quick_batter_entry(batter_id: int, batter_name: str, bats: str,
         "arm_angle":         arm_angle,
         "arm_mult":          arm_mult,
         "velo_tier":         velo_tier,
+        "hand_split_bonus":  round(hand_split_bonus, 1),
         "h2h":               {},
         "h2h_signal":        None,
     }
@@ -1141,6 +1191,7 @@ def build_hr_attack_board(game_date: str) -> list:
             vuln   = _pitcher_vuln_score(pitcher_id, pitcher_hr_data,
                                          pitcher_hr_lhb, pitcher_hr_rhb)
             ptags  = _pitcher_tags(pitcher_id, pitcher_hr_data, pitcher_arsenal)
+            mlb_hand_splits = _fetch_pitcher_hand_splits(pitcher_id, season)
             arsenal_raw     = pitcher_arsenal.get(str(pitcher_id), [])
             arsenal_display = sorted(arsenal_raw, key=lambda x: x.get("usage_pct") or 0,
                                      reverse=True)[:3]
@@ -1166,6 +1217,7 @@ def build_hr_attack_board(game_date: str) -> list:
                     vuln, pitcher_throws,
                     batter_hr_data, savant_batting,
                     bat_track, pitcher_arsenal, batter_pitch_splits,
+                    mlb_hand_splits,
                 )
                 # Apply team hot-streak multiplier to matchup_score and hr_prob
                 if off_mult != 1.0:
