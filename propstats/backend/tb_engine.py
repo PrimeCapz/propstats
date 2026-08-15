@@ -218,9 +218,9 @@ def _proj_tb(
     λ = blended_slg × exp_ab × park_hr × pitcher_vuln
     TB is derived from SLG (TB per AB by definition).
     """
-    # Expected AB vs SP: modulate by batter quality
-    score_factor = 0.80 + (batter_score / 100.0) * 0.40  # 0.80–1.20
-    exp_ab = round(LEAGUE_AB_SP * score_factor * 0.85, 2)  # slight downtick (real AB = sub-25)
+    # Expected AB vs SP per batter (not full lineup): ~3 PA × (1 - BB%)
+    score_factor = 0.85 + (batter_score / 100.0) * 0.30   # 0.85–1.15 quality tilt
+    exp_ab = round(3.0 * score_factor * 0.915, 2)          # 0.915 = (1 - league BB%)
 
     # Blended SLG
     ph = pitcher_hr_data.get(str(pitcher_id), {})
@@ -287,15 +287,14 @@ def build_tb_board(game_date: str = None) -> list:
 
     rows = []
     for game in games:
-        game_pk      = game.get("gamePk")
+        game_pk      = game.get("game_pk")
         venue_name   = game.get("venue_name", "")
-        away_team_id = game.get("teams", {}).get("away", {}).get("team", {}).get("id")
-        home_team_id = game.get("teams", {}).get("home", {}).get("team", {}).get("id")
-
-        sp_away_id = game.get("sp_away_id")
-        sp_home_id = game.get("sp_home_id")
-        sp_away_name = game.get("sp_away_name", "TBD")
-        sp_home_name = game.get("sp_home_name", "TBD")
+        away_team_id = game["away"]["team_id"]
+        home_team_id = game["home"]["team_id"]
+        sp_away_id   = game["away"]["probable_pitcher"]["id"]
+        sp_home_id   = game["home"]["probable_pitcher"]["id"]
+        sp_away_name = game["away"]["probable_pitcher"]["name"]
+        sp_home_name = game["home"]["probable_pitcher"]["name"]
 
         for team_id, opp_sp_id, opp_sp_name in [
             (away_team_id, sp_home_id, sp_home_name),
@@ -305,7 +304,7 @@ def build_tb_board(game_date: str = None) -> list:
                 continue
 
             # Get pitcher data
-            p_throws = get_pitcher_throws(opp_sp_id, season)
+            p_throws = get_pitcher_throws(opp_sp_id)
             tb_profile = _pitcher_tb_profile(opp_sp_id, season)
 
             # Get roster batters
@@ -314,7 +313,13 @@ def build_tb_board(game_date: str = None) -> list:
             except Exception:
                 continue
 
-            for batter_id, batter_name, batter_bats in roster:
+            for b in roster:
+                batter_id   = b.get("id")
+                batter_name = b.get("name", "")
+                batter_bats = b.get("bats", "R")
+                if not batter_id:
+                    continue
+
                 score_data = _batter_tb_score(batter_id, xstats, batter_hr_data, savant_batting)
                 proj = _proj_tb(
                     batter_score=score_data["score"],

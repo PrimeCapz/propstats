@@ -35,7 +35,7 @@ LEAGUE_CHASE    = 30.0   # MLB avg O-Swing%
 LEAGUE_SWSTR    = 11.0   # MLB avg SwStr%
 LEAGUE_CONTACT  = 77.5   # MLB avg Contact%
 LEAGUE_AB_SP    = 22.0   # avg AB vs SP per game
-LEAGUE_PA_SP    = 25.0   # avg PA vs SP
+LEAGUE_PA_SP    = 3.0    # avg PA per batter vs SP per game
 
 
 def _safe(v, default=0.0):
@@ -249,15 +249,14 @@ def build_batter_k_board(game_date: str = None) -> list:
     rows = []
 
     for game in games:
-        game_pk      = game.get("gamePk")
+        game_pk      = game.get("game_pk")
         venue_name   = game.get("venue_name", "")
-        away_team_id = game.get("teams", {}).get("away", {}).get("team", {}).get("id")
-        home_team_id = game.get("teams", {}).get("home", {}).get("team", {}).get("id")
-
-        sp_away_id   = game.get("sp_away_id")
-        sp_home_id   = game.get("sp_home_id")
-        sp_away_name = game.get("sp_away_name", "TBD")
-        sp_home_name = game.get("sp_home_name", "TBD")
+        away_team_id = game["away"]["team_id"]
+        home_team_id = game["home"]["team_id"]
+        sp_away_id   = game["away"]["probable_pitcher"]["id"]
+        sp_home_id   = game["home"]["probable_pitcher"]["id"]
+        sp_away_name = game["away"]["probable_pitcher"]["name"]
+        sp_home_name = game["home"]["probable_pitcher"]["name"]
 
         for team_id, opp_sp_id, opp_sp_name in [
             (away_team_id, sp_home_id, sp_home_name),
@@ -266,7 +265,7 @@ def build_batter_k_board(game_date: str = None) -> list:
             if not team_id or not opp_sp_id:
                 continue
 
-            p_throws  = get_pitcher_throws(opp_sp_id, season)
+            p_throws  = get_pitcher_throws(opp_sp_id)
             p_profile = _pitcher_k_profile(opp_sp_id, season, pitcher_k_data, pitcher_velo)
 
             try:
@@ -274,7 +273,13 @@ def build_batter_k_board(game_date: str = None) -> list:
             except Exception:
                 continue
 
-            for batter_id, batter_name, batter_bats in roster:
+            for b in roster:
+                batter_id   = b.get("id")
+                batter_name = b.get("name", "")
+                batter_bats = b.get("bats", "R")
+                if not batter_id:
+                    continue
+
                 score_data = _batter_k_score(batter_id, savant_batting, xstats)
                 proj       = _proj_batter_k(
                     batter_score=score_data["score"],

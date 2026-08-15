@@ -203,14 +203,13 @@ def _proj_hits(batter_id: int, pitcher_id: int, xstats: dict, batter_hr_data: di
     xs = xstats.get(pid, {})
     ba = _safe(xs.get("xba")) or _safe(xs.get("ba")) or LEAGUE_BA
 
-    # Pitcher K% reduces expected AB contact
+    # Per-batter expected AB vs SP (a batter sees the SP ~3 PA per game)
     pk = pitcher_k_data.get(ppid, {})
-    pitcher_k_pct = _safe(pk.get("k_pct")) or 22.0
     pitcher_bb_pct = _safe(pk.get("bb_pct")) or 8.5
 
-    # Expected AB = BF × (1 - BB% - K%) × contact_factor
-    exp_ab = LEAGUE_BF_SP * (1.0 - (pitcher_k_pct + pitcher_bb_pct) / 100.0)
-    exp_ab = max(8.0, exp_ab)
+    # Expected AB = ~3 PA × (1 - pitcher BB%) per batter per game
+    exp_ab = round(3.0 * (1.0 - pitcher_bb_pct / 100.0), 2)
+    exp_ab = max(2.0, exp_ab)
 
     # Park hit factor
     park_hit = 1.0
@@ -322,9 +321,11 @@ def build_hits_board(game_date: str) -> list:
                 if not bid:
                     continue
                 hs = _batter_hit_score(bid, xstats, batter_hr_data, savant_batting)
+                # Only fetch handedness splits for strong hitters to limit API calls
+                eff_season = season if hs["hit_score"] >= 65 else None
                 proj = _proj_hits(bid, pitcher_id, xstats, batter_hr_data,
                                   savant_batting, pitcher_k_data, h_profile,
-                                  venue, b.get("bats", "R"), pitcher_throws, season)
+                                  venue, b.get("bats", "R"), pitcher_throws, eff_season)
                 batter_entries.append({
                     "batter_id":    bid,
                     "batter_name":  b["name"],

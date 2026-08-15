@@ -288,17 +288,16 @@ def build_f5_board(game_date: str = None) -> list:
     rows = []
 
     for game in games:
-        game_pk      = game.get("gamePk")
+        game_pk      = game.get("game_pk")
         venue_name   = game.get("venue_name", "")
-        away_team_id = game.get("teams", {}).get("away", {}).get("team", {}).get("id")
-        home_team_id = game.get("teams", {}).get("home", {}).get("team", {}).get("id")
-        away_abbr    = game.get("teams", {}).get("away", {}).get("team", {}).get("abbreviation", "AWY")
-        home_abbr    = game.get("teams", {}).get("home", {}).get("team", {}).get("abbreviation", "HOM")
-
-        sp_away_id   = game.get("sp_away_id")
-        sp_home_id   = game.get("sp_home_id")
-        sp_away_name = game.get("sp_away_name", "TBD")
-        sp_home_name = game.get("sp_home_name", "TBD")
+        away_team_id = game["away"]["team_id"]
+        home_team_id = game["home"]["team_id"]
+        away_abbr    = game["away"]["team_abbr"]
+        home_abbr    = game["home"]["team_abbr"]
+        sp_away_id   = game["away"]["probable_pitcher"]["id"]
+        sp_home_id   = game["home"]["probable_pitcher"]["id"]
+        sp_away_name = game["away"]["probable_pitcher"]["name"]
+        sp_home_name = game["home"]["probable_pitcher"]["name"]
 
         if not sp_away_id or not sp_home_id:
             continue
