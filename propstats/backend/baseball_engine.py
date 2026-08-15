@@ -88,6 +88,42 @@ PARK_FACTORS = {
 }
 
 # Pull-side wall distances (feet) per park — LF = LHB pull target, RF = RHB pull target
+# Park HR factors by batter handedness. RHB pulls to LF; LHB pulls to RF.
+# Factor > 1.0 = HR-friendly for that handedness at this park.
+PARK_HR_BY_HAND: dict = {
+    "Yankee Stadium":               {"rhb": 1.28, "lhb": 1.12},   # short RF 314 → RHB edge
+    "Fenway Park":                  {"rhb": 1.14, "lhb": 0.96},   # short RF 302 → RHB edge
+    "Great American Ball Park":     {"rhb": 1.25, "lhb": 1.18},   # HR-friendly both sides
+    "Coors Field":                  {"rhb": 1.28, "lhb": 1.26},   # altitude helps all
+    "Oracle Park":                  {"rhb": 0.72, "lhb": 0.78},   # deep troughs both sides
+    "Wrigley Field":                {"rhb": 1.06, "lhb": 1.08},   # moderate both sides
+    "Dodger Stadium":               {"rhb": 0.91, "lhb": 0.93},   # slight pitcher's park
+    "Petco Park":                   {"rhb": 0.85, "lhb": 0.92},   # deep LF hurts RHB more
+    "T-Mobile Park":                {"rhb": 0.89, "lhb": 0.93},   # pitcher-friendly
+    "Tropicana Field":              {"rhb": 0.85, "lhb": 0.85},   # dome suppresses both
+    "Globe Life Field":             {"rhb": 0.90, "lhb": 0.92},   # dome suppresses both
+    "Minute Maid Park":             {"rhb": 1.07, "lhb": 1.09},   # short LF 315 Crawford Box
+    "Target Field":                 {"rhb": 0.92, "lhb": 0.96},   # pitcher-friendly
+    "Progressive Field":            {"rhb": 0.93, "lhb": 0.94},   # neutral
+    "PNC Park":                     {"rhb": 0.92, "lhb": 0.96},   # slight LHB edge
+    "Guaranteed Rate Field":        {"rhb": 1.07, "lhb": 1.09},   # hitter-friendly
+    "Busch Stadium":                {"rhb": 0.91, "lhb": 0.93},   # pitcher's park
+    "Oriole Park at Camden Yards":  {"rhb": 1.11, "lhb": 1.05},   # short RF 318 → RHB edge
+    "Citizens Bank Park":           {"rhb": 1.16, "lhb": 1.12},   # HR-friendly both sides
+    "Citi Field":                   {"rhb": 0.92, "lhb": 0.92},   # pitcher-friendly
+    "Nationals Park":               {"rhb": 1.02, "lhb": 1.04},   # neutral
+    "Truist Park":                  {"rhb": 0.98, "lhb": 0.98},   # neutral
+    "American Family Field":        {"rhb": 1.03, "lhb": 1.05},   # slight hitter's
+    "Chase Field":                  {"rhb": 1.05, "lhb": 1.07},   # hitter-friendly
+    "Kauffman Stadium":             {"rhb": 0.92, "lhb": 0.94},   # pitcher-friendly
+    "Comerica Park":                {"rhb": 0.86, "lhb": 0.92},   # deep LF hurts RHB
+    "Angel Stadium":                {"rhb": 0.96, "lhb": 0.95},   # neutral
+    "Rogers Centre":                {"rhb": 1.02, "lhb": 1.04},   # neutral
+    "loanDepot park":               {"rhb": 0.87, "lhb": 0.87},   # dome suppresses both
+    "Las Vegas Ballpark":           {"rhb": 1.55, "lhb": 1.55},   # extreme bandbox
+    "Sutter Health Park":           {"rhb": 1.48, "lhb": 1.48},   # extreme bandbox
+}
+
 PULL_WALLS: dict = {
     "Yankee Stadium":               {"lf": 318, "rf": 314},
     "Fenway Park":                  {"lf": 310, "rf": 302},
@@ -310,6 +346,57 @@ def get_pitcher_splits(pitcher_id: int, season: int = None) -> dict:
                     "hr":   stat.get("homeRuns", 0),
                 }
     return splits
+
+
+_batter_hand_splits_cache: dict = {}
+
+
+def get_batter_handedness_splits(batter_id: int, season: int = None) -> dict:
+    """
+    Season batting splits for batter vs LHP and vs RHP.
+    Returns {"vs_l": {ba, obp, slg, ops, pa}, "vs_r": {ba, obp, slg, ops, pa}}
+    Uses MLB statSplits API with sitCodes=vl,vr.
+    """
+    if not season:
+        season = datetime.now().year
+    cache_key = (batter_id, season)
+    if cache_key in _batter_hand_splits_cache:
+        return _batter_hand_splits_cache[cache_key]
+
+    empty = {"ba": 0.0, "obp": 0.0, "slg": 0.0, "ops": 0.0, "pa": 0}
+    result = {"vs_l": dict(empty), "vs_r": dict(empty)}
+
+    try:
+        data = _get(f"{MLB_API}/people/{batter_id}/stats", {
+            "stats":    "statSplits",
+            "group":    "hitting",
+            "season":   season,
+            "sportId":  1,
+            "sitCodes": "vl,vr",
+        })
+        key_map = {
+            "vs Left":  "vs_l", "vs. Left":  "vs_l",
+            "vs Right": "vs_r", "vs. Right": "vs_r",
+        }
+        for entry in data.get("stats", []):
+            for split in entry.get("splits", []):
+                desc   = split.get("split", {}).get("description", "")
+                key    = key_map.get(desc)
+                if not key:
+                    continue
+                st = split.get("stat", {})
+                result[key] = {
+                    "ba":  _safe_float(st.get("avg",  "0")),
+                    "obp": _safe_float(st.get("obp",  "0")),
+                    "slg": _safe_float(st.get("slg",  "0")),
+                    "ops": _safe_float(st.get("ops",  "0")),
+                    "pa":  int(st.get("plateAppearances", 0)),
+                }
+    except Exception:
+        pass
+
+    _batter_hand_splits_cache[cache_key] = result
+    return result
 
 
 def get_pitcher_recent_starts(pitcher_id: int, season: int = None, limit: int = 7, as_of_date: str = None) -> list:
@@ -718,6 +805,7 @@ def get_team_lineup(game_pk: int, team_side: str = "home") -> list:
             "position": pos.get("abbreviation", ""),
             "bats": p.get("batSide", {}).get("code", ""),
             "season_avg": stats.get("avg", ".000"),
+            "season_obp": stats.get("obp", ".000"),
             "season_ops": stats.get("ops", ".000"),
             "season_hr": stats.get("homeRuns", 0),
         })
@@ -962,6 +1050,54 @@ def get_ballpark_factors(venue_name: str) -> dict:
         if park_name.lower() in venue_name.lower() or venue_name.lower() in park_name.lower():
             return {"venue": venue_name, **factors}
     return {"venue": venue_name, "run": 1.00, "hr": 1.00, "hit": 1.00, "description": "Neutral (data unavailable)"}
+
+
+def get_park_hr_factor(venue_name: str, bats: str = None) -> float:
+    """Get HR park factor for venue. Pass bats='L' or 'R' for handedness-split factor."""
+    if bats in ("L", "R"):
+        hand_key = "lhb" if bats == "L" else "rhb"
+        for park, factors in PARK_HR_BY_HAND.items():
+            if park.lower() in venue_name.lower() or venue_name.lower() in park.lower():
+                return factors.get(hand_key, 1.0)
+    for park, factors in PARK_FACTORS.items():
+        if park.lower() in venue_name.lower() or venue_name.lower() in park.lower():
+            return factors.get("hr", 1.0)
+    return 1.0
+
+
+def get_pitcher_rest(pitcher_id: int, game_date: str, season: int = None) -> dict:
+    """Return days rest and last-start pitch count for a pitcher."""
+    if not season:
+        season = datetime.now().year
+    data = _get(f"{MLB_API}/people/{pitcher_id}/stats", {
+        "stats": "gameLog", "group": "pitching", "season": season, "sportId": 1,
+    })
+    default = {"days_rest": 5, "last_pitch_count": 0, "short_rest": False,
+               "high_pitch_count": False, "extra_rest": False}
+    if not data:
+        return default
+    splits = (data.get("stats") or [{}])[0].get("splits", [])
+    starts = [s for s in splits if _safe_float(s.get("stat", {}).get("inningsPitched", 0)) >= 1.0]
+    if not starts:
+        return default
+    last = starts[-1]
+    last_date = last.get("date", "")
+    last_pitches = int(_safe_float(last.get("stat", {}).get("numberOfPitches", 0)))
+    days_rest = 5
+    if last_date:
+        try:
+            last_dt = datetime.strptime(last_date, "%Y-%m-%d")
+            game_dt = datetime.strptime(game_date, "%Y-%m-%d")
+            days_rest = (game_dt - last_dt).days
+        except Exception:
+            pass
+    return {
+        "days_rest": days_rest,
+        "last_pitch_count": last_pitches,
+        "short_rest": days_rest <= 3,
+        "high_pitch_count": last_pitches >= 100,
+        "extra_rest": days_rest >= 8,
+    }
 
 
 def search_mlb_players(query: str, player_type: str = "all") -> list:

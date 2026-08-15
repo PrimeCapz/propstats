@@ -33,6 +33,7 @@ from baseball_engine import (
     load_savant_pitcher_k,
     load_savant_pitcher_velo,
     load_savant_batter_k,
+    get_pitcher_rest,
 )
 
 LEAGUE_BB_PCT  = 8.5    # MLB avg pitcher BB%
@@ -145,6 +146,15 @@ def _pitcher_recent_walk_form(pitcher_id: int, season_bb_pct: float,
         if recent_ip_pg < 4.5 and bf_mult > 0.80:
             bf_mult = min(bf_mult, 0.82)
 
+        # BB/K ratio: high ratio means walking batters almost as often as striking out
+        total_k = sum(_safe(s["stat"].get("strikeOuts")) for s in starts)
+        bb_k_ratio = round(total_bb / total_k, 2) if total_k > 0 else 2.0
+        bb_k_label = ""
+        if bb_k_ratio >= 0.80:
+            bb_k_label = f"HIGH BB/K({bb_k_ratio:.2f})"
+        elif bb_k_ratio <= 0.25:
+            bb_k_label = f"CMD ELITE BB/K({bb_k_ratio:.2f})"
+
         start_logs = []
         for s in reversed(starts):
             stat = s.get("stat", {})
@@ -167,6 +177,8 @@ def _pitcher_recent_walk_form(pitcher_id: int, season_bb_pct: float,
             "bf_mult":       round(bf_mult, 3),
             "n_starts":      n,
             "start_logs":    start_logs,
+            "bb_k_ratio":    bb_k_ratio,
+            "bb_k_label":    bb_k_label,
         }
     except Exception:
         return default
@@ -245,6 +257,9 @@ def _pitcher_walk_score(pitcher_id: int, pitcher_k_data: dict, pitcher_velo_data
         tags.append(f"LOW F-STRIKE ({f_strike_pct:.0f}%)")
     elif f_strike_pct >= 66.0:
         tags.append(f"COMMAND ARTIST ({f_strike_pct:.0f}%)")
+    bb_k_lbl = recent_form.get("bb_k_label", "")
+    if bb_k_lbl:
+        tags.append(bb_k_lbl)
 
     return {
         "score":        round(score, 1),
@@ -390,6 +405,20 @@ def build_walk_board(game_date: str = None, season: int = None) -> list:
             recent_form = _pitcher_recent_walk_form(pitcher_id, season_bb, season=season)
             time.sleep(0.10)
 
+            # Days rest adjustment: short rest often means reduced command → more walks
+            rest_info = get_pitcher_rest(pitcher_id, game_date, season)
+            rest_bf_adj = 1.0
+            rest_label  = ""
+            if rest_info.get("short_rest"):
+                rest_bf_adj = 0.88
+                rest_label  = f"SHORT REST ({rest_info['days_rest']}d)"
+                recent_form["trend"] = "RISING"  # short rest predicts elevated walk risk
+            elif rest_info.get("high_pitch_count"):
+                rest_label = f"HIGH PC ({rest_info['last_pitch_count']}p)"
+            recent_form["rest_label"]  = rest_label
+            recent_form["rest_bf_adj"] = rest_bf_adj
+            time.sleep(0.05)
+
             # Score
             walk_score_data = _pitcher_walk_score(
                 pitcher_id, pitcher_k_data, pitcher_velo_data, recent_form, opp_bb_pct
@@ -398,7 +427,7 @@ def build_walk_board(game_date: str = None, season: int = None) -> list:
             # Projection
             proj = _proj_walk_line(
                 pitcher_id, pitcher_k_data, pitcher_velo_data, opp_bb_pct,
-                bf_mult=recent_form.get("bf_mult", 1.0) * platoon_mult,
+                bf_mult=recent_form.get("bf_mult", 1.0) * platoon_mult * rest_bf_adj,
             )
 
             results.append({

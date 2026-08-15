@@ -48,6 +48,7 @@ from baseball_engine import (
     load_savant_pitcher_release,
     load_savant_pitcher_k,
     get_h2h_stats,
+    get_park_hr_factor,
     PARK_FACTORS,
     PULL_WALLS,
 )
@@ -97,6 +98,58 @@ def _team_recent_runs(team_id: int, game_date: str, days: int = 7) -> dict:
         return {"rpg": round(rpg, 2), "hot": rpg >= 5.5, "mult": round(mult, 3), "label": label}
     except Exception:
         return {"rpg": 0.0, "hot": False, "mult": 1.0, "label": ""}
+
+
+# ── Pitcher L5 HR rate ───────────────────────────────────────────────────────
+
+_pitcher_l5_cache: dict = {}  # {pitcher_id: {"hr_pg": float, "label": str}}
+
+
+def _pitcher_l5_hr_rate(pitcher_id: int, season: int) -> dict:
+    """
+    HR allowed per game in last 5 starts.
+    Returns {"hr_pg": float, "n": int, "label": str, "vuln_adjust": float}
+    vuln_adjust > 1.0 = more vulnerable recently; < 1.0 = locked down.
+    """
+    key = (pitcher_id, season)
+    if key in _pitcher_l5_cache:
+        return _pitcher_l5_cache[key]
+    default = {"hr_pg": None, "n": 0, "label": "", "vuln_adjust": 1.0}
+    try:
+        url = (f"{MLB_API}/people/{pitcher_id}/stats"
+               f"?stats=gameLog&group=pitching&season={season}&sportId=1")
+        data = _get(url) or {}
+        splits = (data.get("stats") or [{}])[0].get("splits", [])
+        starts = [s for s in splits
+                  if _safe(s.get("stat", {}).get("inningsPitched")) >= 1.0][-5:]
+        if not starts:
+            _pitcher_l5_cache[key] = default
+            return default
+        n       = len(starts)
+        total_hr = sum(int(_safe(s["stat"].get("homeRuns", 0))) for s in starts)
+        hr_pg    = total_hr / n
+        # Adjust: league avg ~1.1 HR/game allowed; high = vulnerable
+        if hr_pg >= 2.0:
+            label        = f"L5 HR VULN ({hr_pg:.1f}/G)"
+            vuln_adjust  = 1.20
+        elif hr_pg >= 1.4:
+            label        = f"L5 HR ELEV ({hr_pg:.1f}/G)"
+            vuln_adjust  = 1.10
+        elif hr_pg == 0.0 and n >= 3:
+            label        = f"L5 HR LOCK ({n}GS 0HR)"
+            vuln_adjust  = 0.82
+        elif hr_pg <= 0.4 and n >= 3:
+            label        = f"L5 HR LOW ({hr_pg:.1f}/G)"
+            vuln_adjust  = 0.90
+        else:
+            label       = ""
+            vuln_adjust = 1.0
+        result = {"hr_pg": round(hr_pg, 2), "n": n, "label": label, "vuln_adjust": vuln_adjust}
+        _pitcher_l5_cache[key] = result
+        return result
+    except Exception:
+        _pitcher_l5_cache[key] = default
+        return default
 
 
 # ── Scoring helpers ──────────────────────────────────────────────────────────
@@ -1027,7 +1080,8 @@ def _quick_batter_entry(batter_id: int, batter_name: str, bats: str,
     vuln_score = _hand_vuln_score(pitcher_vuln, bats, pitcher_throws)
     est_hr_pa  = xiso * 0.22 if xiso > 0 else LEAGUE_HR_PA
     vuln_mult  = 0.40 + (vuln_score / 100.0) * 1.30
-    park_hr    = PARK_FACTORS.get(venue_name, {}).get("hr", 1.0)
+    # Handedness-split park factor (LHB vs RHB pull-side distances)
+    park_hr    = get_park_hr_factor(venue_name, bats)
     lam = est_hr_pa * vuln_mult * park_hr * 4.0
     lam = max(0.001, lam)
     prob = round((1.0 - math.exp(-lam)) * 100, 1)
@@ -1190,8 +1244,29 @@ def build_hr_attack_board(game_date: str) -> list:
 
             vuln   = _pitcher_vuln_score(pitcher_id, pitcher_hr_data,
                                          pitcher_hr_lhb, pitcher_hr_rhb)
-            ptags  = _pitcher_tags(pitcher_id, pitcher_hr_data, pitcher_arsenal)
+            ptags        = _pitcher_tags(pitcher_id, pitcher_hr_data, pitcher_arsenal)
             mlb_hand_splits = _fetch_pitcher_hand_splits(pitcher_id, season)
+            l5_hr_data      = _pitcher_l5_hr_rate(pitcher_id, season)
+            if l5_hr_data.get("label"):
+                ptags.append(l5_hr_data["label"])
+            # Apply L5 HR vuln adjustment to pitcher's composite score
+            if l5_hr_data.get("vuln_adjust", 1.0) != 1.0:
+                adj_score = min(100.0, max(0.0,
+                    vuln["score"] * l5_hr_data["vuln_adjust"]))
+                vuln = dict(vuln)
+                vuln["score"]     = round(adj_score, 1)
+                vuln["l5_hr_adj"] = l5_hr_data["vuln_adjust"]
+                vuln["l5_hr_label"] = l5_hr_data.get("label", "")
+                # Re-tier after adjustment
+                if adj_score > 63:
+                    vuln["tier"] = "Attackable"
+                elif adj_score > 45:
+                    vuln["tier"] = "Neutral Lean"
+                else:
+                    vuln["tier"] = "Avoid"
+            else:
+                vuln["l5_hr_adj"]   = 1.0
+                vuln["l5_hr_label"] = l5_hr_data.get("label", "")
             arsenal_raw     = pitcher_arsenal.get(str(pitcher_id), [])
             arsenal_display = sorted(arsenal_raw, key=lambda x: x.get("usage_pct") or 0,
                                      reverse=True)[:3]

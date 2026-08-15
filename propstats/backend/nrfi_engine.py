@@ -29,11 +29,15 @@ import time
 from datetime import datetime, timedelta
 
 sys.path.insert(0, os.path.dirname(__file__))
-from baseball_engine import _get, MLB_API, get_today_games, load_savant_pitcher_k
+from baseball_engine import (
+    _get, MLB_API, get_today_games, load_savant_pitcher_k,
+    get_team_lineup, get_pitcher_rest,
+)
 
 LEAGUE_BB_PCT  = 8.5    # MLB avg pitcher BB%
 LEAGUE_1ST_ERA = 4.50   # ~0.5 ER/start in 1st inning × 9
 LEAGUE_1ST_RPG = 0.35   # teams average ~0.35 R in 1st inning per game
+LEAGUE_OBP     = 0.320  # MLB avg leadoff OBP
 
 _linescore_cache: dict = {}   # game_pk → (away_r_1st, home_r_1st)
 _team_inn1_cache: dict = {}   # team_id → result dict
@@ -57,6 +61,41 @@ def _scale(val, lo, mid, hi):
     if val <= mid:
         return 50.0 * (val - lo) / (mid - lo)
     return 50.0 + 50.0 * (val - mid) / (hi - mid)
+
+
+# ── Leadoff batter OBP ───────────────────────────────────────────────────────
+
+def _leadoff_obp(game_pk: int, team_side: str) -> float:
+    """OBP of the leadoff batter from confirmed lineup. Falls back to league avg."""
+    try:
+        lineup = get_team_lineup(game_pk, team_side)
+        if not lineup:
+            return LEAGUE_OBP
+        lead = next((p for p in lineup if p.get("order") == 1), lineup[0] if lineup else None)
+        if not lead:
+            return LEAGUE_OBP
+        obp_str = lead.get("season_obp") or lead.get("obp") or ""
+        obp = float(obp_str) if obp_str not in ("", ".000", "0") else 0.0
+        return obp if 0.200 <= obp <= 0.500 else LEAGUE_OBP
+    except Exception:
+        return LEAGUE_OBP
+
+
+# ── Pitcher rest adjustment ───────────────────────────────────────────────────
+
+def _pitcher_rest_label(pitcher_id: int, game_date: str, season: int) -> str:
+    """Return a short label when rest is unusual (short or extra)."""
+    try:
+        rest = get_pitcher_rest(pitcher_id, game_date, season)
+        if rest.get("short_rest"):
+            return f"SHORT REST ({rest['days_rest']}d)"
+        if rest.get("extra_rest"):
+            return f"EXTRA REST ({rest['days_rest']}d)"
+        if rest.get("high_pitch_count"):
+            return f"HIGH PC ({rest['last_pitch_count']}p)"
+        return ""
+    except Exception:
+        return ""
 
 
 # ── Linescore helpers ─────────────────────────────────────────────────────────
@@ -245,20 +284,20 @@ def _game_nrfi_score(
     sp_away: dict, sp_home: dict,
     off_away: dict, off_home: dict,
     bb_pct_away: float, bb_pct_home: float,
+    leadoff_obp_away: float = LEAGUE_OBP,
+    leadoff_obp_home: float = LEAGUE_OBP,
 ) -> dict:
     """
     Score 0-100 for first-inning run likelihood (higher = YRFI).
 
-    sp_away / sp_home = _pitcher_first_inn_stats for away/home starter.
-    off_away / off_home = _team_first_inn_rate for away/home batting team.
-    bb_pct_away / bb_pct_home = season BB% for away/home starter.
-
     Component breakdown:
-      era_away (25%): away starter's 1st-inn ERA → away team scores in top-1st
-      era_home (25%): home starter's 1st-inn ERA → home team scores in bot-1st
-      off_away (20%): away offense in 1st (bats against home starter, top-1st)
-      off_home (20%): home offense in 1st (bats against away starter, bot-1st)
-      walk     (10%): avg walk signal for both starters
+      era_away    (22%): away starter's 1st-inn ERA → away team scores in top-1st
+      era_home    (22%): home starter's 1st-inn ERA → home team scores in bot-1st
+      off_away    (17%): away offense in 1st (top-1st, bats against home SP)
+      off_home    (17%): home offense in 1st (bot-1st, bats against away SP)
+      leadoff_away (8%): away team leadoff batter OBP (top-1st)
+      leadoff_home (8%): home team leadoff batter OBP (bot-1st)
+      walk         (6%): avg walk signal for both starters
     """
     # Pitcher 1st-inn ERA: 0 ERA → 0pts, 4.50 → 50pts, 9.0+ → 100pts
     s_era_away = _scale(sp_away.get("era_1st", LEAGUE_1ST_ERA), 0.0, 4.50, 9.0)
@@ -268,17 +307,24 @@ def _game_nrfi_score(
     s_off_away = _scale(off_away.get("r_per_game_1st", LEAGUE_1ST_RPG), 0.0, 0.35, 0.70)
     s_off_home = _scale(off_home.get("r_per_game_1st", LEAGUE_1ST_RPG), 0.0, 0.35, 0.70)
 
+    # Leadoff OBP: .260 → 0pts, .320 → 50pts, .400+ → 100pts
+    # Higher OBP leadoff = more likely to reach base and set up 1st-inn run
+    s_lead_away = _scale(leadoff_obp_away, 0.260, 0.320, 0.400)
+    s_lead_home = _scale(leadoff_obp_home, 0.260, 0.320, 0.400)
+
     # Walk component: 0% → 0pts, 8.5% (avg) → 50pts, 14%+ → 100pts
     s_walk_away = _scale(bb_pct_away, 0.0, LEAGUE_BB_PCT, 14.0)
     s_walk_home = _scale(bb_pct_home, 0.0, LEAGUE_BB_PCT, 14.0)
     s_walk      = (s_walk_away + s_walk_home) / 2.0
 
     score = (
-        s_era_away * 0.25 +
-        s_era_home * 0.25 +
-        s_off_away * 0.20 +
-        s_off_home * 0.20 +
-        s_walk     * 0.10
+        s_era_away  * 0.22 +
+        s_era_home  * 0.22 +
+        s_off_away  * 0.17 +
+        s_off_home  * 0.17 +
+        s_lead_away * 0.08 +
+        s_lead_home * 0.08 +
+        s_walk      * 0.06
     )
     score = round(score, 1)
 
@@ -296,9 +342,7 @@ def _game_nrfi_score(
     # Walk-board auto-flag: if either starter is walk-heavy, note it
     walk_flag = (bb_pct_away >= 11.0 or bb_pct_home >= 11.0)
 
-    # Downgrade NRFI LEAN to NEUTRAL when walk flag is set:
-    # a walk-heavy pitcher in a LEAN NRFI game adds enough scoring risk
-    # to make the play unreliable — 8/11 TB@ATH proved this pattern.
+    # Downgrade NRFI LEAN to NEUTRAL when walk flag is set
     if verdict == "NRFI" and confidence == "LEAN" and walk_flag:
         verdict, confidence = "NEUTRAL", "—"
 
@@ -307,12 +351,16 @@ def _game_nrfi_score(
         "verdict":    verdict,
         "confidence": confidence,
         "walk_flag":  walk_flag,
+        "leadoff_obp_away": round(leadoff_obp_away, 3),
+        "leadoff_obp_home": round(leadoff_obp_home, 3),
         "components": {
-            "era_away":  round(s_era_away, 1),
-            "era_home":  round(s_era_home, 1),
-            "off_away":  round(s_off_away, 1),
-            "off_home":  round(s_off_home, 1),
-            "walk":      round(s_walk, 1),
+            "era_away":     round(s_era_away, 1),
+            "era_home":     round(s_era_home, 1),
+            "off_away":     round(s_off_away, 1),
+            "off_home":     round(s_off_home, 1),
+            "leadoff_away": round(s_lead_away, 1),
+            "leadoff_home": round(s_lead_home, 1),
+            "walk":         round(s_walk, 1),
         },
     }
 
@@ -354,11 +402,23 @@ def build_nrfi_board(game_date: str) -> list:
         bb_away = _safe(savant_k.get(str(away_pid), {}).get("bb_pct")) if away_pid else LEAGUE_BB_PCT
         bb_home = _safe(savant_k.get(str(home_pid), {}).get("bb_pct")) if home_pid else LEAGUE_BB_PCT
 
-        nrfi = _game_nrfi_score(sp_away, sp_home, off_away, off_home, bb_away, bb_home)
+        # Leadoff batter OBP — graceful fallback to league avg when lineup not posted
+        game_pk = g["game_pk"]
+        lo_obp_away = _leadoff_obp(game_pk, "away")
+        lo_obp_home = _leadoff_obp(game_pk, "home")
+
+        # Pitcher rest labels (flagged in output but don't affect score directly)
+        rest_label_away = _pitcher_rest_label(away_pid, game_date, season) if away_pid else ""
+        rest_label_home = _pitcher_rest_label(home_pid, game_date, season) if home_pid else ""
+
+        nrfi = _game_nrfi_score(
+            sp_away, sp_home, off_away, off_home, bb_away, bb_home,
+            lo_obp_away, lo_obp_home,
+        )
 
         results.append({
             "game":            f"{g['away']['team_abbr']}@{g['home']['team_abbr']}",
-            "game_pk":         g["game_pk"],
+            "game_pk":         game_pk,
             "venue":           g.get("venue_name", ""),
             "game_time":       g.get("game_time", ""),
             "away_team":       g["away"]["team_abbr"],
@@ -373,6 +433,10 @@ def build_nrfi_board(game_date: str) -> list:
             "off_home":        off_home,
             "bb_pct_away":     round(bb_away, 1),
             "bb_pct_home":     round(bb_home, 1),
+            "leadoff_obp_away": lo_obp_away,
+            "leadoff_obp_home": lo_obp_home,
+            "rest_label_away": rest_label_away,
+            "rest_label_home": rest_label_home,
             "nrfi":            nrfi,
         })
 
@@ -444,7 +508,14 @@ def format_nrfi_board(results: list, game_date: str) -> str:
         sp_h_lbl = r["sp_home"].get("label", "")
         off_a_lbl = r["off_away"].get("label", "")
         off_h_lbl = r["off_home"].get("label", "")
-        detail_parts = [x for x in [sp_a_lbl, sp_h_lbl, off_a_lbl, off_h_lbl] if x]
+        rest_a = r.get("rest_label_away", "")
+        rest_h = r.get("rest_label_home", "")
+        lo_a = r.get("leadoff_obp_away", 0)
+        lo_h = r.get("leadoff_obp_home", 0)
+        lo_str = ""
+        if lo_a != LEAGUE_OBP or lo_h != LEAGUE_OBP:
+            lo_str = f"Leadoff OBP: {r['away_team']} {lo_a:.3f} | {r['home_team']} {lo_h:.3f}"
+        detail_parts = [x for x in [sp_a_lbl, sp_h_lbl, off_a_lbl, off_h_lbl, rest_a, rest_h, lo_str] if x]
         if detail_parts:
             lines.append(f"    → {' | '.join(detail_parts)}")
 

@@ -42,6 +42,8 @@ from baseball_engine import (
     load_savant_batter_k,
     load_savant_pitcher_arsenal,
     load_savant_batter_pitch_splits,
+    load_savant_pitcher_velo,
+    get_pitcher_rest,
 )
 
 LEAGUE_K_PCT  = 22.0   # MLB avg K% (%)
@@ -210,34 +212,44 @@ def _pitcher_putaway_pct(pitcher_id: int, pitcher_arsenal: dict) -> float:
     return round(weighted / total_usage, 1)
 
 
-def _pitcher_k_score(pitcher_id: int, pitcher_k_data: dict, pitcher_arsenal: dict) -> dict:
+def _pitcher_k_score(pitcher_id: int, pitcher_k_data: dict, pitcher_arsenal: dict,
+                     pitcher_velo_data: dict = None) -> dict:
     """
     0-100 K Score for a pitcher.
-    swstr_pct = whiff% per swing (Savant whiff_percent, avg ~24%, elite ~32%).
+    swstr_pct   = whiff% per swing (Savant whiff_percent, avg ~24%, elite ~32%).
     putaway_pct = usage-weighted 2-strike K rate from arsenal (avg ~19%, elite ~26%).
-    p_per_pa = pitches per plate appearance (avg ~3.85).
+    p_per_pa    = pitches per plate appearance (avg ~3.85).
+    chase_pct   = O-Swing% induced (Savant chase_percent, avg ~29%, elite ~36%).
     """
     pid = str(pitcher_id)
     d   = pitcher_k_data.get(pid, {})
+    vd  = (pitcher_velo_data or {}).get(pid, {})
 
     swstr    = _safe(d.get("swstr_pct"))   # whiff/swing, 18-34% range
     k_pct    = _safe(d.get("k_pct"))       # season K%
     bb_pct   = _safe(d.get("bb_pct"))      # walk %
     p_per_pa = _safe(d.get("p_per_pa"))    # pitches per PA from Savant custom LB
     putaway  = _pitcher_putaway_pct(pitcher_id, pitcher_arsenal)  # 2-strike K rate
+    # Chase rate (O-Swing%) — pitcher's ability to get batters to chase out-of-zone
+    chase_pct = _safe(vd.get("chase_pct"))  # avg ~29%, elite ~36%
 
-    s_swstr   = _scale(swstr,   16.0, 24.0, 34.0)        # avg 24%, elite 34%
-    s_k       = _scale(k_pct,   13.0, 22.0, 35.0)         # avg 22%, elite 35%
-    s_command = _scale(14.0 - bb_pct, 3.0, 7.0, 11.0)    # low BB% = good command
-    s_putaway = _scale(putaway, 12.0, 19.0, 27.0)         # avg 19%, elite 27%
+    s_swstr   = _scale(swstr,     16.0, 24.0, 34.0)    # avg 24%, elite 34%
+    s_k       = _scale(k_pct,     13.0, 22.0, 35.0)    # avg 22%, elite 35%
+    s_command = _scale(14.0 - bb_pct, 3.0, 7.0, 11.0)  # low BB% = good command
+    s_putaway = _scale(putaway,   12.0, 19.0, 27.0)    # avg 19%, elite 27%
+    s_chase   = _scale(chase_pct, 24.0, 30.0, 38.0)    # avg 30%, elite 38%
 
     data_sparse = (swstr == 0 and k_pct == 0)
     if data_sparse:
         score = 0.0
+    elif putaway > 0 and chase_pct > 0:
+        # Full formula with chase_pct
+        score = (s_swstr * 0.38 + s_k * 0.22 + s_putaway * 0.20
+                 + s_command * 0.10 + s_chase * 0.10)
     elif putaway > 0:
-        # Full formula: putaway replaces some K% weight (K% and putaway are correlated
-        # but putaway specifically captures 2-strike conversion, the direct K driver)
         score = (s_swstr * 0.42 + s_k * 0.24 + s_putaway * 0.22 + s_command * 0.12)
+    elif chase_pct > 0:
+        score = (s_swstr * 0.48 + s_k * 0.26 + s_command * 0.14 + s_chase * 0.12)
     else:
         # Fallback when arsenal putaway data unavailable
         score = (s_swstr * 0.55 + s_k * 0.30 + s_command * 0.15)
@@ -293,12 +305,14 @@ def _pitcher_k_score(pitcher_id: int, pitcher_k_data: dict, pitcher_arsenal: dic
         "putaway_pct":        putaway,
         "p_per_pa":           p_per_pa,
         "ppa_bonus":          ppa_bonus,
+        "chase_pct":          chase_pct,
         "top_whiff_pitches": top_whiff,
         "components": {
             "s_swstr":   round(s_swstr, 1),
             "s_k":       round(s_k, 1),
             "s_putaway": round(s_putaway, 1),
             "s_cmd":     round(s_command, 1),
+            "s_chase":   round(s_chase, 1),
         },
     }
 
@@ -505,6 +519,8 @@ def build_k_board(game_date: str) -> list:
     batter_k_data       = load_savant_batter_k(season)
     pitcher_arsenal     = load_savant_pitcher_arsenal(season)
     batter_pitch_splits = load_savant_batter_pitch_splits(season)
+    pitcher_velo_data   = load_savant_pitcher_velo(season)
+    pitcher_velo_prev   = load_savant_pitcher_velo(season - 1)  # for velo trend delta
 
     results = []
 
@@ -525,8 +541,51 @@ def build_k_board(game_date: str) -> list:
             pitcher_throws = get_pitcher_throws(pitcher_id)
             time.sleep(0.10)
 
-            k_score_data = _pitcher_k_score(pitcher_id, pitcher_k_data, pitcher_arsenal)
+            k_score_data = _pitcher_k_score(
+                pitcher_id, pitcher_k_data, pitcher_arsenal, pitcher_velo_data
+            )
             swstr_pct    = k_score_data.get("swstr_pct", 0.0)
+
+            # Pitch velocity trend: compare current ff_velo vs prior season
+            pid_str   = str(pitcher_id)
+            curr_vd   = pitcher_velo_data.get(pid_str, {})
+            prev_vd   = pitcher_velo_prev.get(pid_str, {})
+            curr_ff   = _safe(curr_vd.get("ff_velo") or curr_vd.get("fb_velo"))
+            prev_ff   = _safe(prev_vd.get("ff_velo") or prev_vd.get("fb_velo"))
+            velo_delta = round(curr_ff - prev_ff, 1) if (curr_ff > 0 and prev_ff > 0) else 0.0
+            velo_trend_label = ""
+            if velo_delta <= -2.0:
+                velo_trend_label = f"VELO DOWN {velo_delta:+.1f}mph"
+                k_score_data["score"] = max(0.0, k_score_data["score"] - 5.0)
+            elif velo_delta <= -1.0:
+                velo_trend_label = f"VELO DIP {velo_delta:+.1f}mph"
+                k_score_data["score"] = max(0.0, k_score_data["score"] - 2.0)
+            elif velo_delta >= 1.5:
+                velo_trend_label = f"VELO UP {velo_delta:+.1f}mph"
+                k_score_data["score"] = min(100.0, k_score_data["score"] + 2.5)
+            if velo_trend_label:
+                s = k_score_data["score"]
+                k_score_data["tier"] = (
+                    "K ELITE"    if s >= 72 else
+                    "K Threat"   if s >= 55 else
+                    "Manageable"
+                )
+            k_score_data["velo_trend"]       = velo_delta
+            k_score_data["velo_trend_label"] = velo_trend_label
+
+            # Days rest adjustment: short rest (≤3d) reduces BF; extra rest (≥8d) neutral
+            rest_info = get_pitcher_rest(pitcher_id, game_date, season)
+            time.sleep(0.05)
+            rest_bf_adj = 1.0
+            rest_label  = ""
+            if rest_info.get("short_rest"):
+                rest_bf_adj = 0.90
+                rest_label  = f"SHORT REST ({rest_info['days_rest']}d)"
+            elif rest_info.get("high_pitch_count"):
+                rest_bf_adj = 0.95
+                rest_label  = f"HIGH PC ({rest_info['last_pitch_count']}p last start)"
+            elif rest_info.get("extra_rest"):
+                rest_label  = f"EXTRA REST ({rest_info['days_rest']}d)"
 
             # Recent pitcher form — adjusts expected BF for early-exit risk.
             # Apply SwStr% guard: whiff generators shouldn't be penalized as
@@ -538,7 +597,9 @@ def build_k_board(game_date: str) -> list:
                 recent_form.get("recent_ip_pg"),
                 swstr_pct,
             )
+            guarded_bf_mult        = round(guarded_bf_mult * rest_bf_adj, 3)
             recent_form["bf_mult"] = guarded_bf_mult
+            recent_form["rest_label"] = rest_label
             time.sleep(0.10)
 
             # Opposing roster
