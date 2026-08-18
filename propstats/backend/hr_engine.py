@@ -1049,6 +1049,16 @@ def _quick_batter_entry(batter_id: int, batter_name: str, bats: str,
             hand_split_tag = f"HAND SPLIT: vs{hand_label} SLG .{int(my_slg*1000):03d}"
             matchup_score = min(100.0, matchup_score + hand_split_bonus)
 
+    # Power elite bonus: elite raw power gets floor boost regardless of pitcher tier
+    # Catches Murakami-type (20%+ barrel, 55%+ HH) in neutral matchups
+    power_elite_bonus = 0.0
+    if brl_bip >= 14.0 and hh_pct >= 52.0 and exit_velo >= 92.0:
+        power_elite_bonus = 7.0
+        matchup_score = min(100.0, matchup_score + power_elite_bonus)
+    elif brl_bip >= 12.0 and hh_pct >= 50.0:
+        power_elite_bonus = 4.0
+        matchup_score = min(100.0, matchup_score + power_elite_bonus)
+
     # Velocity tier
     velo_tier = _velo_tier(ff_velo)
 
@@ -1127,6 +1137,10 @@ def _quick_batter_entry(batter_id: int, batter_name: str, bats: str,
         tags.append(f"ARM: {arm_slot} (×{arm_mult:.2f})")
     if hand_split_tag:
         tags.append(hand_split_tag)
+    if power_elite_bonus >= 7.0:
+        tags.append(f"POWER ELITE (brl={brl_bip:.1f}% hh={hh_pct:.1f}% ev={exit_velo:.1f})")
+    elif power_elite_bonus >= 4.0:
+        tags.append(f"POWER STRONG (brl={brl_bip:.1f}% hh={hh_pct:.1f}%)")
 
     return {
         "batter_id":      batter_id,

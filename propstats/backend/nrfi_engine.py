@@ -318,13 +318,13 @@ def _game_nrfi_score(
     s_walk      = (s_walk_away + s_walk_home) / 2.0
 
     score = (
-        s_era_away  * 0.22 +
-        s_era_home  * 0.22 +
-        s_off_away  * 0.17 +
-        s_off_home  * 0.17 +
-        s_lead_away * 0.08 +
-        s_lead_home * 0.08 +
-        s_walk      * 0.06
+        s_era_away  * 0.20 +
+        s_era_home  * 0.20 +
+        s_off_away  * 0.18 +
+        s_off_home  * 0.18 +
+        s_lead_away * 0.10 +
+        s_lead_home * 0.10 +
+        s_walk      * 0.04
     )
     score = round(score, 1)
 
