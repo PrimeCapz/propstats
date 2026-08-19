@@ -16,6 +16,9 @@ Form signals (from season xwOBA + BA divergence, zero extra API calls):
 
 DK Scoring used for proj_pts:
   1B +3 | 2B +5 | 3B +8 | HR +10 | RBI +3.5 | R +3 | BB +3 | SB +6 | HBP +3
+
+PrizePicks scoring (proj_pp) — HR excluded to avoid power-hitter ranking bias:
+  1B +3 | 2B +5 | 3B +8 | R +2 | RBI +2 | BB +2 | HBP +2 | SB +5
 """
 
 import math
@@ -425,18 +428,19 @@ def _proj_stats(batter_id: str, bats: str, pitcher_matchup: dict,
         + proj_sb   * 6.0
     )
 
-    # PrizePicks scoring (H×3, 2B=5, 3B=8, HR=10, RBI×2, R×2, BB×2, SB×4)
-    # hits×3 + xtra_bases×2 approximates per-hit-type scoring correctly
-    # HR: 3 (hit) + 6 (3 extra bases × 2) + 1 (bonus to reach 10) = 10 ✓
-    # 2B: 3 + 2 = 5 ✓  |  Single: 3 ✓
+    # PrizePicks scoring — HR excluded to avoid pure power-hitter bias in rankings
+    # Actual PP: 1B=3, 2B=5, 3B=8, HR=10, R=2, RBI=2, BB=2, HBP=2, SB=5
+    # Strip HR's extra-base contribution (each HR = 3 extra TB) before scoring
+    xtra_no_hr = max(0.0, proj_tb - proj_hits - proj_hr * 3.0)
+    proj_hbp   = proj_pa * 0.008   # ~0.8% HBP rate league average
     pp_pts = (
         proj_hits  * 3.0
-        + xtra_bases * 2.0
-        + proj_hr   * 1.0    # correction: 3+6+1=10 for HR
+        + xtra_no_hr * 2.0    # 2B adds +2, 3B adds ~+4 (approx)
         + proj_rbi  * 2.0
         + proj_run  * 2.0
         + proj_bb   * 2.0
-        + proj_sb   * 4.0
+        + proj_hbp  * 2.0
+        + proj_sb   * 5.0     # SB=+5 per PP scoring (was 4)
     )
 
     return {
