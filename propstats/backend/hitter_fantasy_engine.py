@@ -3,7 +3,7 @@ Hitter Fantasy Engine — DK/FD/PrizePicks hitter scoring projection
 Personal use only.
 
 Fantasy Score (0-100):
-  Contact(30%) + Power(25%) + OBP(15%) + PitcherGrade(15%) + ArsenalMatch(15%)
+  Contact(25%) + Power(22%) + OBP(18%) + Speed(10%) + PitcherGrade(15%) + ArsenalMatch(10%)
 
 ArsenalMatch: weighted batter xwOBA vs the specific pitcher's pitch mix
   — surfaces hidden gems by pitch-type-specific edge rather than raw talent alone
@@ -413,7 +413,7 @@ def _proj_stats(batter_id: str, bats: str, pitcher_matchup: dict,
     proj_rbi = proj_hits * 0.25 + proj_hr * 1.20
     proj_run = (proj_hits + proj_bb) * 0.35
 
-    # DK fantasy points
+    # DK fantasy points (1B×3, 2B×5, HR×10, RBI×3.5, R×3, BB×3, SB×6)
     xtra_bases = max(0.0, proj_tb - proj_hits)
     dk_pts = (
         proj_hits  * 3.0
@@ -425,6 +425,20 @@ def _proj_stats(batter_id: str, bats: str, pitcher_matchup: dict,
         + proj_sb   * 6.0
     )
 
+    # PrizePicks scoring (H×3, 2B=5, 3B=8, HR=10, RBI×2, R×2, BB×2, SB×4)
+    # hits×3 + xtra_bases×2 approximates per-hit-type scoring correctly
+    # HR: 3 (hit) + 6 (3 extra bases × 2) + 1 (bonus to reach 10) = 10 ✓
+    # 2B: 3 + 2 = 5 ✓  |  Single: 3 ✓
+    pp_pts = (
+        proj_hits  * 3.0
+        + xtra_bases * 2.0
+        + proj_hr   * 1.0    # correction: 3+6+1=10 for HR
+        + proj_rbi  * 2.0
+        + proj_run  * 2.0
+        + proj_bb   * 2.0
+        + proj_sb   * 4.0
+    )
+
     return {
         "proj_hits":  round(proj_hits, 2),
         "proj_tb":    round(proj_tb,   2),
@@ -434,6 +448,7 @@ def _proj_stats(batter_id: str, bats: str, pitcher_matchup: dict,
         "proj_rbi":   round(proj_rbi,  2),
         "proj_run":   round(proj_run,  2),
         "proj_dk":    round(dk_pts,    1),
+        "proj_pp":    round(pp_pts,    1),
         "xba":        round(xba,  3),
         "xslg":       round(xslg, 3),
         "xwoba":      round(xwoba, 3),
@@ -568,14 +583,14 @@ def build_hitter_fantasy_board(game_date: str) -> list:
                 # Form signal: xwOBA vs BA divergence (no extra API calls)
                 form = _form_signal(bid, xstats)
 
-                # FantasyScore — 5 components; arsenal match reduces big-name bias
-                # by rewarding specific pitch-type edges over raw season talent
+                # FantasyScore — 6 components; speed weighted for BB/R/RBI/SB PP scoring
                 fantasy_score = (
-                    cs             * 0.30
-                    + ps           * 0.25
-                    + os_          * 0.15
+                    cs                 * 0.25
+                    + ps               * 0.22
+                    + os_              * 0.18
+                    + sp               * 0.10
                     + matchup["grade"] * 0.15
-                    + arsenal["score"] * 0.15
+                    + arsenal["score"] * 0.10
                 )
                 fantasy_score = round(max(0.0, min(100.0, fantasy_score)), 1)
 
