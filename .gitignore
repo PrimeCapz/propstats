@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+*.db
+node_modules/
+package-lock.json
+dist/
+.env

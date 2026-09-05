@@ -1,0 +1,2289 @@
+"""
+Baseball Analysis Engine
+MLB Stats API + Baseball Savant + Open-Meteo weather
+No API keys required - all free public endpoints
+"""
+
+import requests
+import json
+from datetime import datetime, date
+from typing import Optional
+import time
+
+MLB_API = "https://statsapi.mlb.com/api/v1"
+MLB_API_V1_1 = "https://statsapi.mlb.com/api/v1.1"
+SAVANT_API = "https://baseballsavant.mlb.com"
+WEATHER_API = "https://api.open-meteo.com/v1/forecast"
+
+HEADERS = {"User-Agent": "PropStats/1.0 Baseball Analysis"}
+
+# MLB venue coordinates for weather lookup
+VENUE_COORDS = {
+    2:    ("Oriole Park at Camden Yards", 39.2838, -76.6217),
+    3:    ("Fenway Park", 42.3467, -71.0972),
+    4:    ("Guaranteed Rate Field", 41.8300, -87.6339),
+    6:    ("Great American Ball Park", 39.0979, -84.5082),
+    5:    ("Progressive Field", 41.4962, -81.6852),
+    2394: ("Minute Maid Park", 29.7573, -95.3555),
+    17:   ("Comerica Park", 42.3390, -83.0485),
+    7:    ("Kauffman Stadium", 39.0516, -94.4803),
+    32:   ("American Family Field", 43.0280, -87.9712),
+    27:   ("Target Field", 44.9817, -93.2781),
+    1:    ("Yankee Stadium", 40.8296, -73.9262),
+    3289: ("Citi Field", 40.7571, -73.8458),
+    2681: ("Citizens Bank Park", 39.9056, -75.1665),
+    31:   ("PNC Park", 40.4469, -80.0057),
+    3309: ("Nationals Park", 38.8730, -77.0074),
+    4705: ("Truist Park", 33.8908, -84.4678),
+    14:   ("Wrigley Field", 41.9484, -87.6553),
+    2889: ("Busch Stadium", 38.6226, -90.1928),
+    2680: ("Chase Field", 33.4455, -112.0667),
+    19:   ("Coors Field", 39.7559, -104.9942),
+    22:   ("Dodger Stadium", 34.0739, -118.2400),
+    2395: ("Oracle Park", 37.7786, -122.3893),
+    2406: ("Petco Park", 32.7073, -117.1566),
+    5325: ("Globe Life Field", 32.7473, -97.0845),
+    2500: ("Angel Stadium", 33.8003, -117.8827),
+    680:  ("T-Mobile Park", 47.5914, -122.3325),
+    4169: ("loanDepot park", 25.7781, -80.2197),
+    12:   ("Tropicana Field", 27.7683, -82.6534),
+    14536: ("Rogers Centre", 43.6414, -79.3894),
+    5355: ("Las Vegas Ballpark", 36.1699, -115.2923),   # Summerlin, NV — ~2000 ft elevation
+    2529: ("Sutter Health Park", 38.5800, -121.4994),   # Sacramento, CA — ATH temp home
+}
+
+PARK_FACTORS = {
+    "Coors Field": {"run": 1.20, "hr": 1.27, "hit": 1.12, "description": "Extreme hitter's park (altitude)"},
+    "Great American Ball Park": {"run": 1.13, "hr": 1.22, "hit": 1.05, "description": "Hitter-friendly"},
+    "Fenway Park": {"run": 1.08, "hr": 1.04, "hit": 1.07, "description": "Slight hitter's park (Green Monster)"},
+    "Wrigley Field": {"run": 1.05, "hr": 1.07, "hit": 1.04, "description": "Hitter-friendly (wind dependent)"},
+    "Yankee Stadium": {"run": 1.06, "hr": 1.19, "hit": 1.02, "description": "HR-friendly short porches"},
+    "Globe Life Field": {"run": 0.94, "hr": 0.91, "hit": 0.97, "description": "Pitcher-friendly (dome)"},
+    "Tropicana Field": {"run": 0.90, "hr": 0.85, "hit": 0.92, "description": "Pitcher's park (dome)"},
+    "Oracle Park": {"run": 0.88, "hr": 0.74, "hit": 0.95, "description": "Strong pitcher's park"},
+    "T-Mobile Park": {"run": 0.93, "hr": 0.91, "hit": 0.95, "description": "Pitcher-friendly"},
+    "Petco Park": {"run": 0.94, "hr": 0.88, "hit": 0.95, "description": "Pitcher-friendly"},
+    "Dodger Stadium": {"run": 0.95, "hr": 0.92, "hit": 0.97, "description": "Slight pitcher's park"},
+    "loanDepot park": {"run": 0.93, "hr": 0.87, "hit": 0.95, "description": "Pitcher-friendly (dome/retractable)"},
+    "Minute Maid Park": {"run": 1.04, "hr": 1.08, "hit": 1.01, "description": "Slight hitter's park"},
+    "Target Field": {"run": 0.97, "hr": 0.94, "hit": 0.98, "description": "Neutral-slight pitcher"},
+    "Progressive Field": {"run": 0.96, "hr": 0.93, "hit": 0.97, "description": "Neutral"},
+    "PNC Park": {"run": 0.95, "hr": 0.94, "hit": 0.96, "description": "Slight pitcher's park"},
+    "Guaranteed Rate Field": {"run": 1.04, "hr": 1.08, "hit": 1.01, "description": "Slight hitter's park"},
+    "Busch Stadium": {"run": 0.96, "hr": 0.92, "hit": 0.97, "description": "Slight pitcher's park"},
+    "Oriole Park at Camden Yards": {"run": 1.05, "hr": 1.08, "hit": 1.02, "description": "Hitter-friendly"},
+    "Citizens Bank Park": {"run": 1.07, "hr": 1.14, "hit": 1.03, "description": "HR-friendly"},
+    "Citi Field": {"run": 0.96, "hr": 0.92, "hit": 0.97, "description": "Slight pitcher's park"},
+    "Nationals Park": {"run": 1.01, "hr": 1.03, "hit": 1.00, "description": "Neutral"},
+    "Truist Park": {"run": 0.98, "hr": 0.98, "hit": 0.99, "description": "Neutral"},
+    "American Family Field": {"run": 1.02, "hr": 1.04, "hit": 1.00, "description": "Slight hitter's (retractable)"},
+    "Chase Field": {"run": 1.05, "hr": 1.06, "hit": 1.02, "description": "Hitter-friendly (retractable/heat)"},
+    "Kauffman Stadium": {"run": 0.97, "hr": 0.93, "hit": 0.98, "description": "Slight pitcher's park"},
+    "Comerica Park": {"run": 0.95, "hr": 0.89, "hit": 0.96, "description": "Pitcher-friendly"},
+    "Angel Stadium": {"run": 0.97, "hr": 0.95, "hit": 0.97, "description": "Neutral"},
+    "Rogers Centre": {"run": 1.01, "hr": 1.03, "hit": 1.00, "description": "Neutral (dome/turf)"},
+    # ATH temp venues — both extreme hitter's parks (measured 1.50 run PF from 2026 ATH home data)
+    "Las Vegas Ballpark": {"run": 1.50, "hr": 1.55, "hit": 1.22, "description": "Extreme hitter's park (~2000ft elevation, AAA bandbox, desert heat)"},
+    "Sutter Health Park": {"run": 1.45, "hr": 1.48, "hit": 1.20, "description": "Extreme hitter's park (AAA bandbox, Sacramento heat)"},
+}
+
+# Pull-side wall distances (feet) per park — LF = LHB pull target, RF = RHB pull target
+# Park HR factors by batter handedness. RHB pulls to LF; LHB pulls to RF.
+# Factor > 1.0 = HR-friendly for that handedness at this park.
+PARK_HR_BY_HAND: dict = {
+    "Yankee Stadium":               {"rhb": 1.28, "lhb": 1.12},   # short RF 314 → RHB edge
+    "Fenway Park":                  {"rhb": 1.14, "lhb": 0.96},   # short RF 302 → RHB edge
+    "Great American Ball Park":     {"rhb": 1.25, "lhb": 1.18},   # HR-friendly both sides
+    "Coors Field":                  {"rhb": 1.28, "lhb": 1.26},   # altitude helps all
+    "Oracle Park":                  {"rhb": 0.72, "lhb": 0.78},   # deep troughs both sides
+    "Wrigley Field":                {"rhb": 1.06, "lhb": 1.08},   # moderate both sides
+    "Dodger Stadium":               {"rhb": 0.91, "lhb": 0.93},   # slight pitcher's park
+    "Petco Park":                   {"rhb": 0.85, "lhb": 0.92},   # deep LF hurts RHB more
+    "T-Mobile Park":                {"rhb": 0.89, "lhb": 0.93},   # pitcher-friendly
+    "Tropicana Field":              {"rhb": 0.85, "lhb": 0.85},   # dome suppresses both
+    "Globe Life Field":             {"rhb": 0.90, "lhb": 0.92},   # dome suppresses both
+    "Minute Maid Park":             {"rhb": 1.07, "lhb": 1.09},   # short LF 315 Crawford Box
+    "Target Field":                 {"rhb": 0.92, "lhb": 0.96},   # pitcher-friendly
+    "Progressive Field":            {"rhb": 0.93, "lhb": 0.94},   # neutral
+    "PNC Park":                     {"rhb": 0.92, "lhb": 0.96},   # slight LHB edge
+    "Guaranteed Rate Field":        {"rhb": 1.07, "lhb": 1.09},   # hitter-friendly
+    "Busch Stadium":                {"rhb": 0.91, "lhb": 0.93},   # pitcher's park
+    "Oriole Park at Camden Yards":  {"rhb": 1.11, "lhb": 1.05},   # short RF 318 → RHB edge
+    "Citizens Bank Park":           {"rhb": 1.16, "lhb": 1.12},   # HR-friendly both sides
+    "Citi Field":                   {"rhb": 0.92, "lhb": 0.92},   # pitcher-friendly
+    "Nationals Park":               {"rhb": 1.02, "lhb": 1.04},   # neutral
+    "Truist Park":                  {"rhb": 0.98, "lhb": 0.98},   # neutral
+    "American Family Field":        {"rhb": 1.03, "lhb": 1.05},   # slight hitter's
+    "Chase Field":                  {"rhb": 1.05, "lhb": 1.07},   # hitter-friendly
+    "Kauffman Stadium":             {"rhb": 0.92, "lhb": 0.94},   # pitcher-friendly
+    "Comerica Park":                {"rhb": 0.86, "lhb": 0.92},   # deep LF hurts RHB
+    "Angel Stadium":                {"rhb": 0.96, "lhb": 0.95},   # neutral
+    "Rogers Centre":                {"rhb": 1.02, "lhb": 1.04},   # neutral
+    "loanDepot park":               {"rhb": 0.87, "lhb": 0.87},   # dome suppresses both
+    "Las Vegas Ballpark":           {"rhb": 1.55, "lhb": 1.55},   # extreme bandbox
+    "Sutter Health Park":           {"rhb": 1.48, "lhb": 1.48},   # extreme bandbox
+}
+
+PULL_WALLS: dict = {
+    "Yankee Stadium":               {"lf": 318, "rf": 314},
+    "Fenway Park":                  {"lf": 310, "rf": 302},
+    "Wrigley Field":                {"lf": 355, "rf": 353},
+    "Great American Ball Park":     {"lf": 328, "rf": 325},
+    "Coors Field":                  {"lf": 347, "rf": 350},
+    "Oracle Park":                  {"lf": 339, "rf": 309},
+    "Dodger Stadium":               {"lf": 330, "rf": 330},
+    "Petco Park":                   {"lf": 334, "rf": 322},
+    "T-Mobile Park":                {"lf": 331, "rf": 326},
+    "Tropicana Field":              {"lf": 315, "rf": 322},
+    "Globe Life Field":             {"lf": 329, "rf": 326},
+    "Minute Maid Park":             {"lf": 315, "rf": 326},
+    "Target Field":                 {"lf": 339, "rf": 328},
+    "Progressive Field":            {"lf": 325, "rf": 325},
+    "PNC Park":                     {"lf": 325, "rf": 320},
+    "Guaranteed Rate Field":        {"lf": 330, "rf": 335},
+    "Busch Stadium":                {"lf": 336, "rf": 335},
+    "Oriole Park at Camden Yards":  {"lf": 333, "rf": 318},
+    "Citizens Bank Park":           {"lf": 329, "rf": 330},
+    "Citi Field":                   {"lf": 335, "rf": 330},
+    "Nationals Park":               {"lf": 336, "rf": 335},
+    "Truist Park":                  {"lf": 335, "rf": 325},
+    "American Family Field":        {"lf": 344, "rf": 345},
+    "Chase Field":                  {"lf": 330, "rf": 334},
+    "Kauffman Stadium":             {"lf": 330, "rf": 330},
+    "Comerica Park":                {"lf": 345, "rf": 330},
+    "Angel Stadium":                {"lf": 330, "rf": 330},
+    "Rogers Centre":                {"lf": 328, "rf": 328},
+    "loanDepot park":               {"lf": 340, "rf": 335},
+    "Las Vegas Ballpark":           {"lf": 328, "rf": 328},
+    "Sutter Health Park":           {"lf": 330, "rf": 330},
+}
+
+PITCH_TYPE_NAMES = {
+    "FF": "4-Seam Fastball", "SI": "Sinker", "FC": "Cutter", "FS": "Splitter",
+    "SL": "Slider", "CU": "Curveball", "KC": "Knuckle-Curve", "CH": "Changeup",
+    "FO": "Forkball", "KN": "Knuckleball", "SC": "Screwball", "EP": "Eephus",
+    "CS": "Slow Curve", "ST": "Sweeper", "SV": "Slurve", "FA": "Fastball",
+    "IN": "Intentional Ball", "PO": "Pitch Out",
+}
+
+def _get(url: str, params: dict = None, retries: int = 2) -> Optional[dict]:
+    for i in range(retries):
+        try:
+            r = requests.get(url, params=params, headers=HEADERS, timeout=10)
+            r.raise_for_status()
+            return r.json()
+        except Exception as e:
+            if i < retries - 1:
+                time.sleep(0.5)
+    return None
+
+
+def get_today_games(game_date: str = None) -> list:
+    """Get all MLB games for a given date (default today)."""
+    if not game_date:
+        game_date = date.today().strftime("%Y-%m-%d")
+
+    data = _get(f"{MLB_API}/schedule", {
+        "sportId": 1,
+        "date": game_date,
+        "hydrate": "probablePitcher(note,person),linescore,team,venue,broadcasts,weather"
+    })
+    if not data:
+        return []
+
+    games = []
+    for game_date_entry in data.get("dates", []):
+        for g in game_date_entry.get("games", []):
+            venue = g.get("venue", {})
+            status = g.get("status", {})
+            away_team = g.get("teams", {}).get("away", {})
+            home_team = g.get("teams", {}).get("home", {})
+            away_pitcher = away_team.get("probablePitcher", {})
+            home_pitcher = home_team.get("probablePitcher", {})
+
+            games.append({
+                "game_pk": g.get("gamePk"),
+                "game_date": g.get("officialDate"),
+                "game_time": g.get("gameDate", ""),
+                "status": status.get("detailedState", "Scheduled"),
+                "status_code": status.get("statusCode", "S"),
+                "venue_id": venue.get("id"),
+                "venue_name": venue.get("name", "Unknown"),
+                "away": {
+                    "team_id": away_team.get("team", {}).get("id"),
+                    "team_name": away_team.get("team", {}).get("name", ""),
+                    "team_abbr": away_team.get("team", {}).get("abbreviation", ""),
+                    "record": f"{away_team.get('leagueRecord', {}).get('wins', 0)}-{away_team.get('leagueRecord', {}).get('losses', 0)}",
+                    "probable_pitcher": {
+                        "id": away_pitcher.get("id"),
+                        "name": away_pitcher.get("fullName", "TBD"),
+                        "note": away_pitcher.get("note", ""),
+                        "throws": away_pitcher.get("pitchHand", {}).get("code", "R"),
+                    } if away_pitcher else {"id": None, "name": "TBD", "note": "", "throws": "R"},
+                },
+                "home": {
+                    "team_id": home_team.get("team", {}).get("id"),
+                    "team_name": home_team.get("team", {}).get("name", ""),
+                    "team_abbr": home_team.get("team", {}).get("abbreviation", ""),
+                    "record": f"{home_team.get('leagueRecord', {}).get('wins', 0)}-{home_team.get('leagueRecord', {}).get('losses', 0)}",
+                    "probable_pitcher": {
+                        "id": home_pitcher.get("id"),
+                        "name": home_pitcher.get("fullName", "TBD"),
+                        "note": home_pitcher.get("note", ""),
+                        "throws": home_pitcher.get("pitchHand", {}).get("code", "R"),
+                    } if home_pitcher else {"id": None, "name": "TBD", "note": "", "throws": "R"},
+                },
+                "broadcasts": [b.get("name") for b in g.get("broadcasts", [])],
+            })
+    return games
+
+
+def get_pitcher_season_stats(pitcher_id: int, season: int = None, as_of_date: str = None) -> dict:
+    if not season:
+        season = datetime.now().year
+    date_clause = f",endDate={as_of_date}" if as_of_date else ""
+    data = _get(f"{MLB_API}/people/{pitcher_id}", {
+        "hydrate": f"stats(group=[pitching],type=[season,seasonAdvanced],season={season}{date_clause})"
+    })
+    if not data:
+        return {}
+
+    person = data.get("people", [{}])[0]
+    stats_list = person.get("stats", [])
+
+    basic = {}
+    advanced = {}
+    for s in stats_list:
+        splits = s.get("splits", [{}])
+        if not splits:
+            continue
+        stat_data = splits[0].get("stat", {})
+        if s.get("type", {}).get("displayName") == "season":
+            basic = stat_data
+        elif s.get("type", {}).get("displayName") == "seasonAdvanced":
+            advanced = stat_data
+
+    return {
+        "name": person.get("fullName", ""),
+        "number": person.get("primaryNumber", ""),
+        "bats": person.get("batSide", {}).get("code", ""),
+        "throws": person.get("pitchHand", {}).get("code", ""),
+        "age": person.get("currentAge"),
+        "team": person.get("currentTeam", {}).get("name", ""),
+        "position": person.get("primaryPosition", {}).get("abbreviation", ""),
+        "headshot": f"https://img.mlbstatic.com/mlb-photos/image/upload/d_people:generic:headshot:67:current.png/w_213,q_auto:best/v1/people/{pitcher_id}/headshot/67/current",
+        "season": season,
+        "stats": {
+            "era": basic.get("era", "-"),
+            "whip": basic.get("whip", "-"),
+            "wins": basic.get("wins", 0),
+            "losses": basic.get("losses", 0),
+            "saves": basic.get("saves", 0),
+            "games": basic.get("gamesPlayed", 0),
+            "games_started": basic.get("gamesStarted", 0),
+            "innings_pitched": basic.get("inningsPitched", "0.0"),
+            "strikeouts": basic.get("strikeOuts", 0),
+            "walks": basic.get("baseOnBalls", 0),
+            "hits": basic.get("hits", 0),
+            "home_runs": basic.get("homeRuns", 0),
+            "k9": basic.get("strikeoutsPer9Inn", "-"),
+            "bb9": basic.get("walksPer9Inn", "-"),
+            "hr9": basic.get("homeRunsPer9", "-"),
+            "k_pct": advanced.get("strikeoutPercentage", "-"),
+            "bb_pct": advanced.get("walkPercentage", "-"),
+            "k_bb": advanced.get("strikeoutWalkRatio", "-"),
+            "fip": advanced.get("fieldingIndependentPitching", "-"),
+            "avg": basic.get("avg", "-"),
+            "obp": basic.get("obp", "-"),
+            "slg": basic.get("slg", "-"),
+            "ops": basic.get("ops", "-"),
+            "babip": advanced.get("babip", "-"),
+            "lob_pct": advanced.get("lobPercentage", "-"),
+            "ground_ball_pct": advanced.get("groundOutsToAirouts", "-"),
+            "pitch_count": basic.get("numberOfPitches", 0),
+        }
+    }
+
+
+def get_pitcher_splits(pitcher_id: int, season: int = None) -> dict:
+    if not season:
+        season = datetime.now().year
+    # sitCodes=vl,vr unlocks vs-Left / vs-Right split data from the MLB Stats API
+    data = _get(f"{MLB_API}/people/{pitcher_id}/stats", {
+        "stats": "statSplits",
+        "group": "pitching",
+        "season": season,
+        "sportId": 1,
+        "sitCodes": "vl,vr,h,a",
+    })
+    if not data:
+        return {}
+
+    splits = {}
+    for entry in data.get("stats", []):
+        for split in entry.get("splits", []):
+            split_type = split.get("split", {}).get("description", "")
+            stat = split.get("stat", {})
+            # Normalize: API returns "vs Left" / "vs Right" (no period)
+            # Map to canonical keys with period for backward compatibility
+            key_map = {
+                "vs Left": "vs. Left", "vs. Left": "vs. Left",
+                "vs Right": "vs. Right", "vs. Right": "vs. Right",
+                "Home Games": "Home", "Home": "Home",
+                "Away Games": "Away", "Away": "Away",
+            }
+            canonical = key_map.get(split_type)
+            if canonical:
+                split_type = canonical
+                splits[split_type] = {
+                    "era":  stat.get("era", "-"),
+                    "avg":  stat.get("avg", "-"),
+                    "ops":  stat.get("ops", "-"),
+                    "whip": stat.get("whip", "-"),
+                    "k9":   stat.get("strikeoutsPer9Inn", "-"),
+                    "bb9":  stat.get("walksPer9Inn", "-"),
+                    "ip":   stat.get("inningsPitched", "0.0"),
+                    "hr":   stat.get("homeRuns", 0),
+                }
+    return splits
+
+
+_batter_hand_splits_cache: dict = {}
+
+
+def get_batter_handedness_splits(batter_id: int, season: int = None) -> dict:
+    """
+    Season batting splits for batter vs LHP and vs RHP.
+    Returns {"vs_l": {ba, obp, slg, ops, pa}, "vs_r": {ba, obp, slg, ops, pa}}
+    Uses MLB statSplits API with sitCodes=vl,vr.
+    """
+    if not season:
+        season = datetime.now().year
+    cache_key = (batter_id, season)
+    if cache_key in _batter_hand_splits_cache:
+        return _batter_hand_splits_cache[cache_key]
+
+    empty = {"ba": 0.0, "obp": 0.0, "slg": 0.0, "ops": 0.0, "pa": 0}
+    result = {"vs_l": dict(empty), "vs_r": dict(empty)}
+
+    try:
+        data = _get(f"{MLB_API}/people/{batter_id}/stats", {
+            "stats":    "statSplits",
+            "group":    "hitting",
+            "season":   season,
+            "sportId":  1,
+            "sitCodes": "vl,vr",
+        })
+        key_map = {
+            "vs Left":  "vs_l", "vs. Left":  "vs_l",
+            "vs Right": "vs_r", "vs. Right": "vs_r",
+        }
+        for entry in data.get("stats", []):
+            for split in entry.get("splits", []):
+                desc   = split.get("split", {}).get("description", "")
+                key    = key_map.get(desc)
+                if not key:
+                    continue
+                st = split.get("stat", {})
+                result[key] = {
+                    "ba":  _safe_float(st.get("avg",  "0")),
+                    "obp": _safe_float(st.get("obp",  "0")),
+                    "slg": _safe_float(st.get("slg",  "0")),
+                    "ops": _safe_float(st.get("ops",  "0")),
+                    "pa":  int(st.get("plateAppearances", 0)),
+                }
+    except Exception:
+        pass
+
+    _batter_hand_splits_cache[cache_key] = result
+    return result
+
+
+def get_pitcher_recent_starts(pitcher_id: int, season: int = None, limit: int = 7, as_of_date: str = None) -> list:
+    if not season:
+        season = datetime.now().year
+    params = {"stats": "gameLog", "group": "pitching", "season": season, "sportId": 1}
+    if as_of_date:
+        params["endDate"] = as_of_date
+    data = _get(f"{MLB_API}/people/{pitcher_id}/stats", params)
+    if not data:
+        return []
+
+    starts = []
+    for entry in data.get("stats", []):
+        for split in entry.get("splits", []):
+            stat = split.get("stat", {})
+            if stat.get("gamesStarted", 0) == 0 and stat.get("inningsPitched", "0.0") == "0.0":
+                continue
+            game = split.get("game", {})
+            team = split.get("team", {})
+            opponent = split.get("opponent", {})
+            starts.append({
+                "date": split.get("date", ""),
+                "opponent": opponent.get("abbreviation", ""),
+                "opponent_name": opponent.get("name", ""),
+                "home_away": split.get("isHome", False),
+                "result": stat.get("wins", 0) and "W" or stat.get("losses", 0) and "L" or "-",
+                "ip": stat.get("inningsPitched", "0.0"),
+                "h": stat.get("hits", 0),
+                "r": stat.get("runs", 0),
+                "er": stat.get("earnedRuns", 0),
+                "bb": stat.get("baseOnBalls", 0),
+                "k": stat.get("strikeOuts", 0),
+                "hr": stat.get("homeRuns", 0),
+                "pitches": stat.get("numberOfPitches", 0),
+                "strikes": stat.get("strikes", 0),
+                "era_for_game": _game_era(stat),
+            })
+
+    return sorted(starts, key=lambda x: x["date"], reverse=True)[:limit]
+
+
+def _game_era(stat: dict) -> str:
+    er = stat.get("earnedRuns", 0) or 0
+    ip_str = stat.get("inningsPitched", "0.0") or "0.0"
+    try:
+        parts = str(ip_str).split(".")
+        full_inn = int(parts[0])
+        thirds = int(parts[1]) if len(parts) > 1 else 0
+        total_thirds = full_inn * 3 + thirds
+        if total_thirds == 0:
+            return "-"
+        era = (er / total_thirds) * 27
+        return f"{era:.2f}"
+    except:
+        return "-"
+
+
+def get_pitch_arsenal(pitcher_id: int, season: int = None) -> list:
+    if not season:
+        season = datetime.now().year
+
+    data = _get(f"{MLB_API}/people/{pitcher_id}/stats", {
+        "stats": "pitchArsenal",
+        "group": "pitching",
+        "season": season,
+        "sportId": 1,
+    })
+    if not data:
+        return []
+
+    arsenal = []
+    for entry in data.get("stats", []):
+        for split in entry.get("splits", []):
+            stat = split.get("stat", {})
+            pitch_code = stat.get("type", {}).get("code", "")
+            arsenal.append({
+                "pitch_type": pitch_code,
+                "pitch_name": PITCH_TYPE_NAMES.get(pitch_code, stat.get("type", {}).get("description", pitch_code)),
+                "usage_pct": round(float(stat.get("percentage", 0) or 0), 1),
+                "avg_velocity": round(float(stat.get("averageSpeed", 0) or 0), 1),
+                "avg_spin": stat.get("spinRate"),
+                "whiff_pct": round(float(stat.get("whiffPercentage", 0) or 0), 1),
+                "put_away_pct": round(float(stat.get("putAwayPercentage", 0) or 0), 1),
+                "hard_hit_pct": stat.get("hardHitPercentage"),
+                "batting_avg": stat.get("battingAverage", "-"),
+                "slg": stat.get("sluggingPercentage", "-"),
+            })
+
+    return sorted(arsenal, key=lambda x: x["usage_pct"], reverse=True)
+
+
+def get_batter_season_stats(batter_id: int, season: int = None, as_of_date: str = None) -> dict:
+    if not season:
+        season = datetime.now().year
+    date_clause = f",endDate={as_of_date}" if as_of_date else ""
+    data = _get(f"{MLB_API}/people/{batter_id}", {
+        "hydrate": f"stats(group=[hitting],type=[season,seasonAdvanced,homeAndAway,expectedStatistics],season={season}{date_clause})"
+    })
+    if not data:
+        return {}
+
+    person = data.get("people", [{}])[0]
+    stats_list = person.get("stats", [])
+
+    basic = {}
+    advanced = {}
+    home_stat = {}
+    away_stat = {}
+    xstats = {}
+    for s in stats_list:
+        stype = s.get("type", {}).get("displayName", "")
+        splits = s.get("splits", [])
+        if not splits:
+            continue
+        if stype == "season":
+            basic = splits[0].get("stat", {})
+        elif stype == "seasonAdvanced":
+            advanced = splits[0].get("stat", {})
+        elif stype == "homeAndAway":
+            for sp in splits:
+                if sp.get("isHome"):
+                    home_stat = sp.get("stat", {})
+                else:
+                    away_stat = sp.get("stat", {})
+        elif stype == "expectedStatistics":
+            xstats = splits[0].get("stat", {})
+
+    # Compute LD% / GB% / FB% from seasonAdvanced batted-ball counts
+    bip = advanced.get("ballsInPlay", 0) or 0
+    line_hits = advanced.get("lineHits", 0) or 0
+    line_outs = advanced.get("lineOuts", 0) or 0
+    ground_hits = advanced.get("groundHits", 0) or 0
+    ground_outs = advanced.get("groundOuts", 0) or 0
+    fly_hits = advanced.get("flyHits", 0) or 0
+    fly_outs = advanced.get("flyOuts", 0) or 0
+    ld_pct = round((line_hits + line_outs) / bip * 100, 1) if bip > 0 else 0.0
+    gb_pct = round((ground_hits + ground_outs) / bip * 100, 1) if bip > 0 else 0.0
+    fb_pct = round((fly_hits + fly_outs) / bip * 100, 1) if bip > 0 else 0.0
+
+    # Whiff rate from seasonAdvanced
+    total_swings = advanced.get("totalSwings", 0) or 0
+    swing_misses = advanced.get("swingAndMisses", 0) or 0
+    whiff_rate = round(swing_misses / total_swings * 100, 1) if total_swings > 0 else 0.0
+
+    def _ops(stat):
+        try:
+            return float(stat.get("ops", "0") or "0")
+        except Exception:
+            return 0.0
+
+    return {
+        "name": person.get("fullName", ""),
+        "number": person.get("primaryNumber", ""),
+        "bats": person.get("batSide", {}).get("code", ""),
+        "throws": person.get("pitchHand", {}).get("code", ""),
+        "age": person.get("currentAge"),
+        "team": person.get("currentTeam", {}).get("name", ""),
+        "position": person.get("primaryPosition", {}).get("abbreviation", ""),
+        "headshot": f"https://img.mlbstatic.com/mlb-photos/image/upload/d_people:generic:headshot:67:current.png/w_213,q_auto:best/v1/people/{batter_id}/headshot/67/current",
+        "season": season,
+        "stats": {
+            "avg": basic.get("avg", ".000"),
+            "obp": basic.get("obp", ".000"),
+            "slg": basic.get("slg", ".000"),
+            "ops": basic.get("ops", ".000"),
+            "pa": basic.get("plateAppearances", 0),
+            "ab": basic.get("atBats", 0),
+            "hits": basic.get("hits", 0),
+            "doubles": basic.get("doubles", 0),
+            "triples": basic.get("triples", 0),
+            "hr": basic.get("homeRuns", 0),
+            "rbi": basic.get("rbi", 0),
+            "runs": basic.get("runs", 0),
+            "bb": basic.get("baseOnBalls", 0),
+            "k": basic.get("strikeOuts", 0),
+            "sb": basic.get("stolenBases", 0),
+            "k_pct": advanced.get("strikeoutPercentage", "-"),
+            "bb_pct": advanced.get("walkPercentage", "-"),
+            "iso": advanced.get("isolatedPower", "-"),
+            "babip": advanced.get("babip", "-"),
+            "woba": advanced.get("woba", "-"),
+            "wrc_plus": advanced.get("wRCPlus", "-"),
+            "hard_hit_pct": advanced.get("hardHitPercentage", "-"),
+            "barrel_pct": advanced.get("barrelBatted", "-"),
+            "exit_velocity": advanced.get("avgHitSpeed", "-"),
+            "launch_angle": advanced.get("avgHitAngle", "-"),
+            # Tier 1: batted-ball profile
+            "ld_pct": ld_pct,
+            "gb_pct": gb_pct,
+            "fb_pct": fb_pct,
+            "whiff_rate": whiff_rate,
+            "balls_in_play": bip,
+            "line_hits": line_hits,
+            "line_outs": line_outs,
+            # Tier 1: xStats
+            "xba": xstats.get("avg", ""),
+            "xslg": xstats.get("slg", ""),
+            "xwoba": xstats.get("woba", ""),
+            # Tier 2: home/away splits
+            "home_avg": home_stat.get("avg", ""),
+            "home_ops": _ops(home_stat),
+            "home_pa": home_stat.get("plateAppearances", 0),
+            "away_avg": away_stat.get("avg", ""),
+            "away_ops": _ops(away_stat),
+            "away_pa": away_stat.get("plateAppearances", 0),
+        }
+    }
+
+
+def get_team_bullpen_stats(team_id: int, season: int = None) -> dict:
+    """Tier 2: Fetch team bullpen ERA/WHIP for late-inning scoring context."""
+    if not season:
+        season = datetime.now().year
+    data = _get(f"{MLB_API}/teams/{team_id}/stats", {
+        "stats": "season",
+        "group": "pitching",
+        "season": season,
+        "sportId": 1,
+    })
+    if not data:
+        return {"era": 4.50, "whip": 1.30}
+    for entry in data.get("stats", []):
+        for split in entry.get("splits", []):
+            stat = split.get("stat", {})
+            try:
+                return {
+                    "era": float(stat.get("era", "4.50") or "4.50"),
+                    "whip": float(stat.get("whip", "1.30") or "1.30"),
+                }
+            except Exception:
+                pass
+    return {"era": 4.50, "whip": 1.30}
+
+
+def get_batter_splits(batter_id: int, season: int = None) -> dict:
+    if not season:
+        season = datetime.now().year
+    data = _get(f"{MLB_API}/people/{batter_id}/stats", {
+        "stats": "statSplits",
+        "group": "hitting",
+        "season": season,
+        "sportId": 1,
+    })
+    if not data:
+        return {}
+
+    splits = {}
+    for entry in data.get("stats", []):
+        for split in entry.get("splits", []):
+            split_type = split.get("split", {}).get("description", "")
+            stat = split.get("stat", {})
+            if split_type in ("vs. Left", "vs. Right", "Home", "Away", "Last 7 days", "Last 14 days", "Last 30 days"):
+                splits[split_type] = {
+                    "avg": stat.get("avg", ".000"),
+                    "obp": stat.get("obp", ".000"),
+                    "slg": stat.get("slg", ".000"),
+                    "ops": stat.get("ops", ".000"),
+                    "pa": stat.get("plateAppearances", 0),
+                    "hr": stat.get("homeRuns", 0),
+                    "k": stat.get("strikeOuts", 0),
+                    "bb": stat.get("baseOnBalls", 0),
+                }
+    return splits
+
+
+def get_batter_vs_pitcher(batter_id: int, pitcher_id: int, season: int = None) -> dict:
+    """Career and recent H2H stats between batter and pitcher."""
+    career_data = _get(f"{MLB_API}/people/{batter_id}/stats", {
+        "stats": "vsPlayer",
+        "group": "hitting",
+        "opposingPlayerId": pitcher_id,
+        "sportId": 1,
+    })
+
+    season_data = None
+    if season:
+        season_data = _get(f"{MLB_API}/people/{batter_id}/stats", {
+            "stats": "vsPlayerTotal",
+            "group": "hitting",
+            "opposingPlayerId": pitcher_id,
+            "season": season,
+            "sportId": 1,
+        })
+
+    def parse_splits(data):
+        if not data:
+            return []
+        results = []
+        for entry in data.get("stats", []):
+            for split in entry.get("splits", []):
+                stat = split.get("stat", {})
+                results.append({
+                    "season": split.get("season", "career"),
+                    "pa": stat.get("plateAppearances", 0),
+                    "ab": stat.get("atBats", 0),
+                    "hits": stat.get("hits", 0),
+                    "doubles": stat.get("doubles", 0),
+                    "triples": stat.get("triples", 0),
+                    "hr": stat.get("homeRuns", 0),
+                    "rbi": stat.get("rbi", 0),
+                    "bb": stat.get("baseOnBalls", 0),
+                    "k": stat.get("strikeOuts", 0),
+                    "avg": stat.get("avg", ".000"),
+                    "obp": stat.get("obp", ".000"),
+                    "slg": stat.get("slg", ".000"),
+                    "ops": stat.get("ops", ".000"),
+                })
+        return results
+
+    career = parse_splits(career_data)
+    current = parse_splits(season_data)
+
+    if not career and not current:
+        return {"career": [], "season": [], "summary": "No H2H history found"}
+
+    career_summary = {}
+    if career:
+        career_summary = career[0] if len(career) == 1 else _aggregate_splits(career)
+
+    return {
+        "career": career,
+        "season": current,
+        "career_summary": career_summary,
+        "summary": _h2h_summary(career_summary),
+    }
+
+
+def _aggregate_splits(splits: list) -> dict:
+    if not splits:
+        return {}
+    total_ab = sum(s.get("ab", 0) for s in splits)
+    total_hits = sum(s.get("hits", 0) for s in splits)
+    total_pa = sum(s.get("pa", 0) for s in splits)
+    total_bb = sum(s.get("bb", 0) for s in splits)
+    total_hr = sum(s.get("hr", 0) for s in splits)
+    total_k = sum(s.get("k", 0) for s in splits)
+    total_2b = sum(s.get("doubles", 0) for s in splits)
+    total_3b = sum(s.get("triples", 0) for s in splits)
+    total_rbi = sum(s.get("rbi", 0) for s in splits)
+
+    avg = f".{int(total_hits/total_ab*1000):03d}" if total_ab > 0 else ".000"
+    obp_num = total_hits + total_bb
+    obp = f".{int(obp_num/total_pa*1000):03d}" if total_pa > 0 else ".000"
+    tb = total_hits + total_2b + 2*total_3b + 3*total_hr
+    slg = f".{int(tb/total_ab*1000):03d}" if total_ab > 0 else ".000"
+
+    return {
+        "pa": total_pa, "ab": total_ab, "hits": total_hits, "doubles": total_2b,
+        "triples": total_3b, "hr": total_hr, "rbi": total_rbi, "bb": total_bb,
+        "k": total_k, "avg": avg, "obp": obp, "slg": slg,
+        "ops": f"{float(obp)+float(slg):.3f}",
+    }
+
+
+def _h2h_summary(stats: dict) -> str:
+    if not stats:
+        return "No historical matchup data"
+    pa = stats.get("pa", 0)
+    avg = stats.get("avg", ".000")
+    hr = stats.get("hr", 0)
+    k = stats.get("k", 0)
+    ops = stats.get("ops", ".000")
+    if pa < 5:
+        return f"Limited history ({pa} PA)"
+    try:
+        avg_val = float(avg)
+        ops_val = float(ops)
+        k_pct = (k / pa * 100) if pa > 0 else 0
+        if avg_val >= 0.350 or ops_val >= 1.000:
+            edge = "Strong batter advantage"
+        elif avg_val >= 0.280 or ops_val >= 0.800:
+            edge = "Slight batter advantage"
+        elif avg_val <= 0.150 or ops_val <= 0.500:
+            edge = "Strong pitcher dominance"
+        elif avg_val <= 0.200 or ops_val <= 0.600:
+            edge = "Pitcher advantage"
+        else:
+            edge = "Even matchup"
+        return f"{edge} — {pa} PA, {avg} AVG, {hr} HR, {ops} OPS, {k_pct:.0f}% K-rate"
+    except:
+        return f"{pa} PA, {avg} AVG, {hr} HR"
+
+
+def get_team_lineup(game_pk: int, team_side: str = "home") -> list:
+    """Get confirmed or probable lineup from boxscore."""
+    data = _get(f"{MLB_API}/game/{game_pk}/boxscore")
+    if not data:
+        return []
+
+    team_data = data.get("teams", {}).get(team_side, {})
+    batting_order = team_data.get("battingOrder", [])
+    players = team_data.get("players", {})
+
+    lineup = []
+    for i, player_id in enumerate(batting_order):
+        key = f"ID{player_id}"
+        p = players.get(key, {})
+        person = p.get("person", {})
+        pos = p.get("position", {})
+        stats = p.get("seasonStats", {}).get("batting", {})
+        lineup.append({
+            "order": i + 1,
+            "player_id": player_id,
+            "name": person.get("fullName", ""),
+            "position": pos.get("abbreviation", ""),
+            "bats": p.get("batSide", {}).get("code", ""),
+            "season_avg": stats.get("avg", ".000"),
+            "season_obp": stats.get("obp", ".000"),
+            "season_ops": stats.get("ops", ".000"),
+            "season_hr": stats.get("homeRuns", 0),
+        })
+    return lineup
+
+
+def get_game_lineups(game_pk: int) -> dict:
+    data = _get(f"{MLB_API}/game/{game_pk}/boxscore")
+    if not data:
+        return {"home": [], "away": []}
+    return {
+        "home": get_team_lineup(game_pk, "home"),
+        "away": get_team_lineup(game_pk, "away"),
+    }
+
+
+def get_projected_lineup(team_id: int, season: int = None, exclude_date: str = None) -> list:
+    """Fetch team's most recent completed game lineup as a projected proxy."""
+    if not season:
+        season = datetime.now().year
+    end_date = exclude_date or date.today().strftime("%Y-%m-%d")
+    data = _get(f"{MLB_API}/schedule", {
+        "teamId": team_id,
+        "startDate": f"{season}-03-01",
+        "endDate": end_date,
+        "sportId": 1,
+        "gameType": "R",
+    })
+    if not data:
+        return []
+
+    recent_pk = None
+    team_side = "away"
+    for date_entry in sorted(data.get("dates", []), key=lambda x: x.get("date", ""), reverse=True):
+        for g in date_entry.get("games", []):
+            if g.get("status", {}).get("detailedState") == "Final":
+                recent_pk = g.get("gamePk")
+                away_id = g.get("teams", {}).get("away", {}).get("team", {}).get("id")
+                team_side = "away" if away_id == team_id else "home"
+                break
+        if recent_pk:
+            break
+
+    if not recent_pk:
+        return []
+
+    bs = _get(f"{MLB_API}/game/{recent_pk}/boxscore")
+    if not bs:
+        return []
+
+    team_data = bs.get("teams", {}).get(team_side, {})
+    lineup = _extract_lineup(team_data)
+    for p in lineup:
+        p["projected"] = True
+    return lineup
+
+
+def get_weather_for_venue(venue_id: int, game_date: str, game_time: str = None) -> dict:
+    """Get weather forecast for a venue using Open-Meteo API."""
+    venue_info = None
+    for vid, info in VENUE_COORDS.items():
+        if vid == venue_id:
+            venue_info = info
+            break
+
+    if not venue_info:
+        return {"available": False, "note": "Indoor/dome venue or coordinates unavailable"}
+
+    name, lat, lon = venue_info
+
+    INDOOR_VENUES = ["Globe Life Field", "Tropicana Field", "loanDepot park",
+                     "Rogers Centre", "American Family Field", "Chase Field", "Minute Maid Park"]
+
+    is_retractable = name in ["American Family Field", "Chase Field", "Minute Maid Park", "loanDepot park"]
+    is_dome = name in ["Globe Life Field", "Tropicana Field", "Rogers Centre"]
+
+    params = {
+        "latitude": lat,
+        "longitude": lon,
+        "hourly": "temperature_2m,relative_humidity_2m,wind_speed_10m,wind_direction_10m,precipitation_probability,cloud_cover,weather_code",
+        "temperature_unit": "fahrenheit",
+        "wind_speed_unit": "mph",
+        "forecast_days": 3,
+        "timezone": "auto",
+    }
+
+    data = _get(WEATHER_API, params)
+    if not data:
+        return {"available": False, "note": "Weather API unavailable"}
+
+    hourly = data.get("hourly", {})
+    times = hourly.get("time", [])
+
+    target_hour = 18
+    if game_time:
+        try:
+            gt = datetime.fromisoformat(game_time.replace("Z", "+00:00"))
+            target_hour = gt.hour
+        except:
+            pass
+
+    best_idx = 0
+    best_diff = float("inf")
+    for i, t in enumerate(times):
+        try:
+            dt = datetime.fromisoformat(t)
+            if dt.strftime("%Y-%m-%d") == game_date:
+                diff = abs(dt.hour - target_hour)
+                if diff < best_diff:
+                    best_diff = diff
+                    best_idx = i
+        except:
+            continue
+
+    def safe_get(arr, idx):
+        try:
+            return arr[idx] if idx < len(arr) else None
+        except:
+            return None
+
+    temp = safe_get(hourly.get("temperature_2m", []), best_idx)
+    humidity = safe_get(hourly.get("relative_humidity_2m", []), best_idx)
+    wind_speed = safe_get(hourly.get("wind_speed_10m", []), best_idx)
+    wind_dir = safe_get(hourly.get("wind_direction_10m", []), best_idx)
+    precip_prob = safe_get(hourly.get("precipitation_probability", []), best_idx)
+    cloud_cover = safe_get(hourly.get("cloud_cover", []), best_idx)
+    weather_code = safe_get(hourly.get("weather_code", []), best_idx)
+
+    wind_cardinal = _degrees_to_cardinal(wind_dir) if wind_dir is not None else "N/A"
+    weather_desc = _wmo_code_to_desc(weather_code)
+
+    impact = _weather_impact(temp, wind_speed, wind_dir, precip_prob, is_dome)
+
+    return {
+        "available": True,
+        "venue_name": name,
+        "is_dome": is_dome,
+        "is_retractable": is_retractable,
+        "temperature": temp,
+        "humidity": humidity,
+        "wind_speed": wind_speed,
+        "wind_direction_degrees": wind_dir,
+        "wind_direction": wind_cardinal,
+        "precipitation_probability": precip_prob,
+        "cloud_cover": cloud_cover,
+        "conditions": weather_desc,
+        "impact": impact,
+    }
+
+
+def _degrees_to_cardinal(deg: float) -> str:
+    if deg is None:
+        return "N/A"
+    dirs = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE",
+            "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"]
+    idx = round(deg / 22.5) % 16
+    return dirs[idx]
+
+
+def _wmo_code_to_desc(code) -> str:
+    if code is None:
+        return "Unknown"
+    mapping = {
+        0: "Clear sky", 1: "Mainly clear", 2: "Partly cloudy", 3: "Overcast",
+        45: "Fog", 48: "Icy fog", 51: "Light drizzle", 53: "Moderate drizzle",
+        55: "Heavy drizzle", 61: "Light rain", 63: "Moderate rain", 65: "Heavy rain",
+        71: "Light snow", 73: "Moderate snow", 75: "Heavy snow", 80: "Rain showers",
+        81: "Moderate rain showers", 82: "Violent rain showers", 95: "Thunderstorm",
+        96: "Thunderstorm with hail", 99: "Severe thunderstorm",
+    }
+    return mapping.get(int(code), f"Code {code}")
+
+
+def _weather_impact(temp, wind_speed, wind_dir, precip_prob, is_dome) -> dict:
+    if is_dome:
+        return {"offense": "neutral", "hr": "neutral", "note": "Indoor venue — weather irrelevant", "score": 0}
+
+    score = 0
+    notes = []
+
+    if temp is not None:
+        if temp >= 85:
+            score += 1.5
+            notes.append(f"Hot ({temp}°F) boosts offense/HR")
+        elif temp >= 75:
+            score += 0.8
+            notes.append(f"Warm ({temp}°F) slightly favors offense")
+        elif temp <= 45:
+            score -= 1.5
+            notes.append(f"Cold ({temp}°F) suppresses offense/HR")
+        elif temp <= 55:
+            score -= 0.8
+            notes.append(f"Cool ({temp}°F) slight pitcher advantage")
+
+    if wind_speed is not None and wind_dir is not None:
+        if wind_speed >= 15:
+            blowing_out = wind_dir in range(180, 360) or wind_dir < 45
+            if blowing_out and wind_speed >= 20:
+                score += 2.0
+                notes.append(f"Wind blowing OUT {wind_speed}mph {_degrees_to_cardinal(wind_dir)} — big HR boost")
+            elif blowing_out:
+                score += 1.0
+                notes.append(f"Wind blowing out {wind_speed}mph — HR-friendly")
+            else:
+                score -= 1.0
+                notes.append(f"Wind blowing IN {wind_speed}mph — suppresses HR")
+        elif wind_speed >= 10:
+            notes.append(f"Moderate wind {wind_speed}mph {_degrees_to_cardinal(wind_dir)}")
+
+    if precip_prob is not None and precip_prob >= 50:
+        score -= 1.0
+        notes.append(f"{precip_prob}% rain chance — potential delay risk")
+    elif precip_prob is not None and precip_prob >= 30:
+        notes.append(f"{precip_prob}% rain chance — monitor")
+
+    if score >= 2.0:
+        offense_label = "Strong Hitter Boost"
+        hr_label = "Very HR-Friendly"
+    elif score >= 1.0:
+        offense_label = "Hitter-Friendly"
+        hr_label = "HR-Friendly"
+    elif score <= -2.0:
+        offense_label = "Strong Pitcher Boost"
+        hr_label = "HR-Suppressing"
+    elif score <= -1.0:
+        offense_label = "Pitcher-Friendly"
+        hr_label = "HR-Suppressing"
+    else:
+        offense_label = "Neutral"
+        hr_label = "Neutral"
+
+    return {
+        "offense": offense_label,
+        "hr": hr_label,
+        "score": round(score, 1),
+        "note": " | ".join(notes) if notes else "Neutral conditions",
+    }
+
+
+def get_ballpark_factors(venue_name: str) -> dict:
+    for park_name, factors in PARK_FACTORS.items():
+        if park_name.lower() in venue_name.lower() or venue_name.lower() in park_name.lower():
+            return {"venue": venue_name, **factors}
+    return {"venue": venue_name, "run": 1.00, "hr": 1.00, "hit": 1.00, "description": "Neutral (data unavailable)"}
+
+
+def get_park_hr_factor(venue_name: str, bats: str = None) -> float:
+    """Get HR park factor for venue. Pass bats='L' or 'R' for handedness-split factor."""
+    if bats in ("L", "R"):
+        hand_key = "lhb" if bats == "L" else "rhb"
+        for park, factors in PARK_HR_BY_HAND.items():
+            if park.lower() in venue_name.lower() or venue_name.lower() in park.lower():
+                return factors.get(hand_key, 1.0)
+    for park, factors in PARK_FACTORS.items():
+        if park.lower() in venue_name.lower() or venue_name.lower() in park.lower():
+            return factors.get("hr", 1.0)
+    return 1.0
+
+
+def get_pitcher_rest(pitcher_id: int, game_date: str, season: int = None) -> dict:
+    """Return days rest and last-start pitch count for a pitcher."""
+    if not season:
+        season = datetime.now().year
+    data = _get(f"{MLB_API}/people/{pitcher_id}/stats", {
+        "stats": "gameLog", "group": "pitching", "season": season, "sportId": 1,
+    })
+    default = {"days_rest": 5, "last_pitch_count": 0, "short_rest": False,
+               "high_pitch_count": False, "extra_rest": False}
+    if not data:
+        return default
+    splits = (data.get("stats") or [{}])[0].get("splits", [])
+    starts = [s for s in splits if _safe_float(s.get("stat", {}).get("inningsPitched", 0)) >= 1.0]
+    if not starts:
+        return default
+    last = starts[-1]
+    last_date = last.get("date", "")
+    last_pitches = int(_safe_float(last.get("stat", {}).get("numberOfPitches", 0)))
+    days_rest = 5
+    if last_date:
+        try:
+            last_dt = datetime.strptime(last_date, "%Y-%m-%d")
+            game_dt = datetime.strptime(game_date, "%Y-%m-%d")
+            days_rest = (game_dt - last_dt).days
+        except Exception:
+            pass
+    return {
+        "days_rest": days_rest,
+        "last_pitch_count": last_pitches,
+        "short_rest": days_rest <= 3,
+        "high_pitch_count": last_pitches >= 100,
+        "extra_rest": days_rest >= 8,
+    }
+
+
+def search_mlb_players(query: str, player_type: str = "all") -> list:
+    data = _get(f"{MLB_API}/sports/1/players", {
+        "season": datetime.now().year,
+        "gameType": "R",
+    })
+    if not data:
+        return []
+
+    query_lower = query.lower()
+    all_players = data.get("people", [])
+    matches = [p for p in all_players if query_lower in p.get("fullName", "").lower()][:20]
+
+    results = []
+    for p in matches:
+        pos = p.get("primaryPosition", {}).get("abbreviation", "")
+        pos_type = p.get("primaryPosition", {}).get("type", "")
+        if player_type == "pitcher" and pos not in ("SP", "RP", "P"):
+            continue
+        if player_type == "batter" and pos in ("SP", "RP", "P"):
+            continue
+        results.append({
+            "id": p.get("id"),
+            "name": p.get("fullName", ""),
+            "team": p.get("currentTeam", {}).get("name", ""),
+            "team_abbr": p.get("currentTeam", {}).get("abbreviation", ""),
+            "position": pos,
+            "position_type": pos_type,
+            "bats": p.get("batSide", {}).get("code", ""),
+            "throws": p.get("pitchHand", {}).get("code", ""),
+            "number": p.get("primaryNumber", ""),
+            "headshot": f"https://img.mlbstatic.com/mlb-photos/image/upload/d_people:generic:headshot:67:current.png/w_213,q_auto:best/v1/people/{p.get('id')}/headshot/67/current",
+        })
+    return results
+
+
+def get_full_game_analysis(game_pk: int, as_of_date: str = None) -> dict:
+    """Master function — full breakdown of a game."""
+    game_data = _get(f"{MLB_API_V1_1}/game/{game_pk}/feed/live")
+    if not game_data:
+        return {"error": "Game not found"}
+
+    game_info = game_data.get("gameData", {})
+    game_status = game_info.get("status", {})
+    teams_info = game_info.get("teams", {})
+    venue_info = game_info.get("venue", {})
+    weather_info = game_info.get("weather", {})
+    datetime_info = game_info.get("datetime", {})
+    probable_pitchers = game_info.get("probablePitchers", {})
+
+    away_team = teams_info.get("away", {})
+    home_team = teams_info.get("home", {})
+    venue_id = venue_info.get("id")
+    venue_name = venue_info.get("name", "")
+    game_date = datetime_info.get("officialDate", date.today().strftime("%Y-%m-%d"))
+    game_time = datetime_info.get("dateTime", "")
+
+    away_pitcher_info = probable_pitchers.get("away", {})
+    home_pitcher_info = probable_pitchers.get("home", {})
+
+    away_pitcher_id = away_pitcher_info.get("id")
+    home_pitcher_id = home_pitcher_info.get("id")
+
+    season = datetime.now().year
+
+    away_pitcher_stats = get_pitcher_season_stats(away_pitcher_id, season, as_of_date) if away_pitcher_id else {}
+    home_pitcher_stats = get_pitcher_season_stats(home_pitcher_id, season, as_of_date) if home_pitcher_id else {}
+
+    away_pitcher_arsenal = get_pitch_arsenal(away_pitcher_id, season) if away_pitcher_id else []
+    home_pitcher_arsenal = get_pitch_arsenal(home_pitcher_id, season) if home_pitcher_id else []
+
+    away_pitcher_splits = get_pitcher_splits(away_pitcher_id, season) if away_pitcher_id else {}
+    home_pitcher_splits = get_pitcher_splits(home_pitcher_id, season) if home_pitcher_id else {}
+
+    away_pitcher_recent = get_pitcher_recent_starts(away_pitcher_id, season, 5, as_of_date) if away_pitcher_id else []
+    home_pitcher_recent = get_pitcher_recent_starts(home_pitcher_id, season, 5, as_of_date) if home_pitcher_id else []
+
+    boxscore = _get(f"{MLB_API}/game/{game_pk}/boxscore") or {}
+    box_teams = boxscore.get("teams", {})
+    away_lineup = _extract_lineup(box_teams.get("away", {}))
+    home_lineup = _extract_lineup(box_teams.get("home", {}))
+
+    away_team_id = away_team.get("id")
+    home_team_id = home_team.get("id")
+    lineup_status = "confirmed"
+    if not away_lineup and away_team_id:
+        away_lineup = get_projected_lineup(away_team_id, season, game_date)
+        lineup_status = "projected"
+    if not home_lineup and home_team_id:
+        home_lineup = get_projected_lineup(home_team_id, season, game_date)
+        lineup_status = "projected"
+
+    weather = get_weather_for_venue(venue_id, game_date, game_time)
+    if weather_info:
+        weather["mlb_reported"] = {
+            "condition": weather_info.get("condition", ""),
+            "temp": weather_info.get("temp", ""),
+            "wind": weather_info.get("wind", ""),
+        }
+
+    park_factors = get_ballpark_factors(venue_name)
+
+    away_vs_home_pitcher = []
+    home_vs_away_pitcher = []
+
+    if home_pitcher_id:
+        for batter in away_lineup[:9]:
+            if batter.get("player_id"):
+                h2h = get_batter_vs_pitcher(batter["player_id"], home_pitcher_id)
+                away_vs_home_pitcher.append({
+                    "batter": batter,
+                    "h2h": h2h,
+                    "matchup_grade": _grade_matchup(h2h.get("career_summary", {}), batter),
+                })
+                time.sleep(0.2)
+
+    if away_pitcher_id:
+        for batter in home_lineup[:9]:
+            if batter.get("player_id"):
+                h2h = get_batter_vs_pitcher(batter["player_id"], away_pitcher_id)
+                home_vs_away_pitcher.append({
+                    "batter": batter,
+                    "h2h": h2h,
+                    "matchup_grade": _grade_matchup(h2h.get("career_summary", {}), batter),
+                })
+                time.sleep(0.2)
+
+    matchup_edge = _overall_matchup_edge(
+        away_pitcher_stats, home_pitcher_stats,
+        away_lineup, home_lineup,
+        park_factors, weather
+    )
+
+    return {
+        "game_pk": game_pk,
+        "game_date": game_date,
+        "game_time": game_time,
+        "status": game_status.get("detailedState", ""),
+        "venue": {"id": venue_id, "name": venue_name},
+        "away_team": {
+            "id": away_team.get("id"),
+            "name": away_team.get("name", ""),
+            "abbr": away_team.get("abbreviation", ""),
+            "record": _team_record(away_team),
+        },
+        "home_team": {
+            "id": home_team.get("id"),
+            "name": home_team.get("name", ""),
+            "abbr": home_team.get("abbreviation", ""),
+            "record": _team_record(home_team),
+        },
+        "pitchers": {
+            "away": {
+                "info": {"id": away_pitcher_id, "name": away_pitcher_info.get("fullName", "TBD")},
+                "stats": away_pitcher_stats,
+                "arsenal": away_pitcher_arsenal,
+                "splits": away_pitcher_splits,
+                "recent_starts": away_pitcher_recent,
+            },
+            "home": {
+                "info": {"id": home_pitcher_id, "name": home_pitcher_info.get("fullName", "TBD")},
+                "stats": home_pitcher_stats,
+                "arsenal": home_pitcher_arsenal,
+                "splits": home_pitcher_splits,
+                "recent_starts": home_pitcher_recent,
+            },
+        },
+        "lineups": {
+            "away": away_lineup,
+            "home": home_lineup,
+            "status": lineup_status,
+        },
+        "matchups": {
+            "away_batters_vs_home_pitcher": away_vs_home_pitcher,
+            "home_batters_vs_away_pitcher": home_vs_away_pitcher,
+        },
+        "weather": weather,
+        "park_factors": park_factors,
+        "analysis": matchup_edge,
+        "season": season,
+    }
+
+
+def _extract_lineup(team_data: dict) -> list:
+    batting_order = team_data.get("battingOrder", [])
+    players = team_data.get("players", {})
+    lineup = []
+    for i, pid in enumerate(batting_order):
+        key = f"ID{pid}"
+        p = players.get(key, {})
+        person = p.get("person", {})
+        pos = p.get("position", {})
+        s = p.get("seasonStats", {}).get("batting", {})
+        lineup.append({
+            "order": i + 1,
+            "player_id": pid,
+            "name": person.get("fullName", ""),
+            "position": pos.get("abbreviation", ""),
+            "bats": p.get("batSide", {}).get("code", ""),
+            "avg": s.get("avg", ".000"),
+            "obp": s.get("obp", ".000"),
+            "slg": s.get("slg", ".000"),
+            "ops": s.get("ops", ".000"),
+            "hr": s.get("homeRuns", 0),
+            "rbi": s.get("rbi", 0),
+            "so": s.get("strikeOuts", 0),
+            "pa": s.get("plateAppearances", 0),
+        })
+    return lineup
+
+
+def _team_record(team_data: dict) -> str:
+    record = team_data.get("record", {})
+    return f"{record.get('wins', 0)}-{record.get('losses', 0)}"
+
+
+def _grade_matchup(career_stats: dict, batter: dict) -> dict:
+    """
+    Grade batter vs this specific pitcher from H2H history.
+    When H2H PA < 5, falls back to season OPS+ context.
+
+    OPS thresholds are intentionally higher for the H2H grade because
+    career OPS vs a specific pitcher (even a dominant one) regresses heavily
+    toward the batter's true talent — small sample noise is brutal.
+    We Bayesian-shrink: blend H2H OPS with season OPS based on PA.
+    """
+    season_ops  = float(batter.get("ops",  ".700") or ".700")
+    season_avg  = float(batter.get("avg",  ".240") or ".240")
+    h2h_pa = (career_stats or {}).get("pa", 0)
+
+    if not career_stats or h2h_pa < 5:
+        # No meaningful H2H — grade on season OPS
+        if season_ops >= 0.920:
+            return {"grade": "A",  "label": "Elite Season OPS",  "color": "emerald"}
+        elif season_ops >= 0.830:
+            return {"grade": "B+", "label": "Strong Hitter",      "color": "green"}
+        elif season_ops >= 0.750:
+            return {"grade": "B",  "label": "Above Avg",          "color": "green"}
+        elif season_ops >= 0.680:
+            return {"grade": "C",  "label": "Average",            "color": "yellow"}
+        elif season_ops >= 0.580:
+            return {"grade": "D",  "label": "Below Avg",          "color": "orange"}
+        else:
+            return {"grade": "F",  "label": "Struggling",         "color": "red"}
+
+    try:
+        h2h_ops = float(career_stats.get("ops", ".700") or ".700")
+        h2h_avg = float(career_stats.get("avg", ".240") or ".240")
+
+        # Bayesian shrinkage: blend H2H with season based on sample
+        # Full trust at 40+ PA; ~50% shrink at 10 PA
+        blend = min(h2h_pa / 40.0, 1.0)
+        adj_ops = blend * h2h_ops + (1 - blend) * season_ops
+        adj_avg = blend * h2h_avg + (1 - blend) * season_avg
+
+        if adj_ops >= 1.050 or adj_avg >= 0.400:
+            return {"grade": "A+", "label": "Crushes This Pitcher", "color": "emerald"}
+        elif adj_ops >= 0.880 or adj_avg >= 0.310:
+            return {"grade": "A",  "label": "Strong vs Pitcher",    "color": "emerald"}
+        elif adj_ops >= 0.780 or adj_avg >= 0.270:
+            return {"grade": "B",  "label": "Favorable History",    "color": "green"}
+        elif adj_ops >= 0.680 or adj_avg >= 0.230:
+            return {"grade": "C",  "label": "Even Matchup",         "color": "yellow"}
+        elif adj_ops >= 0.550 or adj_avg >= 0.180:
+            return {"grade": "D",  "label": "Pitcher Has Edge",     "color": "orange"}
+        else:
+            return {"grade": "F",  "label": "Pitcher Dominates",    "color": "red"}
+    except Exception:
+        return {"grade": "?", "label": "Limited Data", "color": "zinc"}
+
+
+def _overall_matchup_edge(away_stats, home_stats, away_lineup, home_lineup, park_factors, weather) -> dict:
+    notes = []
+    score = 0.0
+
+    def era_score(stats):
+        try:
+            era = float(stats.get("stats", {}).get("era", "4.50") or "4.50")
+            if era < 3.00:
+                return 2.0
+            elif era < 3.50:
+                return 1.5
+            elif era < 4.00:
+                return 1.0
+            elif era < 4.50:
+                return 0.5
+            elif era < 5.00:
+                return -0.5
+            else:
+                return -1.0
+        except:
+            return 0.0
+
+    away_ace_score = era_score(away_stats)
+    home_ace_score = era_score(home_stats)
+
+    if away_ace_score > home_ace_score:
+        score += (away_ace_score - home_ace_score) * 0.5
+        notes.append(f"Away pitcher ERA edge ({away_stats.get('stats', {}).get('era', '?')} vs {home_stats.get('stats', {}).get('era', '?')})")
+    elif home_ace_score > away_ace_score:
+        score -= (home_ace_score - away_ace_score) * 0.5
+        notes.append(f"Home pitcher ERA edge ({home_stats.get('stats', {}).get('era', '?')} vs {away_stats.get('stats', {}).get('era', '?')})")
+
+    park_hr = park_factors.get("hr", 1.0)
+    if park_hr >= 1.15:
+        notes.append(f"HR-friendly park (PF: {park_hr:.2f})")
+    elif park_hr <= 0.88:
+        notes.append(f"HR-suppressing park (PF: {park_hr:.2f})")
+
+    weather_score = weather.get("impact", {}).get("score", 0) if weather.get("available") else 0
+    if abs(weather_score) >= 1.0:
+        notes.append(weather.get("impact", {}).get("note", ""))
+
+    total_runs_estimate = 9.0 * (park_hr * 0.3 + 0.7) + weather_score * 0.5
+    total_runs_estimate = round(max(5.0, min(14.0, total_runs_estimate)), 1)
+
+    if score >= 1.5:
+        game_edge = "Away Team Pitching Advantage"
+    elif score >= 0.5:
+        game_edge = "Slight Away Edge"
+    elif score <= -1.5:
+        game_edge = "Home Team Pitching Advantage"
+    elif score <= -0.5:
+        game_edge = "Slight Home Edge"
+    else:
+        game_edge = "Even Matchup"
+
+    return {
+        "edge": game_edge,
+        "score": round(score, 2),
+        "notes": notes,
+        "estimated_total": total_runs_estimate,
+        "over_under_lean": "Over" if weather_score >= 1.0 and park_hr >= 1.05 else "Under" if weather_score <= -1.0 and park_hr <= 0.95 else "Neutral",
+    }
+
+
+# ── Statcast / Baseball Savant Data Layer ─────────────────────────────────────
+
+SAVANT_BATTING_URL  = "https://baseballsavant.mlb.com/leaderboard/statcast?type=batter&year={year}&position=&team=&min=10&csv=true"
+SAVANT_PITCHING_URL = "https://baseballsavant.mlb.com/leaderboard/statcast?type=pitcher&year={year}&position=&team=&min=1&csv=true"
+SAVANT_XSTATS_URL   = "https://baseballsavant.mlb.com/leaderboard/expected_statistics?type=batter&year={year}&position=&team=&min=10&csv=true"
+SAVANT_BAT_TRACK_URL = "https://baseballsavant.mlb.com/leaderboard/bat-tracking?type=batter&year={year}&min=10&csv=true"
+# Custom leaderboard: pitcher whiff% and K% (CSW% not available in custom CSV)
+SAVANT_PITCHER_K_URL = (
+    "https://baseballsavant.mlb.com/leaderboard/custom?year={year}&type=pitcher"
+    "&filter=&sort=4&sortDir=desc&min=20"
+    "&selections=k_percent,bb_percent,whiff_percent,f_strike_percent,groundballs_percent,flyballs_percent,hard_hit_percent,p_per_pa"
+    "&csv=true"
+)
+# Custom leaderboard: batter K% and whiff% (not in statcast leaderboard CSV)
+SAVANT_BATTER_K_URL  = "https://baseballsavant.mlb.com/leaderboard/custom?year={year}&type=batter&filter=&sort=4&sortDir=desc&min=20&selections=k_percent,bb_percent,whiff_percent&csv=true"
+
+# Pitch arsenal leaderboards — per pitch-type stats for pitchers and batters
+# pitcher view: how effective each pitch type is (whiff%, wOBA against, run value)
+# batter view: how each batter performs against each pitch type
+SAVANT_PITCHER_ARSENAL_URL = "https://baseballsavant.mlb.com/leaderboard/pitch-arsenal-stats?year={year}&type=pitcher&min=10&csv=true"
+SAVANT_BATTER_PITCH_SPLIT_URL = "https://baseballsavant.mlb.com/leaderboard/pitch-arsenal-stats?year={year}&type=batter&min=10&csv=true"
+
+# HR-focused custom leaderboards: pull_%, fb_%, la, sweet_spot, brl/bip, xiso, xwoba, xslg
+SAVANT_BATTER_HR_URL = (
+    "https://baseballsavant.mlb.com/leaderboard/custom?year={year}&type=batter"
+    "&filter=&sort=4&sortDir=desc&min=20"
+    "&selections=barrel_batted_rate,brl_pa,pull_percent,flyballs_percent,"
+    "launch_angle_avg,sweet_spot_percent,iso,xiso,xwoba,xwobacon,xslg,avg_distance,hr_fbpercent,"
+    "pull_flyballs_percent"
+    "&csv=true"
+)
+SAVANT_PITCHER_HR_URL = (
+    "https://baseballsavant.mlb.com/leaderboard/custom?year={year}&type=pitcher"
+    "&filter=&sort=4&sortDir=desc&min=1"
+    "&selections=barrel_batted_rate,brl_pa,flyballs_percent,groundballs_percent,"
+    "launch_angle_avg,xwoba,xslg,era"
+    "&csv=true"
+)
+# Pitcher HR-vuln split by batter handedness (filter=hfBBL=L| or R|)
+SAVANT_PITCHER_HR_VS_LHB_URL = (
+    "https://baseballsavant.mlb.com/leaderboard/custom?year={year}&type=pitcher"
+    "&filter=hfBBL%3DL%7C&sort=4&sortDir=desc&min=1"
+    "&selections=barrel_batted_rate,brl_pa,flyballs_percent,groundballs_percent,"
+    "launch_angle_avg,xwoba,xslg,era"
+    "&csv=true"
+)
+SAVANT_PITCHER_HR_VS_RHB_URL = (
+    "https://baseballsavant.mlb.com/leaderboard/custom?year={year}&type=pitcher"
+    "&filter=hfBBL%3DR%7C&sort=4&sortDir=desc&min=1"
+    "&selections=barrel_batted_rate,brl_pa,flyballs_percent,groundballs_percent,"
+    "launch_angle_avg,xwoba,xslg,era"
+    "&csv=true"
+)
+
+SAVANT_SPRINT_SPEED_URL = "https://baseballsavant.mlb.com/leaderboard/sprint_speed?year={year}&type=all&min=0&csv=true"
+
+# Pitcher primary fastball velocity (ff_avg_speed = 4-seam avg mph)
+SAVANT_PITCHER_VELO_URL = (
+    "https://baseballsavant.mlb.com/leaderboard/custom?year={year}&type=pitcher"
+    "&filter=&sort=4&sortDir=desc&min=1"
+    "&selections=ff_avg_speed,fastball_avg_speed,k_percent,bb_percent,chase_percent,whiff_percent"
+    "&csv=true"
+)
+
+SAVANT_PITCHER_RELEASE_URL: str = (
+    "https://baseballsavant.mlb.com/leaderboard/custom?year={year}&type=pitcher"
+    "&filter=&sort=4&sortDir=desc&min=1"
+    "&selections=arm_angle,release_extension"
+    "&csv=true"
+)
+
+_savant_batting:    dict = {}
+_savant_pitching:   dict = {}
+_savant_pitcher_k:  dict = {}
+_savant_batter_k:   dict = {}
+_savant_xstats:     dict = {}
+_savant_bat_track:  dict = {}
+_savant_sprint_speed: dict = {}        # {season: {player_id: {ft_per_sec, percentile}}}
+_savant_pitcher_arsenal:    dict = {}  # {season: {player_id: [pitch_entry, ...]}}
+_savant_batter_pitch_split: dict = {}  # {season: {player_id: {pitch_type: perf_dict}}}
+_savant_batter_hr:  dict = {}          # {season: {player_id: hr_profile_dict}}
+_savant_pitcher_hr: dict = {}          # {season: {player_id: hr_vuln_dict}}
+_savant_pitcher_hr_lhb: dict = {}      # {season: {player_id: hr_vuln_dict}} vs LHB
+_savant_pitcher_hr_rhb: dict = {}      # {season: {player_id: hr_vuln_dict}} vs RHB
+_savant_pitcher_velo: dict = {}        # {season: {player_id: {ff_velo, fb_velo, chase_pct, whiff_pct}}}
+_savant_pitcher_release: dict = {}    # {season: {player_id: {arm_angle, release_ext}}}
+_h2h_cache: dict = {}                 # {(batter_id, pitcher_id): stats_dict}
+
+# ── Umpire K-rate tendency table ───────────────────────────────────────────────
+# K/game averages from Retrosheet/FanGraphs umpire scorecards (2022-2025).
+# MLB average HP umpire K-rate ≈ 15.0 K/game.
+# Signal fires at ≥17.5 (pitcher-friendly) or ≤12.5 (hitter-friendly).
+# Keyed by umpire full name (as returned by MLB Stats API boxscore).
+UMPIRE_K_TENDENCY: dict = {
+    # Pitcher-friendly (high K-rate)
+    "James Hoye":        18.4,
+    "Tim Timmons":       18.1,
+    "Gabe Morales":      17.8,
+    "Mark Wegner":       17.6,
+    "Carlos Torres":     17.5,
+    "Marvin Hudson":     17.3,
+    "CB Bucknor":        17.2,
+    "Mike Everitt":      17.1,
+    "Doug Eddings":      17.0,
+    "Chris Guccione":    16.9,
+    "Mike Estabrook":    16.5,
+    "Hunter Wendelstedt": 16.4,
+    "Nic Lentz":         16.3,
+    "Dan Iassogna":      16.2,
+    "Adam Hamari":       16.0,
+    # Hitter-friendly (low K-rate, tight zone)
+    "Greg Gibson":       12.1,
+    "Tom Hallion":       12.4,
+    "Dana DeMuth":       12.7,
+    "Alfonso Marquez":   12.8,
+    "Jerry Layne":       12.9,
+    "Laz Diaz":          13.1,
+    "Jim Wolf":          13.2,
+    "Sam Holbrook":      13.3,
+    "Phil Cuzzi":        13.5,
+    "Ron Kulpa":         13.6,
+    "Fieldin Culbreth":  13.7,
+}
+
+
+def _fetch_savant_csv(url: str) -> list:
+    import csv, io
+    headers = {"User-Agent": "Mozilla/5.0 PropStats/1.0"}
+    try:
+        r = requests.get(url, headers=headers, timeout=20)
+        r.raise_for_status()
+        text = r.text.lstrip('﻿')
+        reader = csv.DictReader(io.StringIO(text))
+        return [row for row in reader]
+    except Exception:
+        return []
+
+
+def _safe_float(val, default=0.0):
+    try:
+        return float(val) if val not in (None, '', 'null') else default
+    except (ValueError, TypeError):
+        return default
+
+
+def load_savant_batting(season: int = None) -> dict:
+    global _savant_batting
+    if not season:
+        season = datetime.now().year
+    if season in _savant_batting:
+        return _savant_batting[season]
+    rows = _fetch_savant_csv(SAVANT_BATTING_URL.format(year=season))
+    result = {}
+    for row in rows:
+        pid = row.get("player_id", "").strip()
+        if pid:
+            result[pid] = {
+                "barrel_pct":   _safe_float(row.get("brl_percent")),
+                "barrel_pa":    _safe_float(row.get("brl_pa")),
+                "hard_hit_pct": _safe_float(row.get("ev95percent")),
+                "exit_velo":    _safe_float(row.get("avg_hit_speed")),
+                "ev50":         _safe_float(row.get("ev50")),
+                "sweet_spot":   _safe_float(row.get("anglesweetspotpercent")),
+                "max_ev":       _safe_float(row.get("max_hit_speed")),
+                "avg_distance": _safe_float(row.get("avg_distance")),
+                "avg_hr_dist":  _safe_float(row.get("avg_hr_distance")),
+                "xwoba_con":    _safe_float(row.get("xwobacon")),
+                "swstr_pct":    _safe_float(row.get("whiff_percent")),
+                "k_pct":        _safe_float(row.get("k_percent")),
+            }
+    if result:
+        _savant_batting[season] = result
+    return result
+
+
+def load_savant_pitching(season: int = None) -> dict:
+    global _savant_pitching
+    if not season:
+        season = datetime.now().year
+    if season in _savant_pitching:
+        return _savant_pitching[season]
+    rows = _fetch_savant_csv(SAVANT_PITCHING_URL.format(year=season))
+    result = {}
+    for row in rows:
+        pid = row.get("player_id", "").strip()
+        if pid:
+            result[pid] = {
+                "barrel_pct_against":   _safe_float(row.get("brl_percent")),
+                "hard_hit_pct_against": _safe_float(row.get("ev95percent")),
+                "exit_velo_against":    _safe_float(row.get("avg_hit_speed")),
+                "ev50_against":         _safe_float(row.get("ev50")),
+                "sweet_spot_against":   _safe_float(row.get("anglesweetspotpercent")),
+            }
+    if result:
+        _savant_pitching[season] = result
+    return result
+
+
+def load_savant_pitcher_k(season: int = None) -> dict:
+    """Load pitcher whiff%/swing and K% from Savant custom leaderboard."""
+    global _savant_pitcher_k
+    if not season:
+        season = datetime.now().year
+    if season in _savant_pitcher_k:
+        return _savant_pitcher_k[season]
+    rows = _fetch_savant_csv(SAVANT_PITCHER_K_URL.format(year=season))
+    result = {}
+    for row in rows:
+        pid = row.get("player_id", "").strip()
+        if pid:
+            result[pid] = {
+                "swstr_pct":    _safe_float(row.get("whiff_percent")),
+                "k_pct":        _safe_float(row.get("k_percent")),
+                "bb_pct":       _safe_float(row.get("bb_percent")),
+                "f_strike_pct": _safe_float(row.get("f_strike_percent")),
+                "gb_pct":       _safe_float(row.get("groundballs_percent")),
+                "fb_pct":       _safe_float(row.get("flyballs_percent")),
+                "hh_pct":       _safe_float(row.get("hard_hit_percent")),
+                "p_per_pa":     _safe_float(row.get("p_per_pa")),
+            }
+    if result:
+        _savant_pitcher_k[season] = result
+    return result
+
+
+def load_savant_batter_k(season: int = None) -> dict:
+    """Load batter K% and whiff%/swing from Savant custom leaderboard."""
+    global _savant_batter_k
+    if not season:
+        season = datetime.now().year
+    if season in _savant_batter_k:
+        return _savant_batter_k[season]
+    rows = _fetch_savant_csv(SAVANT_BATTER_K_URL.format(year=season))
+    if not rows and season == datetime.now().year:
+        rows = _fetch_savant_csv(SAVANT_BATTER_K_URL.format(year=season - 1))
+    result = {}
+    for row in rows:
+        pid = row.get("player_id", "").strip()
+        if pid:
+            result[pid] = {
+                "k_pct":     _safe_float(row.get("k_percent")),
+                "bb_pct":    _safe_float(row.get("bb_percent")),
+                "swstr_pct": _safe_float(row.get("whiff_percent")),  # whiff% per swing
+            }
+    if result:
+        _savant_batter_k[season] = result
+    return result
+
+
+def load_savant_xstats(season: int = None) -> dict:
+    global _savant_xstats
+    if not season:
+        season = datetime.now().year
+    if season in _savant_xstats:
+        return _savant_xstats[season]
+    rows = _fetch_savant_csv(SAVANT_XSTATS_URL.format(year=season))
+    result = {}
+    for row in rows:
+        pid = row.get("player_id", "").strip()
+        if pid:
+            result[pid] = {
+                "xba":    _safe_float(row.get("est_ba")),
+                "xslg":   _safe_float(row.get("est_slg")),
+                "xwoba":  _safe_float(row.get("est_woba")),
+                "ba":     _safe_float(row.get("ba")),
+                "slg":    _safe_float(row.get("slg")),
+                "woba":   _safe_float(row.get("woba")),
+            }
+    if result:
+        _savant_xstats[season] = result
+    return result
+
+
+def load_bat_tracking(season: int = None) -> dict:
+    global _savant_bat_track
+    if not season:
+        season = datetime.now().year
+    if season in _savant_bat_track:
+        return _savant_bat_track[season]
+    rows = _fetch_savant_csv(SAVANT_BAT_TRACK_URL.format(year=season))
+    result = {}
+    for row in rows:
+        pid = str(row.get("id", "")).strip()
+        if pid:
+            result[pid] = {
+                "avg_bat_speed":     _safe_float(row.get("avg_bat_speed")),
+                "hard_swing_rate":   _safe_float(row.get("hard_swing_rate")),
+                "blast_per_swing":   _safe_float(row.get("blast_per_swing")),
+                "blast_per_contact": _safe_float(row.get("blast_per_bat_contact")),
+                "squared_up_swing":  _safe_float(row.get("squared_up_per_swing")),
+                "swing_length":      _safe_float(row.get("swing_length")),
+                "swings":            _safe_float(row.get("swings_competitive")),
+            }
+    if result:
+        _savant_bat_track[season] = result
+    return result
+
+
+def load_sprint_speed(season: int = None) -> dict:
+    """Load sprint speed (ft/sec) from Savant sprint speed leaderboard."""
+    global _savant_sprint_speed
+    if not season:
+        season = datetime.now().year
+    if season in _savant_sprint_speed:
+        return _savant_sprint_speed[season]
+    rows = _fetch_savant_csv(SAVANT_SPRINT_SPEED_URL.format(year=season))
+    if not rows and season == datetime.now().year:
+        rows = _fetch_savant_csv(SAVANT_SPRINT_SPEED_URL.format(year=season - 1))
+    result = {}
+    for row in rows:
+        pid = str(row.get("player_id", "")).strip()
+        if not pid:
+            pid = str(row.get("id", "")).strip()
+        if pid:
+            result[pid] = {
+                "sprint_speed":   _safe_float(row.get("sprint_speed")),
+                "hp_to_1b":       _safe_float(row.get("hp_to_1b")),
+                "bolts":          _safe_float(row.get("bolts")),
+            }
+    if result:
+        _savant_sprint_speed[season] = result
+    return result
+
+
+def get_batter_savant(player_id: int, season: int = None) -> dict:
+    """Combined Statcast + xStats + bat tracking for a single batter."""
+    if not season:
+        season = datetime.now().year
+    pid = str(player_id)
+    batting  = load_savant_batting(season).get(pid, {})
+    xstats   = load_savant_xstats(season).get(pid, {})
+    bat_track = load_bat_tracking(season).get(pid, {})
+    return {**batting, **xstats, **bat_track}
+
+
+def get_pitcher_savant(player_id: int, season: int = None) -> dict:
+    """Statcast metrics from pitcher perspective — contact quality + swing-and-miss rates."""
+    if not season:
+        season = datetime.now().year
+    pid = str(player_id)
+    contact = load_savant_pitching(season).get(pid, {})
+    k_stats = load_savant_pitcher_k(season).get(pid, {})
+    return {**contact, **k_stats}
+
+
+def load_savant_pitcher_arsenal(season: int = None) -> dict:
+    """Per-pitch-type stats for pitchers: usage%, velocity, spin, whiff%, wOBA against, run value.
+
+    Returns {player_id_str: [pitch_entry_dict, ...]} where each entry is one pitch type.
+    Pitch types: FF (4-seam), SI (sinker), FC (cutter), SL (slider), ST (sweeper),
+                 CH (changeup), CU (curveball), FS (splitter), KC (knuckle-curve).
+    """
+    global _savant_pitcher_arsenal
+    if not season:
+        season = datetime.now().year
+    if season in _savant_pitcher_arsenal:
+        return _savant_pitcher_arsenal[season]
+    rows = _fetch_savant_csv(SAVANT_PITCHER_ARSENAL_URL.format(year=season))
+    result: dict = {}
+    for row in rows:
+        pid = str(row.get("player_id", "")).strip()
+        if not pid:
+            continue
+        pitch_type = row.get("pitch_type", "").strip().upper()
+        if not pitch_type:
+            continue
+        entry = {
+            "pitch_type":      pitch_type,
+            "pitch_name":      row.get("pitch_name", pitch_type),
+            "usage_pct":       _safe_float(row.get("pitch_usage")),
+            "avg_speed":       _safe_float(row.get("avg_speed")),
+            "whiff_pct":       _safe_float(row.get("whiff_percent")),
+            "k_pct":           _safe_float(row.get("k_percent")),
+            "put_away_pct":    _safe_float(row.get("put_away")),
+            "woba_against":    _safe_float(row.get("woba")),
+            "xwoba_against":   _safe_float(row.get("est_woba")),
+            "ba_against":      _safe_float(row.get("ba")),
+            "slg_against":     _safe_float(row.get("slg")),
+            "hard_hit_pct":    _safe_float(row.get("hard_hit_percent")),
+            "run_value_per100": _safe_float(row.get("run_value_per_100")),
+        }
+        if pid not in result:
+            result[pid] = []
+        result[pid].append(entry)
+    if result:
+        _savant_pitcher_arsenal[season] = result
+    return result
+
+
+def load_savant_batter_pitch_splits(season: int = None) -> dict:
+    """Per-pitch-type batting performance for hitters vs each pitch type.
+
+    Returns {player_id_str: {pitch_type: perf_dict}} so you can look up
+    how a specific batter performs against FF, SL, CH, etc.
+    Fields per pitch type: ba, slg, woba, whiff_pct, k_pct, usage_faced
+    """
+    global _savant_batter_pitch_split
+    if not season:
+        season = datetime.now().year
+    if season in _savant_batter_pitch_split:
+        return _savant_batter_pitch_split[season]
+    rows = _fetch_savant_csv(SAVANT_BATTER_PITCH_SPLIT_URL.format(year=season))
+    result: dict = {}
+    for row in rows:
+        pid = str(row.get("player_id", "")).strip()
+        if not pid:
+            continue
+        pitch_type = row.get("pitch_type", "").strip().upper()
+        if not pitch_type:
+            continue
+        if pid not in result:
+            result[pid] = {}
+        result[pid][pitch_type] = {
+            "ba":           _safe_float(row.get("ba")),
+            "slg":          _safe_float(row.get("slg")),
+            "woba":         _safe_float(row.get("woba")),
+            "xwoba":        _safe_float(row.get("est_woba")),
+            "whiff_pct":    _safe_float(row.get("whiff_percent")),
+            "k_pct":        _safe_float(row.get("k_percent")),
+            "hard_hit_pct": _safe_float(row.get("hard_hit_percent")),
+            "run_value_per100": _safe_float(row.get("run_value_per_100")),
+            "usage_faced":  _safe_float(row.get("pitch_usage")),  # how often they see this pitch type
+        }
+    if result:
+        _savant_batter_pitch_split[season] = result
+    return result
+
+
+def get_pitcher_arsenal_full(player_id: int, season: int = None) -> list:
+    """Return pitcher's full arsenal list sorted by usage% descending."""
+    if not season:
+        season = datetime.now().year
+    pid = str(player_id)
+    pitches = load_savant_pitcher_arsenal(season).get(pid, [])
+    return sorted(pitches, key=lambda x: x.get("usage_pct", 0), reverse=True)
+
+
+def get_batter_pitch_splits(player_id: int, season: int = None) -> dict:
+    """Return batter's performance vs each pitch type: {pitch_type: {ba, slg, woba, whiff_pct, ...}}."""
+    if not season:
+        season = datetime.now().year
+    pid = str(player_id)
+    return load_savant_batter_pitch_splits(season).get(pid, {})
+
+
+def load_savant_batter_hr(season: int = None) -> dict:
+    """HR-profile metrics per batter: brl/bip, pull%, fb%, la, sweet_spot, xiso, xwoba, xslg."""
+    global _savant_batter_hr
+    if not season:
+        season = datetime.now().year
+    if season in _savant_batter_hr:
+        return _savant_batter_hr[season]
+    rows = _fetch_savant_csv(SAVANT_BATTER_HR_URL.format(year=season))
+    # Fall back to prior year if current year is too early in season
+    if not rows and season == datetime.now().year:
+        rows = _fetch_savant_csv(SAVANT_BATTER_HR_URL.format(year=season - 1))
+    result = {}
+    for row in rows:
+        pid = str(row.get("player_id", "")).strip()
+        if not pid:
+            continue
+        result[pid] = {
+            "brl_per_bip":   _safe_float(row.get("barrel_batted_rate")),
+            "brl_per_pa":    _safe_float(row.get("brl_pa")),
+            "pull_pct":      _safe_float(row.get("pull_percent")),
+            "fb_pct":        _safe_float(row.get("flyballs_percent")),
+            "la_avg":        _safe_float(row.get("launch_angle_avg")),
+            "sweet_spot_pct":_safe_float(row.get("sweet_spot_percent")),
+            "iso":           _safe_float(row.get("iso")),
+            "xiso":          _safe_float(row.get("xiso")),
+            "xwoba":         _safe_float(row.get("xwoba")),
+            "xslg":          _safe_float(row.get("xslg")),
+            "xwoba_con":     _safe_float(row.get("xwobacon")),
+            "avg_distance":     _safe_float(row.get("avg_distance")),
+            "hr_fb_pct":        _safe_float(row.get("hr_fbpercent")),
+            "pulled_air_pct":   _safe_float(row.get("pull_flyballs_percent")),
+        }
+    if result:
+        _savant_batter_hr[season] = result
+    return result
+
+
+def load_savant_pitcher_hr(season: int = None) -> dict:
+    """HR-vulnerability metrics per pitcher: barrel_allowed, fb%, la_allowed, xwoba, xslg, era."""
+    global _savant_pitcher_hr
+    if not season:
+        season = datetime.now().year
+    if season in _savant_pitcher_hr:
+        return _savant_pitcher_hr[season]
+    rows = _fetch_savant_csv(SAVANT_PITCHER_HR_URL.format(year=season))
+    if not rows and season == datetime.now().year:
+        rows = _fetch_savant_csv(SAVANT_PITCHER_HR_URL.format(year=season - 1))
+    result = {}
+    for row in rows:
+        pid = str(row.get("player_id", "")).strip()
+        if not pid:
+            continue
+        result[pid] = {
+            "barrel_allowed":  _safe_float(row.get("barrel_batted_rate")),
+            "fb_pct_allowed":  _safe_float(row.get("flyballs_percent")),
+            "gb_pct_allowed":  _safe_float(row.get("groundballs_percent")),
+            "la_avg_allowed":  _safe_float(row.get("launch_angle_avg")),
+            "xwoba_allowed":   _safe_float(row.get("xwoba")),
+            "xslg_allowed":    _safe_float(row.get("xslg")),
+            "era":             _safe_float(row.get("era")),
+        }
+    if result:
+        _savant_pitcher_hr[season] = result
+    return result
+
+
+_pitcher_throws_cache: dict = {}
+
+def get_pitcher_throws(pitcher_id: int) -> str:
+    """Return 'L' or 'R' for a pitcher's throwing arm. Cached."""
+    global _pitcher_throws_cache
+    pid = int(pitcher_id)
+    if pid in _pitcher_throws_cache:
+        return _pitcher_throws_cache[pid]
+    data = _get(f"{MLB_API}/people/{pid}")
+    hand = "R"
+    if data:
+        people = data.get("people", [{}])
+        hand = people[0].get("pitchHand", {}).get("code", "R") if people else "R"
+    _pitcher_throws_cache[pid] = hand
+    return hand
+
+
+def load_savant_pitcher_hr_vs_hand(season: int = None, side: str = "L") -> dict:
+    """HR-vuln metrics for pitchers split by batter handedness. side='L' or 'R'."""
+    global _savant_pitcher_hr_lhb, _savant_pitcher_hr_rhb
+    if not season:
+        season = datetime.now().year
+    cache = _savant_pitcher_hr_lhb if side == "L" else _savant_pitcher_hr_rhb
+    if season in cache:
+        return cache[season]
+    url_tmpl = SAVANT_PITCHER_HR_VS_LHB_URL if side == "L" else SAVANT_PITCHER_HR_VS_RHB_URL
+    rows = _fetch_savant_csv(url_tmpl.format(year=season))
+    if not rows and season == datetime.now().year:
+        rows = _fetch_savant_csv(url_tmpl.format(year=season - 1))
+    result = {}
+    for row in rows:
+        pid = str(row.get("player_id", "")).strip()
+        if not pid:
+            continue
+        result[pid] = {
+            "barrel_allowed":  _safe_float(row.get("barrel_batted_rate")),
+            "fb_pct_allowed":  _safe_float(row.get("flyballs_percent")),
+            "la_avg_allowed":  _safe_float(row.get("launch_angle_avg")),
+            "xwoba_allowed":   _safe_float(row.get("xwoba")),
+            "xslg_allowed":    _safe_float(row.get("xslg")),
+            "era":             _safe_float(row.get("era")),
+        }
+    if result:
+        cache[season] = result
+    return result
+
+
+def load_savant_pitcher_velo(season: int = None) -> dict:
+    """
+    Pitcher primary velocity + chase rate from Savant custom leaderboard.
+    Fields: ff_velo (4-seam mph), fb_velo (all fastballs), chase_pct, whiff_pct, k_pct, bb_pct
+    """
+    global _savant_pitcher_velo
+    if not season:
+        season = datetime.now().year
+    if season in _savant_pitcher_velo:
+        return _savant_pitcher_velo[season]
+    rows = _fetch_savant_csv(SAVANT_PITCHER_VELO_URL.format(year=season))
+    if not rows and season == datetime.now().year:
+        rows = _fetch_savant_csv(SAVANT_PITCHER_VELO_URL.format(year=season - 1))
+    result = {}
+    for row in rows:
+        pid = str(row.get("player_id", "")).strip()
+        if not pid:
+            continue
+        ff  = _safe_float(row.get("ff_avg_speed"))
+        fb  = _safe_float(row.get("fastball_avg_speed"))
+        result[pid] = {
+            "ff_velo":    ff,
+            "fb_velo":    fb if fb else ff,
+            "chase_pct":  _safe_float(row.get("chase_percent")),
+            "whiff_pct":  _safe_float(row.get("whiff_percent")),
+            "k_pct":      _safe_float(row.get("k_percent")),
+            "bb_pct":     _safe_float(row.get("bb_percent")),
+        }
+    if result:
+        _savant_pitcher_velo[season] = result
+    return result
+
+
+def load_savant_pitcher_release(season: int = None) -> dict:
+    """
+    Pitcher arm angle + release extension from Savant custom leaderboard.
+    arm_angle: degrees (0=submarine, 90=over-the-top).
+    """
+    global _savant_pitcher_release
+    if not season:
+        season = datetime.now().year
+    if season in _savant_pitcher_release:
+        return _savant_pitcher_release[season]
+    rows = _fetch_savant_csv(SAVANT_PITCHER_RELEASE_URL.format(year=season))
+    if not rows and season == datetime.now().year:
+        rows = _fetch_savant_csv(SAVANT_PITCHER_RELEASE_URL.format(year=season - 1))
+    result = {}
+    for row in rows:
+        pid = str(row.get("player_id", "")).strip()
+        if not pid:
+            continue
+        result[pid] = {
+            "arm_angle":   _safe_float(row.get("arm_angle")),
+            "release_ext": _safe_float(row.get("release_extension")),
+        }
+    if result:
+        _savant_pitcher_release[season] = result
+    return result
+
+
+def get_h2h_stats(batter_id: int, pitcher_id: int) -> dict:
+    """
+    Career head-to-head splits for batter vs pitcher (2020+ seasons only).
+    Returns aggregate: pa, hr, avg, obp, slg, ops, k_pct, bb_pct.
+    Returns {} if <5 PA or API error.
+    """
+    key = (batter_id, pitcher_id)
+    if key in _h2h_cache:
+        return _h2h_cache[key]
+    data = _get(f"{MLB_API}/people/{batter_id}/stats", {
+        "stats":             "vsPlayer",
+        "group":             "hitting",
+        "opposingPlayerId":  pitcher_id,
+        "sportId":           1,
+    })
+    if not data:
+        _h2h_cache[key] = {}
+        return {}
+    splits = []
+    for stat_group in data.get("stats", []):
+        for split in stat_group.get("splits", []):
+            year = int(split.get("season", 0) or 0)
+            if year >= 2020:
+                splits.append(split.get("stat", {}))
+    if not splits:
+        _h2h_cache[key] = {}
+        return {}
+    total_pa = sum(int(s.get("plateAppearances", 0) or 0) for s in splits)
+    total_ab = sum(int(s.get("atBats", 0) or 0) for s in splits)
+    total_hr = sum(int(s.get("homeRuns", 0) or 0) for s in splits)
+    total_h  = sum(int(s.get("hits", 0) or 0) for s in splits)
+    total_bb = sum(int(s.get("baseOnBalls", 0) or 0) for s in splits)
+    total_k  = sum(int(s.get("strikeOuts", 0) or 0) for s in splits)
+    total_tb = sum(int(s.get("totalBases", 0) or 0) for s in splits)
+    if total_pa < 5:
+        _h2h_cache[key] = {}
+        return {}
+    avg = total_h / total_ab if total_ab > 0 else 0.0
+    obp = (total_h + total_bb) / total_pa if total_pa > 0 else 0.0
+    slg = total_tb / total_ab if total_ab > 0 else 0.0
+    result = {
+        "pa":     total_pa,
+        "ab":     total_ab,
+        "hr":     total_hr,
+        "h":      total_h,
+        "bb":     total_bb,
+        "k":      total_k,
+        "avg":    round(avg, 3),
+        "obp":    round(obp, 3),
+        "slg":    round(slg, 3),
+        "ops":    round(obp + slg, 3),
+        "k_pct":  round(total_k / total_pa * 100 if total_pa else 0, 1),
+        "bb_pct": round(total_bb / total_pa * 100 if total_pa else 0, 1),
+    }
+    _h2h_cache[key] = result
+    return result
+
+
+def get_batter_game_log(batter_id: int, season: int = None, limit: int = 15) -> list:
+    """Return last N game log entries for a batter (HR, AB, airOuts per game)."""
+    if not season:
+        season = datetime.now().year
+    data = _get(f"{MLB_API}/people/{batter_id}/stats", {
+        "stats": "gameLog",
+        "group": "hitting",
+        "season": season,
+        "limit": limit,
+    })
+    if not data:
+        return []
+    splits = data.get("stats", [{}])[0].get("splits", [])
+    result = []
+    for s in splits[-limit:]:
+        st = s.get("stat", {})
+        hr = st.get("homeRuns", 0) or 0
+        air = st.get("airOuts", 0) or 0
+        result.append({
+            "date":      s.get("date", ""),
+            "hr":        hr,
+            "ab":        st.get("atBats", 0),
+            "air_outs":  air,
+            "near_hr":   max(0, air - hr),  # air balls that didn't leave park
+            "hits":      st.get("hits", 0),
+        })
+    return result
+
+
+def get_pitcher_recent_form(pitcher_id: int, season: int = None, starts: int = 3) -> dict:
+    """Last N starts for a pitcher — ERA, K%, BB%, H/9, recent grade (0-100, high = hitter-friendly).
+
+    Used post-ASB to capture rust/hotness vs season-long averages.
+    Returns neutral defaults if data unavailable.
+    """
+    if not season:
+        season = datetime.now().year
+    data = _get(f"{MLB_API}/people/{pitcher_id}/stats", {
+        "stats": "gameLog",
+        "group": "pitching",
+        "season": season,
+        "limit": starts + 2,
+    })
+    if not data:
+        return {"era": 4.50, "k_pct": 22.0, "bb_pct": 8.0, "recent_grade": 50.0, "starts_used": 0}
+
+    splits = data.get("stats", [{}])[0].get("splits", [])
+    # Filter to actual starts (IP >= 1.0)
+    start_logs = [s for s in splits if _safe_float(s.get("stat", {}).get("inningsPitched", 0)) >= 1.0]
+    recent = start_logs[-starts:] if len(start_logs) >= starts else start_logs
+
+    if not recent:
+        return {"era": 4.50, "k_pct": 22.0, "bb_pct": 8.0, "recent_grade": 50.0, "starts_used": 0}
+
+    total_er = total_ip = total_k = total_bb = total_bf = 0
+    for s in recent:
+        st = s.get("stat", {})
+        ip  = _safe_float(st.get("inningsPitched", 0))
+        er  = st.get("earnedRuns", 0) or 0
+        k   = st.get("strikeOuts", 0) or 0
+        bb  = st.get("baseOnBalls", 0) or 0
+        bf  = st.get("battersFaced", 0) or 0
+        if bf == 0:
+            bf = max(1, int(ip * 3) + k + bb)
+        total_ip += ip; total_er += er; total_k += k; total_bb += bb; total_bf += bf
+
+    era    = (total_er / total_ip * 9) if total_ip > 0 else 4.50
+    k_pct  = (total_k / total_bf * 100) if total_bf > 0 else 22.0
+    bb_pct = (total_bb / total_bf * 100) if total_bf > 0 else 8.0
+
+    # Grade: high = hitter-friendly (high ERA, low K%, high BB%)
+    s_era  = max(0.0, min(100.0, (era - 2.0) / (7.0 - 2.0) * 100))
+    s_k    = max(0.0, min(100.0, (30.0 - k_pct) / (30.0 - 8.0) * 100))
+    s_bb   = max(0.0, min(100.0, (bb_pct - 3.0) / (15.0 - 3.0) * 100))
+    recent_grade = s_era * 0.50 + s_k * 0.30 + s_bb * 0.20
+
+    return {
+        "era":          round(era, 2),
+        "k_pct":        round(k_pct, 1),
+        "bb_pct":       round(bb_pct, 1),
+        "recent_grade": round(recent_grade, 1),
+        "starts_used":  len(recent),
+    }
+
+
+def get_team_roster_ids(team_id: int, season: int = None) -> list:
+    """Return list of {id, name, pos, bats} for active roster (non-pitchers)."""
+    if not season:
+        season = datetime.now().year
+    data = _get(f"{MLB_API}/teams/{team_id}/roster", {
+        "rosterType": "active",
+        "season": season,
+        "hydrate": "person",
+    })
+    if not data:
+        return []
+    roster = []
+    for p in data.get("roster", []):
+        person = p.get("person", {})
+        pos = p.get("position", {}).get("abbreviation", "")
+        if pos not in ("P",):  # TWP (two-way players) bat and should be scored
+            bats = person.get("batSide", {}).get("code", "R")
+            roster.append({
+                "id":   person.get("id"),
+                "name": person.get("fullName", ""),
+                "pos":  pos,
+                "bats": bats,
+            })
+    return roster
+
+
+def get_game_lineups(game_date: str) -> dict:
+    """
+    Fetch confirmed batting order lineups for game_date.
+    Returns {game_pk: {"home": {player_id_str: order}, "away": {player_id_str: order}}}
+    Only populated after lineups are posted (~2-3h before first pitch).
+    """
+    data = _get(f"{MLB_API}/schedule", {
+        "sportId": "1",
+        "date": game_date,
+        "hydrate": "lineups",
+    })
+    result = {}
+    for date_obj in (data or {}).get("dates", []):
+        for game in date_obj.get("games", []):
+            pk = game.get("gamePk")
+            if not pk:
+                continue
+            lp = game.get("lineups") or {}
+            home_players = lp.get("homePlayers", [])
+            away_players = lp.get("awayPlayers", [])
+            result[pk] = {
+                "home": {str(p["id"]): i + 1 for i, p in enumerate(home_players) if p.get("id")},
+                "away": {str(p["id"]): i + 1 for i, p in enumerate(away_players) if p.get("id")},
+            }
+    return result
+
+
+def get_game_umpire(game_pk: int) -> dict:
+    """Return HP umpire info + K-rate tendency for a game.
+
+    Returns dict with name, id, k_rate (float or None), tendency (str).
+    """
+    data = _get(f"{MLB_API}/game/{game_pk}/boxscore") or {}
+    officials = data.get("officials", [])
+    for official in officials:
+        if official.get("officialType") == "Home Plate":
+            person = official.get("official", {})
+            name = person.get("fullName", "")
+            uid = person.get("id")
+            k_rate = UMPIRE_K_TENDENCY.get(name)
+            if k_rate is None:
+                tendency = "unknown"
+            elif k_rate >= 17.5:
+                tendency = "pitcher-friendly"
+            elif k_rate <= 13.0:
+                tendency = "hitter-friendly"
+            else:
+                tendency = "neutral"
+            return {"name": name, "id": uid, "k_rate": k_rate, "tendency": tendency}
+    return {"name": "Unknown", "id": None, "k_rate": None, "tendency": "unknown"}
+
+
+def get_today_savant_leaderboards(season: int = None) -> dict:
+    """Pre-load all Savant leaderboards for today's analysis (call once at startup)."""
+    if not season:
+        season = datetime.now().year
+    return {
+        "batting":             load_savant_batting(season),
+        "pitching":            load_savant_pitching(season),
+        "pitcher_k":           load_savant_pitcher_k(season),
+        "xstats":              load_savant_xstats(season),
+        "bat_tracking":        load_bat_tracking(season),
+        "pitcher_arsenal":     load_savant_pitcher_arsenal(season),
+        "batter_pitch_splits": load_savant_batter_pitch_splits(season),
+    }
