@@ -49,12 +49,39 @@ from baseball_engine import (
     load_savant_pitcher_k,
     get_h2h_stats,
     get_park_hr_factor,
+    get_game_lineups,
+    fetch_batter_statcast_events,
     PARK_FACTORS,
     PULL_WALLS,
 )
+from datetime import timedelta
 
 LEAGUE_HR_PA   = 0.034   # MLB avg HR/PA 2025-26
 MARKET_VIG_BEP = 0.524
+
+# Near-HR: a non-HR batted ball with HR-caliber speed/angle/carry
+NEAR_HR_EV   = 98.0
+NEAR_HR_LA   = (20.0, 35.0)
+NEAR_HR_DIST = 360.0
+
+
+def _prob_to_odds(prob: float) -> str:
+    if prob >= 99.0:
+        return "+100"
+    p = max(0.001, prob / 100.0)
+    return f"-{round((p / (1 - p)) * 100)}" if p >= 0.50 else f"+{round(((1 - p) / p) * 100)}"
+
+
+def _expected_pa(order: int) -> float:
+    return max(3.2, 4.6 - (order - 1) * 0.13)
+
+
+def _is_barrel(ev: float, la: float) -> bool:
+    # Statcast barrel: 98 mph at 26-30°, window widens ~1° per mph each side up to 116 mph
+    if ev < 98.0:
+        return False
+    spread = min(ev, 116.0) - 98.0
+    return (26.0 - spread) <= la <= (30.0 + spread)
 
 # ── Team recent offensive form ────────────────────────────────────────────────
 
@@ -1151,6 +1178,7 @@ def _quick_batter_entry(batter_id: int, batter_name: str, bats: str,
         "matchup_score":  round(matchup_score, 1),
         "hr_prob":        prob,
         "implied_odds":   odds,
+        "hr_lam":         round(lam, 4),
         "zone_fit":       zone_fit,
         "hr_zone_score":  hr_zone_score,
         "hr_form_pct":    None,
@@ -1377,7 +1405,7 @@ def build_hr_attack_board(game_date: str) -> list:
                 batter_entries.append((rank_key, entry))
 
             batter_entries.sort(key=lambda x: -x[0])
-            top_batters = [e for _, e in batter_entries[:8]]
+            top_batters = [e for _, e in batter_entries[:12]]
 
             results.append({
                 "game":           f"{g['away']['team_abbr']}@{g['home']['team_abbr']}",
@@ -1486,6 +1514,167 @@ def enrich_recent_hr_form(results: list, game_date: str, top_n: int = 120) -> li
                 b["matchup_score"] = min(99.9,
                     b["matchup_score"] * (1.0 + info["boost"]))
 
+    return results
+
+
+def _statcast_window(events: list, n_games: int) -> dict:
+    """Aggregate a batter's Statcast rows over their last n_games distinct game dates."""
+    dates = sorted({e["game_date"] for e in events if e["game_date"]})
+    keep  = set(dates[-n_games:])
+    rows  = [e for e in events if e["game_date"] in keep]
+    games = len(keep)
+    pa    = sum(1 for e in rows if e["is_pa"])
+    bbe   = [e for e in rows if e["in_play"] and e["launch_speed"] > 0]
+    hr    = sum(1 for e in rows if e["events"] == "home_run")
+    barrels  = sum(1 for e in bbe if _is_barrel(e["launch_speed"], e["launch_angle"]))
+    hard_hit = sum(1 for e in bbe if e["launch_speed"] >= 95.0)
+    near = [e for e in bbe
+            if e["events"] != "home_run"
+            and e["launch_speed"] >= NEAR_HR_EV
+            and NEAR_HR_LA[0] <= e["launch_angle"] <= NEAR_HR_LA[1]
+            and e["hit_distance"] >= NEAR_HR_DIST]
+    dist_rows = [e["hit_distance"] for e in bbe if e["hit_distance"] > 0]
+    return {
+        "games":     games,
+        "pa":        pa,
+        "pa_pg":     round(pa / games, 2) if games else 0.0,
+        "bbe":       len(bbe),
+        "hr":        hr,
+        "near_hr":   len(near),
+        "barrels":   barrels,
+        "brl_pct":   round(barrels / len(bbe) * 100, 1) if bbe else 0.0,
+        "hh_pct":    round(hard_hit / len(bbe) * 100, 1) if bbe else 0.0,
+        "avg_ev":    round(sum(e["launch_speed"] for e in bbe) / len(bbe), 1) if bbe else 0.0,
+        "max_ev":    round(max((e["launch_speed"] for e in bbe), default=0.0), 1),
+        "avg_dist":  round(sum(dist_rows) / len(dist_rows), 0) if dist_rows else 0.0,
+        "avg_la":    round(sum(e["launch_angle"] for e in bbe) / len(bbe), 1) if bbe else 0.0,
+    }
+
+
+def enrich_statcast_recent(results: list, game_date: str, top_n: int = 120,
+                           lookback_days: int = 30) -> list:
+    """
+    Post-build: pull pitch-level Statcast rows for the top-N batters and attach
+    rolling L5/L10/L15 windows (EV, max EV, distance, barrels, near-HR) plus the
+    batter's hardest non-HR balls. Tags HARD LUCK (near-HRs without HRs) and
+    EV SURGE (110+ mph recently); fills hr_form_pct / near_hr_L10 / avg_dist.
+    """
+    gd    = datetime.strptime(game_date, "%Y-%m-%d").date()
+    start = (gd - timedelta(days=lookback_days)).strftime("%Y-%m-%d")
+    end   = (gd - timedelta(days=1)).strftime("%Y-%m-%d")
+
+    all_entries = []
+    for r in results:
+        for b in r["top_batters"]:
+            all_entries.append((b["matchup_score"], b["batter_id"], b))
+    all_entries.sort(key=lambda x: -x[0])
+
+    seen: set = set()
+    to_enrich: list = []
+    for ms, bid, b in all_entries:
+        if bid in seen:
+            continue
+        if len(to_enrich) < top_n or ms >= 35.0:
+            seen.add(bid)
+            to_enrich.append(bid)
+
+    sc_map: dict = {}
+    for bid in to_enrich:
+        try:
+            events = fetch_batter_statcast_events(bid, start, end)
+        except Exception:
+            events = []
+        if not events:
+            continue
+        w5, w10, w15 = (_statcast_window(events, n) for n in (5, 10, 15))
+        dates_l10 = set(sorted({e["game_date"] for e in events})[-10:])
+        hard_luck = sorted(
+            (e for e in events
+             if e["game_date"] in dates_l10 and e["in_play"] and e["launch_speed"] >= 95.0
+             and e["events"] != "home_run" and e["launch_angle"] >= 15.0),
+            key=lambda e: -e["launch_speed"])[:3]
+        sc_map[bid] = {
+            "L5": w5, "L10": w10, "L15": w15,
+            "hard_luck_hits": [{
+                "date": e["game_date"][5:], "ev": e["launch_speed"],
+                "la": e["launch_angle"], "dist": int(e["hit_distance"]),
+                "result": e["events"] or "in play", "pitch": e["pitch_type"],
+            } for e in hard_luck],
+        }
+        time.sleep(0.25)
+
+    for r in results:
+        for b in r["top_batters"]:
+            sc = sc_map.get(b["batter_id"])
+            if not sc:
+                continue
+            w5, w10, w15 = sc["L5"], sc["L10"], sc["L15"]
+            b["statcast"]      = sc
+            b["near_hr_L5"]    = w5["near_hr"]
+            b["near_hr_L10"]   = w10["near_hr"]
+            b["recent_ev_L10"] = w10["avg_ev"]
+            b["max_ev_L5"]     = w5["max_ev"]
+            b["pa_pg_L5"]      = w5["pa_pg"]
+            if w15["avg_dist"] and not b.get("avg_dist"):
+                b["avg_dist"] = w15["avg_dist"]
+
+            season_rate = (b.get("xiso") or 0.0) * 0.22 or LEAGUE_HR_PA
+            l10_rate    = w10["hr"] / w10["pa"] if w10["pa"] else season_rate
+            ratio       = l10_rate / season_rate if season_rate else 1.0
+            b["hr_form_pct"]   = min(99, max(1, int(ratio * 65)))
+            b["hr_form_trend"] = "↑" if ratio >= 1.30 else ("↓" if ratio <= 0.70 else "→")
+
+            tags = b.setdefault("tags", [])
+            boost = 0.0
+            if w10["near_hr"] >= 2 and w10["hr"] <= 1:
+                tags.insert(0, f"💥 HARD LUCK ({w10['near_hr']} near-HR L10 / {w10['hr']} HR)")
+                boost += 0.04
+            if w5["max_ev"] >= 110.0:
+                tags.insert(0, f"🚀 EV SURGE ({w5['max_ev']:.0f} mph max L5)")
+                boost += 0.02
+            if w10["bbe"] >= 15 and w10["brl_pct"] >= 15.0:
+                tags.append(f"BARREL RUN ({w10['brl_pct']:.0f}% brl L10)")
+            if boost:
+                b["matchup_score"] = min(99.9, b["matchup_score"] * (1.0 + boost))
+    return results
+
+
+def enrich_lineups(results: list, game_date: str) -> list:
+    """
+    Post-build: attach confirmed batting order, rescale HR prob by expected PA
+    for the slot, and flag batters not in the posted lineup. Before lineups post,
+    every batter keeps order=None and in_lineup=None.
+    """
+    try:
+        lineups = get_game_lineups(game_date) or {}
+    except Exception:
+        lineups = {}
+
+    for r in results:
+        opp_side = "home" if r.get("pitcher_side") == "away" else "away"
+        lineup   = lineups.get(r.get("game_pk"), {}).get(opp_side, {})
+        r["lineup_confirmed"] = bool(lineup)
+        for b in r["top_batters"]:
+            order = lineup.get(str(b["batter_id"]))
+            b["order"] = order
+            if not lineup:
+                b["in_lineup"] = None
+                continue
+            b["in_lineup"] = order is not None
+            if order is None:
+                b.setdefault("tags", []).insert(0, "NOT IN LINEUP")
+                continue
+            prob = b.get("hr_prob") or 0.0
+            lam  = b.get("hr_lam") or (-math.log(1.0 - min(prob, 99.0) / 100.0) if prob else 0.0)
+            if lam <= 0:
+                continue
+            exp_pa = _expected_pa(order)
+            lam2   = lam / 4.0 * exp_pa
+            b["exp_pa"]       = round(exp_pa, 1)
+            b["hr_prob"]      = round((1.0 - math.exp(-lam2)) * 100, 1)
+            b["implied_odds"] = _prob_to_odds(b["hr_prob"])
+        if lineup:
+            r["top_batters"].sort(key=lambda x: (x.get("in_lineup") is False, -x["matchup_score"]))
     return results
 
 

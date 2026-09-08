@@ -1863,6 +1863,46 @@ def load_savant_batter_pitch_splits(season: int = None) -> dict:
     return result
 
 
+SAVANT_STATCAST_SEARCH_URL = (
+    "https://baseballsavant.mlb.com/statcast_search/csv?all=true&player_type=batter"
+    "&batters_lookup%5B%5D={batter_id}&game_date_gt={start}&game_date_lt={end}"
+    "&type=details&min_pitches=0"
+)
+
+
+def fetch_batter_statcast_events(batter_id: int, start_date: str, end_date: str) -> list:
+    """Pitch-level Statcast rows for one batter (inclusive date range), oldest first.
+
+    Each row: game_date, game_pk, events, is_pa, pitch_type, stand, p_throws,
+    launch_speed, launch_angle, hit_distance, plate_x, plate_z, bat_speed, xwoba.
+    launch_speed is 0 for non-batted-ball rows.
+    """
+    url = SAVANT_STATCAST_SEARCH_URL.format(batter_id=batter_id, start=start_date, end=end_date)
+    rows = _fetch_savant_csv(url)
+    out = []
+    for r in rows:
+        events = (r.get("events") or "").strip()
+        out.append({
+            "game_date":     r.get("game_date", ""),
+            "game_pk":       r.get("game_pk", ""),
+            "events":        events,
+            "is_pa":         bool(events),
+            "in_play":       (r.get("description") or "").strip() == "hit_into_play",
+            "pitch_type":    (r.get("pitch_type") or "").strip().upper(),
+            "stand":         r.get("stand", ""),
+            "p_throws":      r.get("p_throws", ""),
+            "launch_speed":  _safe_float(r.get("launch_speed")),
+            "launch_angle":  _safe_float(r.get("launch_angle")),
+            "hit_distance":  _safe_float(r.get("hit_distance_sc")),
+            "plate_x":       _safe_float(r.get("plate_x")),
+            "plate_z":       _safe_float(r.get("plate_z")),
+            "bat_speed":     _safe_float(r.get("bat_speed")),
+            "xwoba":         _safe_float(r.get("estimated_woba_using_speedangle")),
+        })
+    out.sort(key=lambda x: x["game_date"])
+    return out
+
+
 def get_pitcher_arsenal_full(player_id: int, season: int = None) -> list:
     """Return pitcher's full arsenal list sorted by usage% descending."""
     if not season:

@@ -55,9 +55,13 @@ with open(f"{SP}/walk_board_{DS}.json", "w") as f:
 
 # ── HR BOARD ──────────────────────────────────────────────────────────────
 banner(f"HR ATTACK BOARD — {GAME_DATE}")
-from hr_engine import build_hr_attack_board, enrich_recent_hr_form
+from hr_engine import (build_hr_attack_board, enrich_recent_hr_form,
+                       enrich_statcast_recent, enrich_lineups, enrich_with_h2h)
 hr_results = build_hr_attack_board(GAME_DATE)
 hr_results = enrich_recent_hr_form(hr_results, GAME_DATE, top_n=120)
+hr_results = enrich_statcast_recent(hr_results, GAME_DATE, top_n=120)
+hr_results = enrich_lineups(hr_results, GAME_DATE)
+hr_results = enrich_with_h2h(hr_results)
 out(f"  Pitcher matchups: {len(hr_results)}")
 for r in hr_results[:12]:
     v    = r['vuln']
