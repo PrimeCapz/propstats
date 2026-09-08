@@ -1864,30 +1864,31 @@ def load_savant_batter_pitch_splits(season: int = None) -> dict:
 
 
 SAVANT_STATCAST_SEARCH_URL = (
-    "https://baseballsavant.mlb.com/statcast_search/csv?all=true&player_type=batter"
-    "&batters_lookup%5B%5D={batter_id}&game_date_gt={start}&game_date_lt={end}"
+    "https://baseballsavant.mlb.com/statcast_search/csv?all=true&player_type={ptype}"
+    "&{lookup}%5B%5D={player_id}&game_date_gt={start}&game_date_lt={end}"
     "&type=details&min_pitches=0"
 )
+_SWING_DESCS = {"hit_into_play", "foul", "foul_tip", "swinging_strike",
+                "swinging_strike_blocked", "foul_bunt", "missed_bunt", "bunt_foul_tip"}
+_WHIFF_DESCS = {"swinging_strike", "swinging_strike_blocked", "foul_tip", "missed_bunt"}
 
 
-def fetch_batter_statcast_events(batter_id: int, start_date: str, end_date: str) -> list:
-    """Pitch-level Statcast rows for one batter (inclusive date range), oldest first.
-
-    Each row: game_date, game_pk, events, is_pa, pitch_type, stand, p_throws,
-    launch_speed, launch_angle, hit_distance, plate_x, plate_z, bat_speed, xwoba.
-    launch_speed is 0 for non-batted-ball rows.
-    """
-    url = SAVANT_STATCAST_SEARCH_URL.format(batter_id=batter_id, start=start_date, end=end_date)
-    rows = _fetch_savant_csv(url)
+def _parse_statcast_rows(rows: list) -> list:
     out = []
     for r in rows:
         events = (r.get("events") or "").strip()
+        desc   = (r.get("description") or "").strip()
         out.append({
             "game_date":     r.get("game_date", ""),
             "game_pk":       r.get("game_pk", ""),
             "events":        events,
+            "description":   desc,
             "is_pa":         bool(events),
-            "in_play":       (r.get("description") or "").strip() == "hit_into_play",
+            "in_play":       desc == "hit_into_play",
+            "is_swing":      desc in _SWING_DESCS,
+            "is_whiff":      desc in _WHIFF_DESCS,
+            "balls":         int(_safe_float(r.get("balls"))),
+            "strikes":       int(_safe_float(r.get("strikes"))),
             "pitch_type":    (r.get("pitch_type") or "").strip().upper(),
             "stand":         r.get("stand", ""),
             "p_throws":      r.get("p_throws", ""),
@@ -1898,9 +1899,26 @@ def fetch_batter_statcast_events(batter_id: int, start_date: str, end_date: str)
             "plate_z":       _safe_float(r.get("plate_z")),
             "bat_speed":     _safe_float(r.get("bat_speed")),
             "xwoba":         _safe_float(r.get("estimated_woba_using_speedangle")),
+            "woba_value":    _safe_float(r.get("woba_value")),
+            "woba_denom":    _safe_float(r.get("woba_denom")),
         })
     out.sort(key=lambda x: x["game_date"])
     return out
+
+
+def fetch_batter_statcast_events(batter_id: int, start_date: str, end_date: str) -> list:
+    """Pitch-level Statcast rows for one batter (inclusive date range), oldest first.
+    launch_speed is 0 for non-batted-ball rows; in_play marks true batted balls."""
+    url = SAVANT_STATCAST_SEARCH_URL.format(ptype="batter", lookup="batters_lookup",
+                                            player_id=batter_id, start=start_date, end=end_date)
+    return _parse_statcast_rows(_fetch_savant_csv(url))
+
+
+def fetch_pitcher_statcast_pitches(pitcher_id: int, start_date: str, end_date: str) -> list:
+    """Pitch-level Statcast rows thrown by one pitcher (inclusive date range), oldest first."""
+    url = SAVANT_STATCAST_SEARCH_URL.format(ptype="pitcher", lookup="pitchers_lookup",
+                                            player_id=pitcher_id, start=start_date, end=end_date)
+    return _parse_statcast_rows(_fetch_savant_csv(url))
 
 
 def get_pitcher_arsenal_full(player_id: int, season: int = None) -> list:

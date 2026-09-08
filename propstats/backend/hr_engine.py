@@ -51,6 +51,7 @@ from baseball_engine import (
     get_park_hr_factor,
     get_game_lineups,
     fetch_batter_statcast_events,
+    fetch_pitcher_statcast_pitches,
     PARK_FACTORS,
     PULL_WALLS,
 )
@@ -1636,6 +1637,184 @@ def enrich_statcast_recent(results: list, game_date: str, top_n: int = 120,
                 tags.append(f"BARREL RUN ({w10['brl_pct']:.0f}% brl L10)")
             if boost:
                 b["matchup_score"] = min(99.9, b["matchup_score"] * (1.0 + boost))
+    return results
+
+
+_TB = {"single": 1, "double": 2, "triple": 3, "home_run": 4}
+_NON_AB = {"walk", "intent_walk", "hit_by_pitch", "sac_fly", "sac_bunt",
+           "catcher_interf", "sac_fly_double_play", "sac_bunt_double_play"}
+
+
+def _pitcher_hand_split(rows: list) -> dict:
+    """Aggregate a pitcher's Statcast rows (already filtered to one batter side)."""
+    pa_rows = [r for r in rows if r["is_pa"]]
+    pa   = len(pa_rows)
+    ab   = sum(1 for r in pa_rows if r["events"] not in _NON_AB)
+    hits = sum(1 for r in pa_rows if r["events"] in _TB)
+    tb   = sum(_TB.get(r["events"], 0) for r in pa_rows)
+    hr   = sum(1 for r in pa_rows if r["events"] == "home_run")
+    k    = sum(1 for r in pa_rows if r["events"] in ("strikeout", "strikeout_double_play"))
+    bb   = sum(1 for r in pa_rows if r["events"] in ("walk", "intent_walk"))
+    swings = sum(1 for r in rows if r["is_swing"])
+    whiffs = sum(1 for r in rows if r["is_whiff"])
+    bbe  = [r for r in rows if r["in_play"] and r["launch_speed"] > 0]
+    hh   = sum(1 for r in bbe if r["launch_speed"] >= 95.0)
+    brl  = sum(1 for r in bbe if _is_barrel(r["launch_speed"], r["launch_angle"]))
+    wnum = sum(r["woba_value"] for r in pa_rows)
+    wden = sum(r["woba_denom"] for r in pa_rows)
+    xw   = [r["xwoba"] for r in bbe if r["xwoba"] > 0]
+    ba   = hits / ab if ab else 0.0
+    slg  = tb / ab if ab else 0.0
+
+    usage: dict = {}
+    total = sum(1 for r in rows if r["pitch_type"])
+    for pt in {r["pitch_type"] for r in rows if r["pitch_type"]}:
+        prow = [r for r in rows if r["pitch_type"] == pt]
+        p_sw = sum(1 for r in prow if r["is_swing"])
+        p_wh = sum(1 for r in prow if r["is_whiff"])
+        two_k = [r for r in prow if r["strikes"] == 2]
+        put   = sum(1 for r in two_k if r["events"] in ("strikeout", "strikeout_double_play"))
+        p_bbe = [r for r in prow if r["in_play"] and r["launch_speed"] > 0]
+        usage[pt] = {
+            "usage":    round(len(prow) / total * 100, 1) if total else 0.0,
+            "n":        len(prow),
+            "whiff":    round(p_wh / p_sw * 100, 1) if p_sw else 0.0,
+            "put_away": round(put / len(two_k) * 100, 1) if two_k else 0.0,
+            "hh":       round(sum(1 for r in p_bbe if r["launch_speed"] >= 95) / len(p_bbe) * 100, 1) if p_bbe else 0.0,
+            "hr":       sum(1 for r in prow if r["events"] == "home_run"),
+        }
+    return {
+        "pitches": len(rows), "pa": pa, "ab": ab, "bf": pa,
+        "ba": round(ba, 3), "slg": round(slg, 3), "iso": round(slg - ba, 3),
+        "woba": round(wnum / wden, 3) if wden else 0.0,
+        "xwoba_con": round(sum(xw) / len(xw), 3) if xw else 0.0,
+        "hr": hr, "hr_pct": round(hr / pa * 100, 1) if pa else 0.0,
+        "k_pct": round(k / pa * 100, 1) if pa else 0.0,
+        "bb_pct": round(bb / pa * 100, 1) if pa else 0.0,
+        "whiff_pct": round(whiffs / swings * 100, 1) if swings else 0.0,
+        "hh_pct": round(hh / len(bbe) * 100, 1) if bbe else 0.0,
+        "brl_pct": round(brl / len(bbe) * 100, 1) if bbe else 0.0,
+        "bbe": len(bbe),
+        "usage": dict(sorted(usage.items(), key=lambda kv: -kv[1]["usage"])),
+    }
+
+
+def _pitcher_hand_profile(rows: list, recent_starts: int = 3) -> dict:
+    """{'L': {'all': split, 'recent': split, 'games': n}, 'R': {...}} by batter side."""
+    dates  = sorted({r["game_date"] for r in rows if r["game_date"]})
+    recent = set(dates[-recent_starts:])
+    out = {}
+    for side in ("L", "R"):
+        side_rows = [r for r in rows if r["stand"] == side]
+        out[side] = {
+            "games":  len({r["game_date"] for r in side_rows}),
+            "all":    _pitcher_hand_split(side_rows),
+            "recent": _pitcher_hand_split([r for r in side_rows if r["game_date"] in recent]),
+        }
+    out["games_total"] = len(dates)
+    out["recent_dates"] = sorted(recent)
+    return out
+
+
+def enrich_pitcher_hand_mix(results: list, game_date: str, lookback_days: int = 45,
+                            min_pitches_per_side: int = 60) -> list:
+    """
+    Post-build: pull each starter's recent pitch-level Statcast rows, build vLHB/vRHB
+    profiles (usage by pitch, whiff, put-away, BA/SLG/ISO/wOBA, HR, K%, BB%), then
+    re-run every batter's pitch-type analysis using the usage the pitcher actually
+    shows that batter's side. hr_zone_score is replaced and matchup_score shifted by
+    the zone delta at its 0.30 model weight. Tags HAND MIX when a top pitch differs
+    >= 8 points between sides.
+    """
+    gd    = datetime.strptime(game_date, "%Y-%m-%d").date()
+    start = (gd - timedelta(days=lookback_days)).strftime("%Y-%m-%d")
+    end   = (gd - timedelta(days=1)).strftime("%Y-%m-%d")
+    season = gd.year
+    batter_pitch_splits = load_savant_batter_pitch_splits(season)
+    pitcher_arsenal     = load_savant_pitcher_arsenal(season)
+    bat_track           = load_bat_tracking(season)
+
+    profiles: dict = {}
+    for r in results:
+        pid = r["pitcher_id"]
+        if pid in profiles:
+            continue
+        try:
+            rows = fetch_pitcher_statcast_pitches(pid, start, end)
+        except Exception:
+            rows = []
+        profiles[pid] = _pitcher_hand_profile(rows) if rows else None
+        time.sleep(0.25)
+
+    for r in results:
+        prof = profiles.get(r["pitcher_id"])
+        r["hand_profile"] = prof
+        if not prof:
+            continue
+        base_arsenal = pitcher_arsenal.get(str(r["pitcher_id"]), [])
+        throws = r.get("pitcher_throws", "R")
+
+        # Sides where the recent sample is big enough to trust the mix
+        side_usage = {}
+        for side in ("L", "R"):
+            sp = prof[side]["all"]
+            if sp["pitches"] >= min_pitches_per_side:
+                side_usage[side] = {pt: u["usage"] for pt, u in sp["usage"].items()}
+
+        # Flag pitches whose usage swings materially by side
+        swing_tags = []
+        if "L" in side_usage and "R" in side_usage:
+            for pt in set(side_usage["L"]) | set(side_usage["R"]):
+                ul, ur = side_usage["L"].get(pt, 0.0), side_usage["R"].get(pt, 0.0)
+                if abs(ul - ur) >= 8.0 and max(ul, ur) >= 15.0:
+                    swing_tags.append(f"{pt} {ul:.0f}%vL/{ur:.0f}%vR")
+        r["hand_mix_swings"] = swing_tags
+
+        for b in r["top_batters"]:
+            if b.get("hand_usage_applied"):
+                continue
+            bats = b.get("bats", "R")
+            side = ("L" if throws == "R" else "R") if bats == "S" else bats
+            usage = side_usage.get(side)
+            if not usage or not base_arsenal:
+                continue
+            adjusted = []
+            for p in base_arsenal:
+                q = dict(p)
+                q["usage_pct"] = usage.get(p["pitch_type"], 0.0)
+                adjusted.append(q)
+            # Pitches the pitcher throws to this side but Savant's season arsenal lacks
+            known = {p["pitch_type"] for p in base_arsenal}
+            for pt, pct in usage.items():
+                if pt not in known and pct >= 5.0:
+                    adjusted.append({"pitch_type": pt, "pitch_name": pt, "usage_pct": pct})
+
+            pa = _hr_pitch_analysis(b["batter_id"], r["pitcher_id"], batter_pitch_splits,
+                                    {str(r["pitcher_id"]): adjusted},
+                                    pitcher_velo_data=_pitcher_velo_cache,
+                                    bat_track_data=bat_track)
+            old_zone = b.get("hr_zone_score", 0.0) or 0.0
+            new_zone = pa["hr_zone_score"]
+            b["hr_zone_score_season"] = old_zone
+            b["hr_zone_score"]  = new_zone
+            b["hr_edges"]       = pa["hr_edges"]
+            b["weak_spots"]     = pa["weak_spots"]
+            b["suppressors"]    = pa["suppressors"]
+            b["pitch_table"]    = pa["pitch_table"]
+            b["hand_usage_applied"] = side
+            b["matchup_score"]  = min(99.9, max(0.0, b["matchup_score"] + 0.30 * (new_zone - old_zone)))
+
+            tags = b.setdefault("tags", [])
+            tags[:] = [t for t in tags if not t.startswith(("HR EDGE:", "WEAK:", "SUPPRESSED:"))]
+            if pa["hr_edges"]:
+                tags.append(f"HR EDGE: {' '.join(e['pitch_type'] for e in pa['hr_edges'][:2])}")
+            if pa["weak_spots"]:
+                tags.append(f"WEAK: {' '.join(w['pitch_type'] for w in pa['weak_spots'][:2])}")
+            if pa["suppressors"] and not pa["hr_edges"]:
+                tags.append(f"SUPPRESSED: {pa['suppressors'][0]['pitch_type']}")
+            if swing_tags:
+                tags.append(f"HAND MIX v{side}HB: " + ", ".join(swing_tags[:2]))
+        r["top_batters"].sort(key=lambda x: (x.get("in_lineup") is False, -x["matchup_score"]))
     return results
 
 
