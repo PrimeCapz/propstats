@@ -1818,6 +1818,74 @@ def enrich_pitcher_hand_mix(results: list, game_date: str, lookback_days: int = 
     return results
 
 
+MARQUEE_BATS = {
+    "Shohei Ohtani", "Aaron Judge", "Mookie Betts", "Freddie Freeman",
+    "Ronald Acuña Jr.", "Ronald Acuna Jr.", "Mike Trout", "Juan Soto",
+    "Bryce Harper", "Yordan Alvarez", "Kyle Schwarber", "Vladimir Guerrero Jr.",
+    "Fernando Tatis Jr.", "Manny Machado", "Pete Alonso", "Corey Seager",
+    "Bobby Witt Jr.", "Elly De La Cruz", "Julio Rodríguez", "Cal Raleigh",
+    "Rafael Devers", "José Ramírez", "Francisco Lindor", "Matt Olson",
+    "Bryan Reynolds", "Oneil Cruz", "Riley Greene", "Gunnar Henderson",
+    "Adley Rutschman", "James Wood", "Jackson Merrill", "Paul Skenes",
+}
+
+
+def tag_chalk_levels(results: list) -> list:
+    """
+    Score how public/obvious each HR play is (0-100) and tag a tier.
+
+    Chalk is a popularity proxy, not a quality judgement — a heavy-chalk bat can
+    still be the best bet. Three inputs:
+      price  (50%) — short odds draw the crowd; scaled across this slate's probs
+      rank   (30%) — position on the board everyone else is also reading
+      name   (20%) — marquee bats get bet regardless of matchup
+
+    Tiers: HEAVY CHALK (>=70) / CHALKY (50-69) / BALANCED (30-49) / LEVERAGE (<30)
+    """
+    live = [(b, r) for r in results for b in r["top_batters"]
+            if b.get("in_lineup") is not False]
+    if not live:
+        return results
+
+    probs = sorted((b.get("hr_prob") or 0.0 for b, _ in live), reverse=True)
+    hi = probs[0] or 1.0
+    lo = probs[-1]
+    span = (hi - lo) or 1.0
+
+    ranked = sorted(live, key=lambda x: -(x[0].get("matchup_score") or 0))
+    rank_of = {id(b): i for i, (b, _) in enumerate(ranked)}
+    n = len(ranked)
+
+    for b, r in live:
+        price = ((b.get("hr_prob") or 0.0) - lo) / span * 100.0
+        rank  = max(0.0, 100.0 * (1.0 - rank_of[id(b)] / max(1, min(n, 40))))
+        star  = 100.0 if b["batter_name"] in MARQUEE_BATS else 0.0
+        score = price * 0.50 + rank * 0.30 + star * 0.20
+
+        if score >= 70:
+            tier, badge = "HEAVY CHALK", "🔒"
+        elif score >= 50:
+            tier, badge = "CHALKY", "⚠️"
+        elif score >= 30:
+            tier, badge = "BALANCED", "○"
+        else:
+            tier, badge = "LEVERAGE", "💎"
+
+        b["chalk_score"] = round(score, 1)
+        b["chalk_tier"]  = tier
+        b["chalk_badge"] = badge
+        b["is_marquee"]  = b["batter_name"] in MARQUEE_BATS
+
+    for r in results:
+        for b in r["top_batters"]:
+            if b.get("in_lineup") is False:
+                b.setdefault("chalk_score", None)
+                b.setdefault("chalk_tier", "OUT")
+                b.setdefault("chalk_badge", "")
+                b.setdefault("is_marquee", b["batter_name"] in MARQUEE_BATS)
+    return results
+
+
 def enrich_lineups(results: list, game_date: str) -> list:
     """
     Post-build: attach confirmed batting order, rescale HR prob by expected PA
