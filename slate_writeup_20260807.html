@@ -1,0 +1,373 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PropStats Slate — Friday August 7, 2026</title>
+<style>
+  :root {
+    --bg: #0d1117; --bg2: #161b22; --bg3: #21262d;
+    --border: #30363d; --text: #e6edf3; --muted: #8b949e;
+    --gold: #d4a017; --green: #3fb950; --red: #f85149;
+    --blue: #58a6ff; --purple: #a371f7; --orange: #f0883e;
+    --teal: #39d0d8; --lime: #a3e635;
+    --att: #3fb950; --neu: #58a6ff; --avoid: #f85149;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'SF Mono', 'Cascadia Code', 'Consolas', monospace; font-size: 13px; line-height: 1.6; padding: 16px; }
+  h1 { font-size: 18px; color: var(--gold); letter-spacing: .06em; margin-bottom: 4px; }
+  h2 { font-size: 13px; color: var(--muted); font-weight: 400; margin-bottom: 20px; }
+  h3 { font-size: 13px; color: var(--blue); letter-spacing: .05em; margin: 20px 0 8px; border-bottom: 1px solid var(--border); padding-bottom: 4px; }
+  h4 { font-size: 12px; color: var(--gold); letter-spacing: .04em; margin: 14px 0 6px; }
+  .section { background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; padding: 14px 16px; margin-bottom: 14px; }
+  .play { background: var(--bg3); border-left: 3px solid var(--gold); border-radius: 0 4px 4px 0; padding: 10px 14px; margin: 8px 0; }
+  .play.green { border-color: var(--green); }
+  .play.blue  { border-color: var(--blue); }
+  .play.red   { border-color: var(--red); }
+  .play.teal  { border-color: var(--teal); }
+  .play-title { font-weight: 700; color: var(--gold); font-size: 13px; }
+  .play.green .play-title { color: var(--green); }
+  .play.blue  .play-title { color: var(--blue); }
+  .play.teal  .play-title { color: var(--teal); }
+  .play.red   .play-title { color: var(--red); }
+  .sub { color: var(--muted); font-size: 11px; margin-top: 2px; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th { color: var(--muted); font-weight: 400; padding: 4px 8px; text-align: left; border-bottom: 1px solid var(--border); }
+  td { padding: 4px 8px; border-bottom: 1px solid #21262d; }
+  tr:last-child td { border-bottom: none; }
+  .att  { color: var(--att); font-weight: 700; }
+  .neu  { color: var(--neu); }
+  .avoid{ color: var(--avoid); }
+  .elite{ color: var(--gold); font-weight: 700; }
+  .threat{ color: var(--orange); }
+  .fire { color: var(--red); }
+  .hot  { color: var(--orange); }
+  .tag  { display: inline-block; background: #21262d; border: 1px solid #30363d; border-radius: 3px; padding: 1px 5px; font-size: 10px; margin: 1px; }
+  .tag.gold   { border-color: var(--gold);   color: var(--gold); }
+  .tag.green  { border-color: var(--green);  color: var(--green); }
+  .tag.red    { border-color: var(--red);    color: var(--red); }
+  .tag.blue   { border-color: var(--blue);   color: var(--blue); }
+  .tag.purple { border-color: var(--purple); color: var(--purple); }
+  .tag.orange { border-color: var(--orange); color: var(--orange); }
+  .tag.teal   { border-color: var(--teal);   color: var(--teal); }
+  .tag.lime   { border-color: var(--lime);   color: var(--lime); }
+  .tag.muted  { border-color: var(--muted);  color: var(--muted); }
+  .stars { color: var(--gold); letter-spacing: .1em; }
+  .game-hdr { color: var(--blue); font-weight: 700; margin-top: 12px; margin-bottom: 4px; font-size: 13px; }
+  .model-note { background: #0d2038; border: 1px solid #1c4065; border-radius: 4px; padding: 8px 12px; margin: 8px 0; font-size: 11px; color: #8db8d8; }
+  .flag-flat   { color: var(--red);    font-size: 10px; }
+  .flag-loft   { color: var(--green);  font-size: 10px; }
+  .flag-gbsup  { color: var(--muted);  font-size: 10px; }
+  .score-bar { display: inline-block; height: 6px; background: var(--bg3); border-radius: 3px; vertical-align: middle; overflow: hidden; width: 60px; margin-left: 4px; }
+  .score-fill { height: 100%; border-radius: 3px; }
+  .inline-stat { color: var(--muted); font-size: 11px; }
+  a { color: var(--blue); text-decoration: none; }
+  .postmortem-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  @media (max-width: 640px) { .postmortem-grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<h1>⚾ PropStats — Friday, August 7, 2026</h1>
+<h2>15-game slate · Generated pre-game · Model: GB% Suppressor + F-Strike + Launch Angle v2</h2>
+
+<!-- ═══════════════════════════════════════════════════════ 8/6 POST-MORTEM -->
+<div class="section">
+<h3>📋 8/6 Post-Mortem</h3>
+<div class="postmortem-grid">
+  <div>
+    <h4>HR Board</h4>
+    <div class="play red"><span class="play-title">PHI Stack (Schwarber + Harper) ❌</span><div class="sub">PHI won 7-3 but ZERO HRs. Mikolas induced grounders all day (45.8% GB) — exactly what the new GB SUPPRESSOR model now catches. Under old model he was 63.5 Attackable. Under new model: 51.8 Neutral Lean. Harper FLAT SWING (12.7°) vs GB pitcher = no power.</div></div>
+    <div class="play green"><span class="play-title">GABP Trio (De La Cruz + Bleday + Stephenson) ✅✅✅</span><div class="sub">All 3 hit HRs at GABP ×1.22. No GB suppressor on Barnett (no Savant data). Park factor did the work perfectly. 4 total CIN HRs.</div></div>
+    <div class="play red"><span class="play-title">Machado HR (SD vs Drake, Chase ×1.06) ❌</span><div class="sub">SD won 5-1 but ZERO team HRs. Drake went 3.2 IP giving up hits via contact — not the fly-ball type. 0/4 for Machado.</div></div>
+  </div>
+  <div>
+    <h4>K Board + Walks + NRFI</h4>
+    <div class="play green"><span class="play-title">Cease K ELITE o7.5 ✅ (10K, 7 IP)</span><div class="sub">Dominant. 10Ks in 7 innings vs CHC. Model score 85.8 called it perfectly.</div></div>
+    <div class="play red"><span class="play-title">Cease Walk o2.5 ❌ (1BB)</span><div class="sub">BB%=10.6% but f_strike=63.8% kept him ahead in counts. New F-Strike model lowers his walk score from ~63 → 60.9 — correctly signaling less certainty.</div></div>
+    <div class="play green"><span class="play-title">Abbott Walk o1.5 ✅ (2BB)</span><div class="sub">RISING trend confirmed — issued 2 walks after 5BB last start.</div></div>
+    <div class="play red"><span class="play-title">NRFI Triple ❌ 1/3</span><div class="sub">DET scored 3 in the 1st at T-Mobile (won 11-0). MIA@ATL ✅. PIT scored 1 in 1st ❌.</div></div>
+    <div class="play green"><span class="play-title">Sánchez K 84.1 ✅ (6K, 5 IP)</span><div class="sub">K ELITE call delivered — clean outing.</div></div>
+  </div>
+</div>
+
+<div class="model-note">
+  🔧 <strong>Model v2 update (live today):</strong> GB% Suppressor penalty now reduces pitcher vulnerability scores for heavy groundball pitchers. Mikolas at 45.8% GB would score 51.8 (Neutral Lean) not 63.5 (Attackable) — the PHI stack call disappears entirely. Also added: FLAT SWING flag (LA&lt;13°) on batters, F-Strike% inverse component in walk engine, COMMAND ARTIST tag for pitchers with f_strike≥66%.
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ TOP 5 PLAYS -->
+<div class="section">
+<h3>🎯 Top 5 Plays — August 7</h3>
+
+<div class="play gold">
+  <div class="play-title">#1 · George Klassen WALK MACHINE ★★★ (LAA @ MIA)</div>
+  <div class="sub">BB%=31.3% · o1.5 <strong style="color:#3fb950">95%</strong> · o2.5 <strong style="color:#3fb950">85%</strong> · o3.5 69% · Walk Score 83.0</div>
+  <div class="sub" style="margin-top:4px">Last 2 starts: 5BB/2.0IP · 5BB/2.2IP — walks 10 in barely 4 innings of work. Extreme outlier. o1.5 is virtually a lock, o2.5 the primary play. He's not pitching deep — used as an opener — but walks accumulate fast. Also GB56%⬇ so MIA won't HR off him, just draw walks.</div>
+  <div style="margin-top:4px"><span class="tag gold">WALK MACHINE</span><span class="tag red">BB% 31.3%</span><span class="tag muted">GB SUPPRESSOR 56%</span></div>
+</div>
+
+<div class="play green">
+  <div class="play-title">#2 · Nathan Eovaldi K ELITE o5.5 (54%) ★★ (BAL @ TEX)</div>
+  <div class="sub">K Score 74.9 · k%=25.3 · swstr=30.7 · F-Strike 64.7% · Globe Life Field</div>
+  <div class="sub" style="margin-top:4px">Three K ELITE arms today — Eovaldi at 54% over is the best value of the group. Globe Life neutral park (×1.00), low walk risk (walk score 33.1). Facing BAL lineup. Note: GB50%⬇ means HRs rare against him — pure strikeout merchant, not HR fodder.</div>
+  <div style="margin-top:4px"><span class="tag gold">K ELITE 74.9</span><span class="tag blue">swstr 30.7%</span><span class="tag muted">GB SUPP 50%</span></div>
+</div>
+
+<div class="play green">
+  <div class="play-title">#3 · Logan Gilbert K ELITE o5.5 (54%) ★★ (TB @ SEA)</div>
+  <div class="sub">K Score 74.8 · k%=26.6 · swstr=30.0 · F-Strike 69.3% COMMAND ARTIST · T-Mobile ×0.91</div>
+  <div class="sub" style="margin-top:4px">Best command pitcher on the slate — f_strike=69.3% is exceptional. Walk score only 24.9 (NEUTRAL). At T-Mobile (pitcher's park) facing TB lineup. Tie with Eovaldi in score but Gilbert's COMMAND ARTIST profile means fewer blowup innings. Also the NRFI play (Gilbert + Rasmussen GB46%⬇ + ×0.91).</div>
+  <div style="margin-top:4px"><span class="tag gold">K ELITE 74.8</span><span class="tag green">COMMAND ARTIST 69%</span><span class="tag muted">T-Mobile ×0.91</span></div>
+</div>
+
+<div class="play blue">
+  <div class="play-title">#4 · LAD Stack vs Merrill Kelly Att 75 (LAD @ AZ, Chase ×1.06)</div>
+  <div class="sub">Only Attackable pitcher today · Kelly vuln=75 · Chase Field ×1.06</div>
+  <div class="sub" style="margin-top:4px"><strong>Max Muncy</strong> wt=45.1 HR=27.3% la=17° AIR PULL (cleanest swing angle) · <strong>Shohei Ohtani</strong> wt=57.1 HR=31.8% HOT (la=13° borderline but elite power overrides) · <strong>Freddie Freeman</strong> wt=39.2 DUE but FLAT SWING 12° (avoid). Kelly is gb=41% — not a suppressor yet but Muncy and Ohtani are both pulling air-contact hitters. Stack Muncy first, Ohtani second. Freeman at 12° LA is the fade from this group.</div>
+  <div style="margin-top:4px"><span class="tag gold">ONLY ATTACKABLE TODAY</span><span class="tag orange">Muncy LA 17° AIR PULL</span><span class="tag red">Freeman FLAT SWING 12°</span></div>
+</div>
+
+<div class="play teal">
+  <div class="play-title">#5 · José Soriano Walk o1.5 (70%) ★ (TOR @ PHI, CBP ×1.14)</div>
+  <div class="sub">Walk Score 57.4 · BB%=11.2% · F-Strike 58% LOW F-STRIKE · o1.5=70% · o2.5=44%</div>
+  <div class="sub" style="margin-top:4px">Soriano has a massive arm (K THREAT 66.2) but falls behind in counts (LOW F-STRIKE 58%). Facing PHI's patient lineup (Schwarber, Harper, Bohm) at Citizens Bank Park. BB%=11.2% + low F-Strike + patient lineup = walks accumulate. Take o1.5 at 70%. Note: K THREAT profile means strikeouts too — but the walk is the cleaner prop given his command issues.</div>
+  <div style="margin-top:4px"><span class="tag red">LOW F-STRIKE 58%</span><span class="tag orange">BB% 11.2%</span><span class="tag blue">WALK THREAT 57.4</span><span class="tag muted">CBP ×1.14</span></div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ K BOARD -->
+<div class="section">
+<h3>⚡ K Board — August 7 Strikeout Props</h3>
+<table>
+<thead><tr>
+  <th>Pitcher</th><th>Opp</th><th>Score</th><th>Tier</th><th>K%</th><th>SwStr%</th><th>F-Str%</th><th>Walk Sc</th><th>Line</th><th>Ov%</th>
+</tr></thead>
+<tbody>
+  <tr><td><strong>Zack Wheeler</strong></td><td>TOR</td><td class="elite">83.8</td><td class="elite">★★ K ELITE</td><td>31.3</td><td>31.5</td><td>64.8</td><td class="inline-stat">25.6</td><td>5.5</td><td>48%</td></tr>
+  <tr><td><strong>Nathan Eovaldi</strong></td><td>BAL</td><td class="elite">74.9</td><td class="elite">★ K ELITE</td><td>25.3</td><td>30.7</td><td>64.7</td><td class="inline-stat">33.1</td><td>5.5</td><td><strong>54%</strong></td></tr>
+  <tr><td><strong>Logan Gilbert</strong></td><td>TB</td><td class="elite">74.8</td><td class="elite">★ K ELITE</td><td>26.6</td><td>30.0</td><td style="color:#3fb950">69.3</td><td class="inline-stat">24.9</td><td>5.5</td><td><strong>54%</strong></td></tr>
+  <tr><td>José Soriano</td><td>PHI</td><td class="threat">66.2</td><td class="threat">▲ K THREAT</td><td>24.9</td><td>31.4</td><td style="color:#f85149">58.0</td><td class="inline-stat">57.4</td><td>5.5</td><td>54%</td></tr>
+  <tr><td>Jack Perkins</td><td>BOS</td><td class="threat">64.7</td><td class="threat">▲ K THREAT</td><td>26.8</td><td>28.3</td><td>64.0</td><td class="inline-stat">52.8</td><td>5.5</td><td>54%</td></tr>
+  <tr><td>Roki Sasaki</td><td>AZ</td><td class="threat">64.6</td><td class="threat">▲ K THREAT</td><td>23.9</td><td>30.0</td><td>55.6</td><td class="inline-stat">56.3</td><td>5.5</td><td>49%</td></tr>
+  <tr><td>Shane Drohan</td><td>MIN</td><td class="threat">64.4</td><td class="threat">▲ K THREAT</td><td>24.5</td><td>27.9</td><td style="color:#3fb950">68.0</td><td class="inline-stat">31.0</td><td>5.0</td><td>46%</td></tr>
+  <tr><td>Drew Rasmussen</td><td>SEA</td><td class="threat">64.4</td><td class="threat">▲ K THREAT</td><td>26.5</td><td>25.5</td><td style="color:#3fb950">67.0</td><td class="inline-stat">22.0</td><td>6.5</td><td>48%</td></tr>
+  <tr><td>Payton Tolle</td><td>ATH</td><td class="threat">63.4</td><td class="threat">▲ K THREAT</td><td>26.5</td><td>27.0</td><td>64.0</td><td class="inline-stat">31.8</td><td>6.0</td><td>41%</td></tr>
+  <tr><td>Cade Cavalli</td><td>CIN</td><td class="threat">55.5</td><td class="threat">▲ K THREAT</td><td>25.3</td><td>24.6</td><td>62.0</td><td class="inline-stat">38.5</td><td>6.5</td><td>49%</td></tr>
+</tbody>
+</table>
+
+<div class="play" style="border-color:#8b949e;margin-top:10px">
+  <span style="color:var(--muted);font-size:11px"><strong>Model notes:</strong> Wheeler's 83.8 is the highest K score (k%=31.3, swstr=31.5) but ov=48% at the current line isn't +EV. Eovaldi and Gilbert at 54% each are the cleaner value plays. Soriano (66.2 K THREAT) has LOW F-STRIKE — dangerous strikeout arm but also walks; K AND walk can both cash. Drohan and Rasmussen both have COMMAND ARTIST (f%≥68%) making their K projections more reliable — no blowup walk innings eating BF count.</span>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ WALK BOARD -->
+<div class="section">
+<h3>🚶 Walk Props — August 7</h3>
+<table>
+<thead><tr>
+  <th>Pitcher</th><th>Opp</th><th>Walk Sc</th><th>Tier</th><th>BB%</th><th>F-Str%</th><th>OppBB%</th><th>o1.5</th><th>o2.5</th><th>Trend</th>
+</tr></thead>
+<tbody>
+  <tr><td><strong>George Klassen</strong></td><td>MIA</td><td class="fire">83.0</td><td class="fire">🔥 WALK MACHINE</td><td>31.3</td><td>62</td><td>—</td><td><strong style="color:#3fb950">95%</strong></td><td><strong style="color:#3fb950">85%</strong></td><td>STABLE</td></tr>
+  <tr><td><strong>Ronel Blanco</strong></td><td>SD</td><td class="fire">72.5</td><td class="fire">🔥 WALK MACHINE</td><td>12.9</td><td>62</td><td>—</td><td>68%</td><td>41%</td><td>STABLE</td></tr>
+  <tr><td>Robbie Ray</td><td>HOU</td><td class="threat">64.8</td><td class="threat">⚠ WALK THREAT</td><td>11.1</td><td>60</td><td>—</td><td>73%</td><td>48%</td><td>FALLING</td></tr>
+  <tr><td>Merrill Kelly</td><td>LAD</td><td class="threat">58.6</td><td class="threat">⚠ WALK THREAT</td><td>9.2</td><td>60</td><td>—</td><td>68%</td><td>41%</td><td>STABLE</td></tr>
+  <tr><td><strong>José Soriano</strong></td><td>PHI</td><td class="threat">57.4</td><td class="threat">⚠ WALK THREAT</td><td>11.2</td><td style="color:#f85149">58</td><td>—</td><td>70%</td><td>44%</td><td>STABLE</td></tr>
+  <tr><td>Max Fried</td><td>ATL</td><td class="threat">56.5</td><td class="threat">⚠ WALK THREAT</td><td>7.9</td><td style="color:#f85149">55</td><td>—</td><td>50%</td><td>24%</td><td>STABLE</td></tr>
+  <tr><td>Roki Sasaki</td><td>AZ</td><td class="threat">56.3</td><td class="threat">⚠ WALK THREAT</td><td>9.2</td><td>60</td><td>—</td><td>67%</td><td>40%</td><td>RISING</td></tr>
+  <tr><td>Zebby Matthews</td><td>MIL</td><td class="threat">55.5</td><td class="threat">⚠ WALK THREAT</td><td>7.6</td><td style="color:#3fb950">67</td><td>—</td><td>54%</td><td>27%</td><td>STABLE</td></tr>
+  <tr><td>Jack Perkins</td><td>BOS</td><td class="threat">52.8</td><td class="threat">⚠ WALK THREAT</td><td>8.4</td><td>64</td><td>—</td><td>51%</td><td>25%</td><td>STABLE</td></tr>
+</tbody>
+</table>
+
+<h4>Walk Analysis</h4>
+<p style="color:var(--muted);font-size:11px;line-height:1.7">
+<strong style="color:var(--gold)">Klassen (95%/85%)</strong> — This is the slate's highest-conviction prop. BB%=31.3% with back-to-back 5-walk starts. He doesn't go deep — opener role, roughly 2 innings — but at his rate walks pile up before he exits. Play both o1.5 and o2.5.<br><br>
+<strong style="color:var(--orange)">Soriano (70%/44%)</strong> — The new F-Strike component flags him hard: LOW F-STRIKE (58%) means he constantly falls behind. PHI's lineup (Schwarber, Harper, Bohm) is disciplined. He's a K THREAT arm so the walks come with strikeouts, not just weak contact.<br><br>
+<strong style="color:var(--muted)">Ray (73%/48%)</strong> — FALLING trend (improving control) gives pause. The 73% o1.5 is attractive but the improving trajectory knocks the walk score. Petco park context: even if he walks batters, Petco suppresses damage.<br><br>
+<strong style="color:var(--muted)">Matthews / Fried / Sasaki</strong> — Each is a WALK THREAT but none has the extreme walk rate to be the primary play. Matthews has f_strike=67% (COMMAND ARTIST) which paradoxically keeps his score down despite the walk tier label.
+</p>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ NRFI/YRFI -->
+<div class="section">
+<h3>🏟 NRFI / YRFI Grid</h3>
+<table>
+<thead><tr>
+  <th>Game</th><th>Park PF</th><th>Away Pitcher</th><th>Home Pitcher</th><th>Signal</th><th>Grade</th>
+</tr></thead>
+<tbody>
+  <tr><td><strong>TB@SEA</strong></td><td>×0.91</td><td>Rasmussen K67 GB46%⬇</td><td>Gilbert K ELITE 74.8 CMND</td><td>Both command arms + suppressive park</td><td class="att"><strong>★★ NRFI</strong></td></tr>
+  <tr><td><strong>HOU@SD</strong></td><td>×0.88</td><td>Blanco WALK MACHINE GB47%⬇</td><td>Ray WALK THREAT</td><td>Walks ≠ runs; both pitchers induce non-HR contact, Petco suppresses</td><td class="att">★ NRFI</td></tr>
+  <tr><td>TOR@PHI</td><td>×1.14</td><td>Soriano LOW F-STR K66</td><td>Wheeler K ELITE GB45%⬇</td><td>Soriano falls behind at CBP — first run likely early</td><td class="red">YRFI lean</td></tr>
+  <tr><td>LAD@AZ</td><td>×1.06</td><td>Sasaki K65 WALK</td><td>Kelly Att 75</td><td>Ohtani HOT vs Att pitcher — first inning danger</td><td class="red">YRFI lean</td></tr>
+  <tr><td>MIN@MIL</td><td>×1.04</td><td>Matthews WALK THREAT</td><td>Drohan K64 CMND</td><td>Drohan COMMAND ARTIST suppresses 1st; Matthews inconsistent</td><td class="neu">NEUTRAL</td></tr>
+</tbody>
+</table>
+
+<div class="play" style="border-color:var(--att);margin-top:10px">
+  <span class="play-title">★★ NRFI: TB @ SEA (T-Mobile ×0.91)</span>
+  <div class="sub">Logan Gilbert (K ELITE, COMMAND ARTIST f%=69.3%, walk score=24.9) vs Drew Rasmussen (K THREAT 64.4, GB46%⬇, f%=67%). Two command pitchers at the league's best pitcher's park. Neither walks batters, both induce weak contact. This is the cleanest NRFI on the slate.</div>
+</div>
+<div class="play" style="border-color:var(--neu);margin-top:6px">
+  <span class="play-title" style="color:var(--neu)">★ NRFI: HOU @ SD (Petco ×0.88)</span>
+  <div class="sub">Blanco (WALK MACHINE 72.5, GB47%⬇) may walk batters but Petco context means those walks don't score. Ray (WALK THREAT 64.8, IMPROVING trend). Strong park suppression. Moderate confidence — walk-heavy pitchers sometimes strand runners better than they look.</div>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ HR BOARD -->
+<div class="section">
+<h3>💣 HR Board — Top 20 Batters</h3>
+
+<div class="model-note">⚠️ <strong>Today's slate has only ONE Attackable pitcher: Merrill Kelly (75) at Chase Field ×1.06.</strong> All other pitchers score Neutral Lean or Avoid — many with active GB SUPPRESSOR flags (Klassen GB56%⬇, Soriano GB52%⬇, Fried GB49%⬇, Eovaldi GB50%⬇, Lynch GB52%⬇, Cavalli GB51%⬇). Today is NOT a heavy HR slate. Prioritize K and walk props.</div>
+
+<table>
+<thead><tr>
+  <th>Batter</th><th>Vs Pitcher</th><th>Tier</th><th>Wt</th><th>HR%</th><th>LA°</th><th>Park PF</th><th>Key Tags</th>
+</tr></thead>
+<tbody>
+  <tr><td><strong>Shohei Ohtani</strong></td><td>Kelly</td><td class="att">Att 75</td><td><strong>57.1</strong></td><td>31.8</td><td>13°</td><td>×1.06</td><td><span class="tag orange">HOT</span><span class="tag purple">BARREL</span><span class="tag blue">AIR PULL</span></td></tr>
+  <tr><td><strong>Yordan Alvarez</strong></td><td>Ray</td><td class="neu">Neu 57</td><td><strong>51.0</strong></td><td>27.6</td><td>19°</td><td>×0.88</td><td><span class="tag orange">DUE</span><span class="tag purple">BARREL</span><span class="tag blue">AIR PULL</span><span class="tag red">Petco ×0.88</span></td></tr>
+  <tr><td><strong>Max Muncy</strong></td><td>Kelly</td><td class="att">Att 75</td><td><strong>45.1</strong></td><td>27.3</td><td>17°</td><td>×1.06</td><td><span class="tag green">ACTIVE</span><span class="tag purple">BARREL</span><span class="tag blue">AIR PULL</span></td></tr>
+  <tr><td>Alec Burleson</td><td>Feltner</td><td class="neu">Neu GB44%⬇</td><td>41.0</td><td>21.9</td><td>12°</td><td>×0.92</td><td><span class="tag red">FIRE</span><span class="tag purple">BARREL</span><span class="tag red">FLAT SWING 12°</span></td></tr>
+  <tr><td>Esmerlyn Valdez</td><td>Thornton</td><td class="neu">Neu 55</td><td>40.7</td><td>23.8</td><td>22°</td><td>×0.94</td><td><span class="tag purple">BARREL</span><span class="tag teal">BLASTS</span><span class="tag green">LOFT 22°</span></td></tr>
+  <tr><td>Freddie Freeman</td><td>Kelly</td><td class="att">Att 75</td><td>39.2</td><td>23.2</td><td>12°</td><td>×1.06</td><td><span class="tag orange">DUE</span><span class="tag red">FLAT SWING 12°</span></td></tr>
+  <tr><td>Jake Bauers</td><td>Matthews</td><td class="neu">Neu 56</td><td>39.2</td><td>21.6</td><td>10°</td><td>×1.04</td><td><span class="tag red">HOT</span><span class="tag purple">BARREL</span><span class="tag red">FLAT SWING 10°</span></td></tr>
+  <tr><td>Endy Rodríguez</td><td>Thornton</td><td class="neu">Neu 55</td><td>37.1</td><td>13.7</td><td>19°</td><td>×0.94</td><td><span class="tag red">HOT</span><span class="tag purple">BARREL</span><span class="tag blue">AIR PULL</span></td></tr>
+  <tr><td>Junior Caminero</td><td>Gilbert</td><td class="neu">Neu 49</td><td>36.5</td><td>17.2</td><td>9°</td><td>×0.91</td><td><span class="tag red">FIRE</span><span class="tag purple">BARREL</span><span class="tag red">FLAT SWING 9°</span><span class="tag red">T-Mobile ×0.91</span></td></tr>
+  <tr><td>Griffin Conine</td><td>Klassen</td><td class="neu">Neu GB56%⬇</td><td>34.2</td><td>20.7</td><td>9°</td><td>×0.87</td><td><span class="tag green">ACTIVE</span><span class="tag muted">GB SUPP 56%</span><span class="tag red">FLAT SWING 9°</span></td></tr>
+  <tr><td>Nelson Velázquez</td><td>Feltner</td><td class="neu">Neu GB44%⬇</td><td>34.1</td><td>20.3</td><td>16°</td><td>×0.92</td><td><span class="tag purple">BARREL</span><span class="tag blue">AIR PULL</span><span class="tag teal">BLASTS</span></td></tr>
+  <tr><td>Wilyer Abreu</td><td>Perkins</td><td class="neu">Neu 50</td><td>32.7</td><td>22.7</td><td>19°</td><td>×1.04</td><td><span class="tag red">FIRE</span><span class="tag purple">BARREL</span><span class="tag teal">HR EDGE: CH FF</span></td></tr>
+  <tr><td>Rhys Hoskins</td><td>Schultz</td><td class="neu">Neu 63</td><td>31.1</td><td>17.7</td><td>27°</td><td>×1.00</td><td><span class="tag green">ACTIVE</span><span class="tag purple">BARREL</span><span class="tag green">LOFT 27°</span></td></tr>
+  <tr><td>Kyle Tucker</td><td>Kelly</td><td class="att">Att 75</td><td>31.6</td><td>16.7</td><td>17°</td><td>×1.06</td><td><span class="tag green">ACTIVE</span><span class="tag teal">HR EDGE: FF FC</span></td></tr>
+  <tr><td>Esmerlyn Valdez</td><td>Thornton</td><td class="neu">Neu 55</td><td>40.7</td><td>23.8</td><td>22°</td><td>×0.94</td><td><span class="tag green">LOFT 22°</span><span class="tag teal">BLASTS</span></td></tr>
+</tbody>
+</table>
+
+<h4>Key HR Narratives</h4>
+<div style="color:var(--muted);font-size:11px;line-height:1.8">
+  <strong style="color:var(--gold)">LAD Stack at Chase ×1.06 — the day's primary HR cluster:</strong> Kelly is genuinely Attackable (75, only one today). Ohtani is HOT but LA=13° is borderline flat. Muncy at 17° is the cleanest pick, AIR PULL + BARREL. Freeman (12° FLAT SWING) should be avoided despite the "DUE" tag — flat swing vs Kelly who still gets grounders 41% of the time. Tucker adds depth.<br><br>
+  <strong style="color:var(--red)">Avoid: Alvarez @ Petco (×0.88)</strong> — Even Yordan can't consistently beat Petco's suppression. At Neutral tier pitcher (Ray 57) + ×0.88 park, the 27.6% raw HR% comes down hard. Fantasy: yes. HR prop: questionable.<br><br>
+  <strong style="color:var(--muted)">Flat Swing warning signs:</strong> Burleson (12°), Freeman (12°), Bauers (10°), Caminero (9°), Conine (9°) — all have form signals but their swing angles work against HR props. These players hit for average and extra bases, not HRs specifically. Fade their HR props.<br><br>
+  <strong style="color:var(--green)">Hoskins (LOFT 27°) and Valdez (LOFT 22°)</strong> — The real loft hitters today. Hoskins vs Schultz at Rate Field (×1.00, neutral). Lower wt scores but cleaner HR profiles than many higher-ranked players.
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ FANTASY -->
+<div class="section">
+<h3>🏅 Fantasy Top 15</h3>
+<table>
+<thead><tr>
+  <th>Batter</th><th>Team</th><th>Opp Pitcher</th><th>Fantasy Sc</th><th>Matchup</th><th>Notes</th>
+</tr></thead>
+<tbody>
+  <tr><td><strong>Yordan Alvarez</strong></td><td>HOU</td><td>Ray</td><td><strong>83.8</strong></td><td>49.0</td><td>Elite EV/barrel, walk-heavy matchup = OBP + runs</td></tr>
+  <tr><td><strong>Shohei Ohtani</strong></td><td>LAD</td><td>Kelly</td><td><strong>78.8</strong></td><td>66.6</td><td>HOT + Att matchup at Chase — best ceiling play</td></tr>
+  <tr><td>Eduardo Valencia</td><td>DET</td><td>SF TBD</td><td>69.5</td><td>60.0</td><td>TBD pitcher = upside; Oracle suppresses power</td></tr>
+  <tr><td><strong>Alec Burleson</strong></td><td>STL</td><td>Feltner</td><td>69.1</td><td>71.1</td><td>FIRE form, high matchup grade — hit props &gt; HR</td></tr>
+  <tr><td>Freddie Freeman</td><td>LAD</td><td>Kelly</td><td>67.4</td><td>66.6</td><td>DUE, Att matchup, strong OBP — multi-hit upside</td></tr>
+  <tr><td>Griffin Conine</td><td>MIA</td><td>Klassen</td><td>66.5</td><td>76.3</td><td>Klassen WALK MACHINE → Conine OBP + run opportunities</td></tr>
+  <tr><td>Bobby Witt Jr.</td><td>KC</td><td>CHC TBD</td><td>64.6</td><td>60.0</td><td>Consistent producer; TBD pitcher is +upside</td></tr>
+  <tr><td>Mike Trout</td><td>LAA</td><td>Phillips</td><td>64.4</td><td>63.5</td><td>Phillips Avoid — good matchup even at loanDepot ×0.87</td></tr>
+  <tr><td>Bryan De La Cruz</td><td>PHI</td><td>Soriano</td><td>63.4</td><td>50.0</td><td>Soriano walk-prone, CBP friendly for run scoring</td></tr>
+  <tr><td>Jake Bauers</td><td>MIL</td><td>Matthews</td><td>63.4</td><td>69.6</td><td>HOT form, AmFam ×1.04 — hit prop, not HR prop (LA=10°)</td></tr>
+  <tr><td>Junior Caminero</td><td>TB</td><td>Gilbert</td><td>63.4</td><td>45.4</td><td>FIRE form but Gilbert K ELITE — K risk is real</td></tr>
+  <tr><td>Otto Lopez</td><td>MIA</td><td>Klassen</td><td>63.0</td><td>76.3</td><td>Same Klassen walk benefit as Conine</td></tr>
+  <tr><td>John Rave</td><td>KC</td><td>CHC TBD</td><td>62.8</td><td>60.0</td><td>Elite barrel profile, TBD pitcher upside</td></tr>
+  <tr><td>Ben Rice</td><td>NYY</td><td>Mahle</td><td>62.6</td><td>56.5</td><td>Mahle GB44%⬇ Avoid — run environment low but Rice OBP</td></tr>
+  <tr><td>Angel Genao</td><td>CLE</td><td>Schultz</td><td>62.2</td><td>66.8</td><td>Schultz Neutral 63 — solid matchup at Rate Field</td></tr>
+</tbody>
+</table>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ GAME BREAKDOWNS -->
+<div class="section">
+<h3>📊 Game-by-Game Breakdown</h3>
+
+<div class="game-hdr">LAD @ AZ · Chase Field ×1.06</div>
+<p style="color:var(--muted);font-size:11px;line-height:1.7"><strong class="att">Merrill Kelly Att 75</strong> vs LAD · Kelly's vuln=75 makes this the only true HR attack today. gb=41% (below GB suppressor threshold). Ohtani (wt=57.1, HOT, la=13° borderline) is the top target but Muncy (la=17°, AIR PULL, wt=45.1) is the cleanest angle. Freeman (12° FLAT SWING) looks like a value trap — his form is DUE but the swing angle doesn't project HRs vs Kelly's pitch mix. Tucker (la=17°, HR EDGE FF/FC, wt=31.6) adds depth to the stack.<br><span class="att">• Roki Sasaki</span> (AZ side) — K THREAT 64.6 but WALK THREAT 56.3 (BB%=9.2%, RISING). LAD is the offense to back here. Sasaki vs LAD lineup — high K ceiling but also walks. Kepler (la=19°, AIR PULL, wt=30.2) is the AZ batter upside.<br><strong>Primary:</strong> Muncy HR · Ohtani HR (secondary) · <em>YRFI lean given Ohtani vs Att Kelly early in game.</em></p>
+
+<div class="game-hdr">HOU @ SD · Petco Park ×0.88</div>
+<p style="color:var(--muted);font-size:11px;line-height:1.7"><strong>Ronel Blanco WALK MACHINE 72.5 GB47%⬇</strong> vs SD — BB%=12.9%, walks everywhere but low HR allowed (GB suppressor). Petco additionally suppresses run scoring. Walk props on Blanco (o1.5=68%, o2.5=41%) are viable but lesser than Klassen. Fernando Tatis Jr. (wt low, Neutral) and Gage Workman are the SD targets vs Blanco but park limits upside.<br><strong>Robbie Ray</strong> (HOU side) — WALK THREAT 64.8, FALLING trend (improving ctrl). Yordan Alvarez (wt=51.0, DUE, la=19°, BARREL) is the monster bat but Petco context is serious. Fantasy: yes. HR prop: risky. <br><strong>Primary:</strong> Blanco Walk o1.5 · Alvarez fantasy (not HR prop)</p>
+
+<div class="game-hdr">TB @ SEA · T-Mobile Park ×0.91</div>
+<p style="color:var(--muted);font-size:11px;line-height:1.7"><strong class="elite">Logan Gilbert K ELITE 74.8</strong> — COMMAND ARTIST (f%=69.3%), walk score=24.9, gb39% (no suppressor). Line=5.5 at 54% over. Best command pitcher on the slate — high K floor, low blowup risk. K prop is the primary play.<br><strong>Drew Rasmussen K THREAT 64.4</strong> — GB46%⬇, f%=67% (COMMAND ARTIST). Low walk risk. TB batter upside is limited against Rasmussen + T-Mobile.<br><strong>★★ NRFI:</strong> Both command pitchers + ×0.91 park = premier first-inning shutout.<br><strong>Primary:</strong> Gilbert K o5.5 (54%) · ★★ NRFI</p>
+
+<div class="game-hdr">TOR @ PHI · Citizens Bank Park ×1.14</div>
+<p style="color:var(--muted);font-size:11px;line-height:1.7"><strong class="elite">Zack Wheeler K ELITE 83.8 GB45%⬇</strong> — Top K score today but line=5.5 at only 48% over. Not ideal value. His GB45%⬇ means TOR batters won't HR off him despite CBP's park factor.<br><strong class="threat">José Soriano K THREAT 66.2</strong> — LOW F-STRIKE (58%), WALK THREAT 57.4, BB%=11.2%. PHI lineup is patient (Schwarber, Harper, Crawford). Soriano is a dual K+Walk play — walk o1.5 (70%) is the primary prop. PHI scoring first seems likely with Soriano falling behind in counts at CBP.<br><strong>Primary:</strong> Soriano Walk o1.5 (70%) · Wheeler K o5.5 (monitor line movement) · <em>YRFI lean on PHI first inning (Soriano LOW F-STRIKE)</em></p>
+
+<div class="game-hdr">BAL @ TEX · Globe Life Field ×1.00</div>
+<p style="color:var(--muted);font-size:11px;line-height:1.7"><strong class="elite">Nathan Eovaldi K ELITE 74.9 GB50%⬇</strong> — k%=25.3, swstr=30.7, f%=64.7. Globe Life neutral park. Walk score=33.1 (minimal walk risk). Line=5.5 at 54% over — clean K play. GB50%⬇ means BAL won't be hitting HRs either.<br><strong>Shane Baz</strong> (BAL side) — Avoid 40, walk score=40 (NEUTRAL). Encarnacion-Strand (wt=17, la=?) and Foscue are TEX targets vs Baz.<br><strong>Primary:</strong> Eovaldi K o5.5 (54%)</p>
+
+<div class="game-hdr">ATH @ BOS · Fenway Park ×1.04</div>
+<p style="color:var(--muted);font-size:11px;line-height:1.7"><strong class="threat">Jack Perkins K THREAT 64.7</strong> — k%=26.8, swstr=28.3, Walk THREAT 52.8 (BB%=8.4%). Line=5.5 at 54% over. Solid K arm facing BOS lineup at Fenway ×1.04. Abreu (wt=32.7, FIRE, la=19°, BARREL) and Contreras (wt=31.1, ACTIVE) are the BOS batters vs Perkins.<br><strong class="threat">Payton Tolle K THREAT 63.4</strong> — k%=26.5, higher K line=6.0 at 41% (less value). Avoid as K prop.<br><strong>Primary:</strong> Perkins K o5.5 (54%)</p>
+
+<div class="game-hdr">LAA @ MIA · loanDepot Park ×0.87</div>
+<p style="color:var(--muted);font-size:11px;line-height:1.7"><strong class="fire">George Klassen WALK MACHINE 83.0 GB56%⬇</strong> — The slate's must-play. BB%=31.3%, 5BB in each of his last 2 starts (both ~2 innings each). loanDepot suppresses HRs (×0.87). MIA batters will draw walks but won't hit HRs — Conine (wt=34.2, ACTIVE, la=9° FLAT SWING) benefits from OBP but not power. Play Klassen walk props exclusively.<br><strong>Tyler Phillips</strong> (LAA side) — Avoid 36 GB47%⬇. Mike Trout (fs=64.4) is the LAA bat upside vs Phillips. Lowe (wt=11) minimal.<br><strong>Primary:</strong> Klassen Walk o1.5 (95%) 🔥 + o2.5 (85%) 🔥</p>
+
+<div class="game-hdr">MIN @ MIL · American Family Field ×1.04</div>
+<p style="color:var(--muted);font-size:11px;line-height:1.7"><strong class="threat">Zebby Matthews WALK THREAT 55.5</strong> (MIL side) — BB%=7.6%, f%=67% (COMMAND ARTIST, contradicting his walk tier). Walk o1.5=54% o2.5=27% — moderate, not the primary play. Facing MIN lineup at AmFam ×1.04.<br><strong class="threat">Shane Drohan K THREAT 64.4</strong> — f%=68% COMMAND ARTIST, low walk risk. Line=5.0 at 46% — not great K value. Bauers (wt=39.2, HOT, la=10° FLAT SWING) and Mitchell (wt=33.7, DUE, la=2° EXTREME FLAT) are MIL batters — form signals but terrible swing angles for HR props.<br><strong>Primary:</strong> Skip — no clear edge</p>
+
+<div class="game-hdr">ATL @ NYY · Yankee Stadium ×0.96</div>
+<p style="color:var(--muted);font-size:11px;line-height:1.7"><strong>Max Fried Avoid 0 GB49%⬇</strong> — The GB SUPPRESSOR model is doing its job: Fried's extreme sinker usage (GB49%⬇) combined with LOW F-STRIKE (55%) produces a Avoid/WALK THREAT combination. He won't give up HRs but may walk Braves. Walk score=56.5 (WALK THREAT), o1.5=50% o2.5=24% — not the primary walk play but worth noting.<br><strong>Tyler Mahle Avoid GB44%⬇</strong> — Another GB arm. NYY batters (Rice, García Jr.) limited in HR upside vs Mahle.<br><strong>Primary:</strong> Skip HR props — neither pitcher gives up fly balls</p>
+
+<div class="game-hdr">COL @ STL · Busch Stadium ×0.94</div>
+<p style="color:var(--muted);font-size:11px;line-height:1.7"><strong>Ryan Feltner Neutral Lean GB44%⬇</strong> — STL batters (Burleson FIRE, Velázquez BARREL BLASTS) have power profiles but Feltner's GB44%⬇ flag and Busch ×0.94 limits HR upside. Burleson (la=12° FLAT SWING) especially concerning despite the HOT tag.<br><strong>Kyle Leahy Neutral Lean GB45%⬇</strong> — COL batters (Julien, Goodman) minimal HR threat at Busch.<br><strong>Primary:</strong> Velázquez HR (cleaner than Burleson given la=16°)</p>
+
+<div class="game-hdr">NYM @ PIT · PNC Park ×0.87</div>
+<p style="color:var(--muted);font-size:11px;line-height:1.7"><strong>Zac Thornton Neutral Lean 55</strong> — PIT batters face NYM. Rodríguez (wt=37.1, HOT, la=19°) and Valdez (wt=40.7, LOFT 22°, BLASTS) are the targets — both have positive swing profiles. PNC suppresses (×0.87) but with Neutral pitcher these remain secondary plays.<br><strong>Carmen Mlodzinski Neutral Lean 47</strong> — NYM batters (Lindor, Ewing) minimal targets.<br><strong>Primary:</strong> Rodríguez HR (secondary) · Valdez HR (secondary)</p>
+
+<div class="game-hdr">CIN @ WSH · Nationals Park ×0.95</div>
+<p style="color:var(--muted);font-size:11px;line-height:1.7"><strong>Cade Cavalli Avoid GB51%⬇</strong> — No HR environment. Cavalli K THREAT 55.5 — K line=6.5 at 49% (close). WSH park suppresses.<br><strong>Primary:</strong> Cavalli K o6.5 (49%) — coinflip</p>
+
+<div class="game-hdr">CLE @ CWS · Rate Field ×1.00</div>
+<p style="color:var(--muted);font-size:11px;line-height:1.7"><strong>Noah Schultz Neutral Lean 63</strong> — The highest Neutral score today outside the LAD game. K score modest (29), Walk THREAT 52 (BB%=10.8%). Hoskins (wt=31.1, ACTIVE, la=27° LOFT HITTER) is the primary CWS bat — Hoskins LOFT 27° is a legitimate HR threat vs Schultz despite Neutral tier.<br><strong>Parker Messick Avoid GB45%⬇</strong> — Low HR game on the CLE side.<br><strong>Primary:</strong> Hoskins HR (tertiary)</p>
+
+<div class="game-hdr">CHC @ KC · Kauffman Stadium ×0.93</div>
+<p style="color:var(--muted);font-size:11px;line-height:1.7"><strong>Daniel Lynch Avoid GB52%⬇</strong> — Extreme GB pitcher + pitcher's park. CHC TBD pitcher = upside unknown.<br><strong>Primary:</strong> Witt Jr. fantasy (if TBD pitcher is weak)</p>
+
+<div class="game-hdr">DET @ SF · Oracle Park ×0.88</div>
+<p style="color:var(--muted);font-size:11px;line-height:1.7"><strong>TBD SF pitcher</strong> — Unknown home arm adds volatility. DET has Eduardo Valencia (fs=69.5) as primary bat. Oracle suppresses.<br><strong>Keider Montero Avoid 31</strong> — SF batter side (Eldridge, Devers) limited vs Montero.<br><strong>Primary:</strong> Skip — too many unknowns</p>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ FADES & AVOIDS -->
+<div class="section">
+<h3>🚫 Fades &amp; Avoids</h3>
+<table>
+<thead><tr><th>Play</th><th>Reason</th></tr></thead>
+<tbody>
+  <tr><td class="red">Alvarez HR (Petco ×0.88)</td><td>Elite profile beaten by park factor. Fantasy yes, HR prop no.</td></tr>
+  <tr><td class="red">Freeman HR vs Kelly</td><td>FLAT SWING 12° — flat swing vs a pitcher who still gets 41% grounders. DUE tag is a trap.</td></tr>
+  <tr><td class="red">Burleson HR (la=12°)</td><td>FLAT SWING despite FIRE form. At Busch ×0.94 with GB44%⬇ Feltner. Hit prop &gt; HR prop.</td></tr>
+  <tr><td class="red">Caminero HR (T-Mobile ×0.91)</td><td>FIRE form but la=9° (extreme flat swing) vs Gilbert K ELITE at a pitcher's park.</td></tr>
+  <tr><td class="red">Any HR vs Soriano (GB52%⬇)</td><td>Soriano is a K and Walk play — not an HR play. His GB suppressor makes HR bets unattractive despite CBP.</td></tr>
+  <tr><td class="red">Wheeler K o5.5 (48%)</td><td>K ELITE arm but under 50% over probability — no value at current line.</td></tr>
+  <tr><td class="red">Mahle/Fried walk overs</td><td>Both are GB50%⬇ and LOW F-STRIKE but walk scores don't reach WALK MACHINE. Insufficient conviction.</td></tr>
+  <tr><td class="red">Mitchell HR (la=2°!)</td><td>La=2° is essentially a grounder machine. HOT form ≠ HR form when you have the flattest swing on the slate.</td></tr>
+</tbody>
+</table>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════ SLATE SUMMARY -->
+<div class="section">
+<h3>📌 Slate Summary — August 7, 2026</h3>
+<div style="color:var(--muted);font-size:12px;line-height:1.9">
+<p><strong style="color:var(--gold)">Theme: Walk and K day. Only one Attackable pitcher (Kelly) — not a heavy HR slate.</strong></p>
+<br>
+<p><span class="tag gold">LOCK</span> George Klassen Walk o1.5 (95%) — the highest-conviction play of the week. o2.5 (85%) is the better payout on the same logic.</p>
+<p><span class="tag green">STRONG</span> Eovaldi K o5.5 (54%) · Gilbert K o5.5 (54%) · ★★ NRFI TB@SEA</p>
+<p><span class="tag blue">PLAY</span> Muncy HR vs Kelly (wt=45.1, la=17°, only Attackable matchup) · Soriano Walk o1.5 (70%, LOW F-STRIKE)</p>
+<p><span class="tag orange">SECONDARY</span> Blanco Walk o1.5 (68%) · Ray Walk o1.5 (73%, FALLING=caution) · Perkins K o5.5 (54%) · ★ NRFI HOU@SD</p>
+<p><span class="tag muted">MONITOR</span> Ohtani HR (HOT + Att but la=13° borderline) · Hoskins HR (LOFT 27° is real)</p>
+<br>
+<p style="color:var(--border)">─────────────────────────────────────────────────────</p>
+<p style="font-size:11px"><strong style="color:var(--muted)">Model v2 impact today:</strong> 6 of today's 15 game pitchers have active GB SUPPRESSOR flags (Klassen 56%, Soriano 52%, Cavalli 51%, Fried 49%, Lynch 52%, Eovaldi 50%). Under the old model several would have rated higher for HR vulnerability. The new model correctly dampens HR expectations across much of the slate and surfaces walk/K plays instead.</p>
+</div>
+</div>
+
+<p style="color:var(--border);font-size:10px;margin-top:20px;text-align:center">PropStats — Personal use only — August 7, 2026</p>
+
+</body>
+</html>

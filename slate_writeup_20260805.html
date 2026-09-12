@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Slate Writeup — August 5, 2026</title>
+<style>
+  :root {
+    --bg: #0f1117; --bg2: #1a1d27; --bg3: #22263a;
+    --text: #e8eaf0; --muted: #8890aa; --border: #2e3350;
+    --green: #22c55e; --yellow: #f59e0b; --red: #ef4444;
+    --blue: #60a5fa; --purple: #a855f7; --orange: #f97316;
+    --gold: #D4A017; --teal: #14b8a6;
+    --att: #22c55e; --neu: #f59e0b; --avo: #ef4444;
+    --coors: #f97316;
+  }
+  @media (prefers-color-scheme: light) {
+    :root { --bg:#f0f2f8; --bg2:#fff; --bg3:#e8eaf2; --text:#1a1d2e; --muted:#5a6080; --border:#c8ccdc; }
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'SF Mono', 'Fira Code', monospace; font-size: 13px; line-height: 1.6; padding: 16px; max-width: 1100px; margin: 0 auto; }
+  h1 { font-size: 22px; font-weight: 700; color: var(--gold); letter-spacing: .5px; margin-bottom: 4px; }
+  h2 { font-size: 14px; font-weight: 700; color: var(--blue); text-transform: uppercase; letter-spacing: 1px; margin: 20px 0 8px; border-bottom: 1px solid var(--border); padding-bottom: 4px; }
+  h3 { font-size: 13px; font-weight: 700; color: var(--text); margin: 14px 0 6px; }
+  .sub { color: var(--muted); font-size: 11px; margin-bottom: 16px; }
+  .postmortem { background: var(--bg2); border: 1px solid var(--border); border-left: 3px solid var(--blue); padding: 12px 16px; border-radius: 6px; margin-bottom: 20px; }
+  .postmortem-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 10px; }
+  .pm-stat { text-align: center; }
+  .pm-stat .big { font-size: 22px; font-weight: 700; }
+  .pm-stat .lbl { font-size: 10px; color: var(--muted); text-transform: uppercase; }
+  .green { color: var(--green); } .red { color: var(--red); } .yellow { color: var(--yellow); }
+  .gold { color: var(--gold); } .blue { color: var(--blue); } .purple { color: var(--purple); }
+  .orange { color: var(--orange); }
+  .top-plays { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }
+  .play-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; padding: 12px; }
+  .play-card.prime { border-color: var(--gold); }
+  .play-card.stack { border-color: var(--purple); }
+  .play-card.walk { border-color: var(--teal); }
+  .play-card.k-play { border-color: var(--blue); }
+  .play-card.fade { border-color: var(--red); border-style: dashed; }
+  .play-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+  .prime .play-label { color: var(--gold); }
+  .stack .play-label { color: var(--purple); }
+  .walk .play-label { color: var(--teal); }
+  .k-play .play-label { color: var(--blue); }
+  .fade .play-label { color: var(--red); }
+  .play-name { font-size: 17px; font-weight: 700; margin-bottom: 4px; }
+  .play-odds { font-size: 13px; font-weight: 700; color: var(--green); }
+  .play-stats { font-size: 11px; color: var(--muted); margin-top: 4px; line-height: 1.8; }
+  .tag { display: inline-block; font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 3px; margin: 1px 2px; }
+  .tag-ideal { background: rgba(212,160,23,.2); color: var(--gold); border: 1px solid var(--gold); }
+  .tag-hot   { background: rgba(239,68,68,.2);  color: var(--red);  border: 1px solid var(--red); }
+  .tag-fire  { background: rgba(249,115,22,.2); color: var(--orange); border: 1px solid var(--orange); }
+  .tag-due   { background: rgba(96,165,250,.2); color: var(--blue); border: 1px solid var(--blue); }
+  .tag-att   { background: rgba(34,197,94,.2);  color: var(--green); border: 1px solid var(--green); }
+  .tag-neu   { background: rgba(245,158,11,.2); color: var(--yellow); border: 1px solid var(--yellow); }
+  .tag-avo   { background: rgba(239,68,68,.15); color: var(--red); border: 1px solid var(--red); }
+  .game-section { margin-bottom: 18px; background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+  .game-header { background: var(--bg3); padding: 8px 14px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px; }
+  .game-title { font-size: 15px; font-weight: 700; }
+  .game-meta { font-size: 11px; color: var(--muted); }
+  .pitcher-badge { font-size: 11px; padding: 2px 8px; border-radius: 3px; font-weight: 700; }
+  .att-badge { background: rgba(34,197,94,.2); color: var(--green); border: 1px solid var(--green); }
+  .neu-badge { background: rgba(245,158,11,.15); color: var(--yellow); border: 1px solid var(--yellow); }
+  .avo-badge { background: rgba(239,68,68,.1); color: var(--red); border: 1px solid rgba(239,68,68,.5); }
+  .park-badge { font-size: 10px; padding: 2px 6px; border-radius: 3px; font-weight: 700; }
+  .park-extreme { background: rgba(249,115,22,.2); color: var(--orange); border: 1px solid var(--orange); }
+  .park-hot { background: rgba(34,197,94,.15); color: var(--green); border: 1px solid rgba(34,197,94,.4); }
+  .park-neu { background: rgba(100,116,139,.15); color: var(--muted); border: 1px solid var(--border); }
+  .park-sup { background: rgba(96,165,250,.1); color: var(--blue); border: 1px solid rgba(96,165,250,.3); }
+  .game-body { padding: 10px 14px; }
+  .pick-row { display: flex; align-items: baseline; gap: 10px; padding: 4px 0; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+  .pick-row:last-child { border-bottom: none; }
+  .pick-rank { color: var(--muted); width: 22px; flex-shrink: 0; font-size: 11px; }
+  .pick-name { font-weight: 700; min-width: 140px; }
+  .pick-wt { color: var(--gold); width: 50px; }
+  .pick-stats { color: var(--muted); font-size: 11px; flex: 1; }
+  .pick-odds { color: var(--green); font-size: 11px; }
+  .section-note { font-size: 11px; color: var(--muted); padding: 6px 0; font-style: italic; }
+  table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 11px; overflow-x: auto; display: block; }
+  th { background: var(--bg3); padding: 5px 8px; text-align: left; color: var(--muted); font-weight: 700; text-transform: uppercase; font-size: 10px; letter-spacing: .5px; white-space: nowrap; }
+  td { padding: 4px 8px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--bg3); }
+  .k-tier-elite { color: var(--gold); font-weight: 700; }
+  .nrfi-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 8px; }
+  .nrfi-cell { background: var(--bg2); border: 1px solid var(--border); border-radius: 4px; padding: 8px; font-size: 11px; }
+  .nrfi-cell .verdict { font-size: 13px; font-weight: 700; margin-top: 4px; }
+  .nrfi-yrfi { color: var(--red); } .nrfi-nrfi { color: var(--green); } .nrfi-push { color: var(--yellow); }
+  .stack-alert { background: rgba(168,85,247,.1); border: 1px solid rgba(168,85,247,.4); border-radius: 4px; padding: 6px 10px; font-size: 11px; margin: 6px 0; color: var(--purple); }
+  .ideal-flag { color: var(--gold); font-size: 10px; }
+  .walk-box { background: rgba(20,184,166,.07); border: 1px solid rgba(20,184,166,.3); border-radius: 4px; padding: 8px 12px; margin: 8px 0; font-size: 11px; }
+  .fade-box { background: rgba(239,68,68,.06); border: 1px dashed rgba(239,68,68,.4); border-radius: 4px; padding: 8px 12px; margin: 8px 0; font-size: 11px; }
+  .divider { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
+  @media (max-width: 700px) { .top-plays { grid-template-columns: 1fr; } .nrfi-grid { grid-template-columns: repeat(2,1fr); } .postmortem-grid { grid-template-columns: repeat(2,1fr); } }
+</style>
+</head>
+<body>
+
+<h1>⚾ SLATE WRITEUP — AUGUST 5, 2026</h1>
+<p class="sub">15 games · 30 pitcher matchups · 30 K arms · 390 fantasy players · Generated 2026-08-05</p>
+
+<!-- 8/4 POST-MORTEM -->
+<div class="postmortem">
+  <h3 style="color:var(--blue);margin-bottom:8px;">📊 8/4 POST-MORTEM</h3>
+  <div class="postmortem-grid">
+    <div class="pm-stat"><div class="big red">1/10</div><div class="lbl">Top 10 HR</div></div>
+    <div class="pm-stat"><div class="big red">0/16</div><div class="lbl">IDEAL SETUP</div></div>
+    <div class="pm-stat"><div class="big green">88%</div><div class="lbl">Avoid Clean Miss</div></div>
+    <div class="pm-stat"><div class="big green">2/4</div><div class="lbl">K ELITE o/u</div></div>
+  </div>
+  <p style="font-size:11px;color:var(--muted);margin-top:10px;">Riley Greene (#4, DUE ✅) was the only top-10 HR. IDEAL SETUP crashed 0-for-16 — likely sample variance on a signal that was 7/8 over 3 days. Avoid tier held strong: 88.3% clean misses (106/120). K ELITE: Luzardo 7K ✅ (8IP shutout), Henderson 8K ✅ — Skenes and Jones both fell short early. Walk props: Rodriguez (10.1% BB) shockingly issued only 1 BB in 7 IP; Manaea (7.5% BB, not targeted) issued 5. Walks are extremely high-variance game-to-game.</p>
+</div>
+
+<h2>🎯 TOP PLAYS — TODAY</h2>
+<div class="top-plays">
+
+  <div class="play-card prime">
+    <div class="play-label">⭐ #1 PRIME HR PLAY</div>
+    <div class="play-name">Yordan Alvarez</div>
+    <div><span class="play-odds">+145</span> &nbsp; HOU vs Taillon · Daikin Park ×1.08</div>
+    <div class="play-stats">
+      Wt=66.5 · HR%=42.8 · MS=95.5 · xwOBA=0.473 · xISO=0.369<br>
+      Brl/BIP=18.1% · EV=94.4 · HH%=53.7 · BatSpd=76.1mph<br>
+      <span class="tag tag-due">📈 DUE (0 HR L5)</span> vs <span class="tag tag-att">🟢 Attackable 86</span><br>
+      Yesterday faded (Yesavage Avoid). Today: full green light at home.
+    </div>
+  </div>
+
+  <div class="play-card stack">
+    <div class="play-label">🏔️ COORS MEGA STACK — TB@COL</div>
+    <div class="play-name">Caminero / Aranda / Díaz stack</div>
+    <div><span style="color:var(--orange)">Coors Field ×1.27 EXTREME</span> vs Sugano (Attackable 84)</div>
+    <div class="play-stats">
+      Caminero Wt=46.4 +221 · <span class="tag tag-fire">🔥 FIRE 3+ HR L5</span><br>
+      Aranda Wt=41.8 +251 · <span class="tag tag-due">📈 DUE</span><br>
+      Mesa Jr. Wt=35.3 +276 · Díaz Wt=34.5 +355<br>
+      Moniak Wt=35.8 +317 · <span class="tag tag-hot">🔥 HOT 2 HR L5</span><br>
+      8+ COL batters flagged. IDEAL SETUP for all. Stack the lineup.
+    </div>
+  </div>
+
+  <div class="play-card prime">
+    <div class="play-label">⭐ PHI STACK CONTINUES</div>
+    <div class="play-name">Schwarber + Harper</div>
+    <div><span class="play-odds">+226 / +244</span> &nbsp; PHI vs Irvin · CBP ×1.14</div>
+    <div class="play-stats">
+      Schwarber: Wt=51.7 · HR%=32.2 · BatSpd=77.0mph · Brl/BIP=17.4%<br>
+      Harper: Wt=46.8 · HR%=30.6 · <span class="tag tag-hot">🔥 HOT 2 HR L5</span> · xwOBA=0.389<br>
+      Irvin: <span class="tag tag-att">🟢 Attackable 74</span> BB%=9.7 · Wall props viable<br>
+      Same setup as yesterday but Irvin (not Littell) — similar tier, same park.
+    </div>
+  </div>
+
+  <div class="play-card walk">
+    <div class="play-label">🚶 WALK PROP FOCUS</div>
+    <div class="play-name">Mitch Bratt + Whisenhunt</div>
+    <div><span style="color:var(--teal)">15.3% + 13.8% BB</span> — Highest walk rates on slate</div>
+    <div class="play-stats">
+      Bratt (SD@AZ, LHP): 15.3% BB · Faces RHB-heavy AZ (6R vs LHP)<br>
+      AZ team BB%=8.8% · Machado, Tatis, Marte, Carroll, Campusano all patient<br>
+      Whisenhunt (SF@TEX, LHP): 13.8% BB · Att 85 · 6 TEX batters stacked<br>
+      TEX: Seager, Pederson, Nimmo, Langford, Foscue working counts<br>
+      Target: walks drawn by AZ lineup vs Bratt, TEX lineup vs Whisenhunt
+    </div>
+  </div>
+
+  <div class="play-card k-play">
+    <div class="play-label">🔺 K PROPS — NO ELITE TODAY</div>
+    <div class="play-name">Detmers o6.5 + Imanaga o5.5</div>
+    <div><span class="play-odds">52% over</span> both · Sub-K-ELITE day</div>
+    <div class="play-stats">
+      Harrison 74.6 · Skenes 73.5 — both just under 75 threshold<br>
+      <b>Best edge: Detmers o6.5 (70.3, 52% over)</b> · LAA@BAL · K%=28.3 SwStr=29<br>
+      Imanaga o5.5 (68.0, 52% over) · LAD@CHC · SwStr=29.1<br>
+      <b>Best value: Taillon o3.5 (56% over)</b> — line set very low for HOU game<br>
+      Casey Mize o5.5 (66.4, 53% over) · SD@AZ — highest single over%
+    </div>
+  </div>
+
+  <div class="play-card fade">
+    <div class="play-label">🚫 FADES TODAY</div>
+    <div class="play-name">Avoid Tier Batters</div>
+    <div><span style="color:var(--red)">Avoid: Reid Detmers, Trevor Rogers, Bryan Woo</span></div>
+    <div class="play-stats">
+      Griffin Conine Wt=32.1 raw · Avoid (Elder 40) — same game 2nd time<br>
+      Riley Greene Wt=25.6 raw · Avoid (Bryan Woo 38) at T-Mobile ×0.91<br>
+      Alonso/CES vs Detmers (Avoid 39) · BAL park favorable but pitcher suppresses<br>
+      Ben Rice + NYY bats vs Pallante (Avoid 26) — Wt penalty brings all below 25<br>
+      Note: Avoid 88.3% clean miss rate over 4-day sample — respect the signal
+    </div>
+  </div>
+
+</div>
+
+<h2>🎮 GAME-BY-GAME BREAKDOWN</h2>
+
+<!-- TOR@HOU -->
+<div class="game-section">
+  <div class="game-header">
+    <span class="game-title">TOR @ HOU — Daikin Park</span>
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+      <span class="park-badge park-hot">×1.08 HR FRIENDLY</span>
+      <span class="pitcher-badge att-badge">Taillon: 🟢 Att 86</span>
+      <span style="font-size:11px;color:var(--purple)">★ 6-BATTER STACK ALERT</span>
+    </div>
+  </div>
+  <div class="game-body">
+    <div class="stack-alert">🔥 STACK: Taillon is the 2nd most Attackable pitcher on slate (86). HOU bats him at home. Alvarez, Peña, Trammell, Paredes, Smith — 6 batters ≥40 matchup score.</div>
+    <h3>HR Props</h3>
+    <div class="pick-row"><span class="pick-rank">#1</span><span class="pick-name">Yordan Alvarez</span><span class="pick-wt">Wt=66.5</span><span class="pick-stats">HR%=42.8 · MS=95.5 · Brl/BIP=18.1 · EV=94.4 · xwOBA=0.473 · xISO=0.369 <span class="tag tag-due">📈 DUE 0 HR L5</span></span><span class="pick-odds">+145</span></div>
+    <div class="pick-row"><span class="pick-rank">#10</span><span class="pick-name">Taylor Trammell</span><span class="pick-wt">Wt=37.6</span><span class="pick-stats">HR%=25.9 · Brl/BIP=12.0 · EV=88.3 · xwOBA=0.317 <span class="tag tag-att">✓ ACTIVE 1 HR L5</span></span><span class="pick-odds">+305</span></div>
+    <div class="pick-row"><span class="pick-rank">—</span><span class="pick-name">Jeremy Peña</span><span class="pick-wt">Wt=~28</span><span class="pick-stats">Attackable contact · watch for walk prop too (drew 2 BB yesterday vs Yesavage)</span><span class="pick-odds">—</span></div>
+    <h3>K Props</h3>
+    <p class="section-note">Taillon Score=50.4, Line=3.5, <b>56% over</b> — best single over% on slate given how low the line is set. Taillon's recent ERA=11.87 (L3) makes books fearful he'll be pulled early, setting the line too low. 20.9% K, 25.7 SwStr. Hunter Brown facing TOR: 55.8 score, line=5.5, 50% over.</p>
+    <h3>NRFI/YRFI</h3>
+    <p class="section-note"><span class="nrfi-yrfi"><b>YRFI LEAN</b></span> — Taillon (Att 86) pitching to HOU's most potent lineup at home. Alvarez due, Peña productive, Trammell active. HOU likely scores early vs beatable arm.</p>
+    <div class="walk-box">🚶 Walk props: Taillon 8.3% BB + Alvarez/Peña patience = HOU batters walk angle. Brown 13.5% BB means TOR batters (Okamoto, Guerrero, Valenzuela) can also work walks.</div>
+  </div>
+</div>
+
+<!-- TB@COL -->
+<div class="game-section">
+  <div class="game-header">
+    <span class="game-title">TB @ COL — Coors Field</span>
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+      <span class="park-badge park-extreme">×1.27 EXTREME HR PARK</span>
+      <span class="pitcher-badge att-badge">Sugano: 🟢 Att 84</span>
+      <span class="pitcher-badge neu-badge">Martinez: 🟡 Neu 54</span>
+      <span style="font-size:11px;color:var(--gold)">★★ IDEAL SETUP HOTBED</span>
+    </div>
+  </div>
+  <div class="game-body">
+    <div class="stack-alert">🏔️ MEGA STACK: Coors (×1.27) + Attackable Sugano (84) = 10+ COL batters flagged as IDEAL SETUP. This is the deepest stack window on the slate.</div>
+    <h3>HR Props — COL vs Sugano (Att 84)</h3>
+    <div class="pick-row"><span class="pick-rank">#4</span><span class="pick-name">Junior Caminero <span class="ideal-flag">✦IDEAL</span></span><span class="pick-wt">Wt=46.4</span><span class="pick-stats">HR%=31.2 · Brl/BIP=13.8 · EV=93.1 · xwOBA=0.375 · xISO=0.239 · BatSpd=79.8 <span class="tag tag-fire">🔥 FIRE 3+ HR L5</span></span><span class="pick-odds">+221</span></div>
+    <div class="pick-row"><span class="pick-rank">#7</span><span class="pick-name">Jonathan Aranda <span class="ideal-flag">✦IDEAL</span></span><span class="pick-wt">Wt=41.8</span><span class="pick-stats">HR%=28.5 · Brl/BIP=10.1 · EV=91.0 · xwOBA=0.358 <span class="tag tag-due">📈 DUE</span></span><span class="pick-odds">+251</span></div>
+    <div class="pick-row"><span class="pick-rank">#18</span><span class="pick-name">Victor Mesa Jr. <span class="ideal-flag">✦IDEAL</span></span><span class="pick-wt">Wt=35.3</span><span class="pick-stats">HR%=26.6 · Brl/BIP=11.5 · EV=89.1 · xwOBA=0.312 <span class="tag tag-due">📈 DUE</span></span><span class="pick-odds">+276</span></div>
+    <div class="pick-row"><span class="pick-rank">#20</span><span class="pick-name">Yandy Díaz <span class="ideal-flag">✦IDEAL</span></span><span class="pick-wt">Wt=34.5</span><span class="pick-stats">HR%=22.0 · EV=90.8 · xwOBA=0.353 · xISO=0.159 · Brl=7.0 BLASTS</span><span class="pick-odds">+355</span></div>
+    <h3>HR Props — TB vs Martinez (Neu 54)</h3>
+    <div class="pick-row"><span class="pick-rank">#5</span><span class="pick-name">Hunter Goodman <span class="ideal-flag">✦IDEAL</span></span><span class="pick-wt">Wt=44.2</span><span class="pick-stats">HR%=26.1 · Brl/BIP=16.6 · EV=90.5 · xwOBA=0.326 <span class="tag tag-hot">🔥 HOT 2 HR L5</span></span><span class="pick-odds">+322</span></div>
+    <div class="pick-row"><span class="pick-rank">#14</span><span class="pick-name">Mickey Moniak <span class="ideal-flag">✦IDEAL</span></span><span class="pick-wt">Wt=35.8</span><span class="pick-stats">HR%=26.4 · Brl/BIP=11.2 · EV=89.4 · xwOBA=0.304 <span class="tag tag-hot">🔥 HOT 2 HR L5</span></span><span class="pick-odds">+317</span></div>
+    <h3>K Props</h3>
+    <p class="section-note">Sugano score=18.2, Line=3.5, 52% over — low baseline but Coors thin air actually aids Ks early in games. Martinez score=20.8, line=4.0, 40% over. No strong K angle here — this is a hitting environment.</p>
+    <h3>NRFI/YRFI</h3>
+    <p class="section-note"><span class="nrfi-yrfi"><b>STRONG YRFI</b></span> — Coors + two beatable starters. YRFI hit yesterday (9-7 final). Caminero is FIRE (3+ HR L5) and hits first inning regularly. Best YRFI game on slate.</p>
+  </div>
+</div>
+
+<!-- WSH@PHI -->
+<div class="game-section">
+  <div class="game-header">
+    <span class="game-title">WSH @ PHI — Citizens Bank Park</span>
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+      <span class="park-badge park-hot">×1.14 HR FRIENDLY</span>
+      <span class="pitcher-badge att-badge">Irvin: 🟢 Att 74</span>
+      <span class="pitcher-badge neu-badge">Painter: 🟡 Neu 62</span>
+      <span style="font-size:11px;color:var(--purple)">★ 5-BATTER STACK ALERT (PHI)</span>
+    </div>
+  </div>
+  <div class="game-body">
+    <h3>HR Props — PHI vs Irvin (Att 74, BB%=9.7)</h3>
+    <div class="pick-row"><span class="pick-rank">#2</span><span class="pick-name">Kyle Schwarber</span><span class="pick-wt">Wt=51.7</span><span class="pick-stats">HR%=32.2 · Brl/BIP=17.4 · EV=93.3 · BatSpd=77.0mph · xISO=0.253 AIR PULL BLASTS</span><span class="pick-odds">+226</span></div>
+    <div class="pick-row"><span class="pick-rank">#3</span><span class="pick-name">Bryce Harper</span><span class="pick-wt">Wt=46.8</span><span class="pick-stats">HR%=30.6 · Brl/BIP=11.8 · EV=90.3 · xwOBA=0.389 <span class="tag tag-hot">🔥 HOT 2 HR L5</span> · xISO=0.237</span><span class="pick-odds">+244</span></div>
+    <div class="pick-row"><span class="pick-rank">#19</span><span class="pick-name">Brandon Marsh</span><span class="pick-wt">Wt=35.1</span><span class="pick-stats">HR%=21.5 · Brl/BIP=8.7 · EV=89.6 · xwOBA=0.309 · SWEET SPOT</span><span class="pick-odds">+388</span></div>
+    <h3>HR Props — WSH vs Painter (Neu 62)</h3>
+    <div class="pick-row"><span class="pick-rank">#6</span><span class="pick-name">Andrés Chaparro</span><span class="pick-wt">Wt=42.6</span><span class="pick-stats">HR%=24.9 · Brl/BIP=14.3 · EV=89.7 · xwOBA=0.380 · xISO=0.268 <span class="tag tag-att">✓ ACTIVE 1 HR L5</span></span><span class="pick-odds">+282</span></div>
+    <h3>K Props</h3>
+    <p class="section-note">Irvin Score=50.0, Line=5.5, 51% over. K%=23.8, SwStr=25.1 — borderline. Painter Score=36.4, Line=3.5, 49% over — push zone. Neither is a strong K play.</p>
+    <h3>NRFI/YRFI</h3>
+    <p class="section-note"><span class="nrfi-yrfi"><b>YRFI LEAN</b></span> — CBP ×1.14 + Irvin (Att 74) facing Schwarber/Harper 1-2. Harper is HOT and Schwarber has the highest bat speed on the board (77mph). PHI likely gets one in the 1st.</p>
+    <div class="walk-box">🚶 Walk props: Irvin 9.7% BB — Harper drew 2 walks at CBP yesterday vs Littell. Books likely shade Harper HR over today given HOT tag; walk prop on Harper may be undervalued alternative.</div>
+  </div>
+</div>
+
+<!-- SF@TEX -->
+<div class="game-section">
+  <div class="game-header">
+    <span class="game-title">SF @ TEX — Globe Life Field</span>
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+      <span class="park-badge park-neu">×1.00 Neutral</span>
+      <span class="pitcher-badge att-badge">Whisenhunt: 🟢 Att 85</span>
+      <span class="pitcher-badge neu-badge">Bradford: 🟡 Neu 50</span>
+      <span style="font-size:11px;color:var(--purple)">★ 6-BATTER STACK + WALK MACHINE</span>
+    </div>
+  </div>
+  <div class="game-body">
+    <div class="walk-box">🚶 WHISENHUNT 13.8% BB — Highest K+ walk combo on slate. Carson Whisenhunt is Attackable (85) AND walks nearly 1-in-7 batters. TEX gets both HR chances AND walks. Seager, Pederson, Nimmo all disciplined batters who will extend counts.</div>
+    <div class="pick-row"><span class="pick-rank">#15</span><span class="pick-name">Corey Seager</span><span class="pick-wt">Wt=35.7</span><span class="pick-stats">HR%=20.3 · Brl/BIP=14.8 · EV=91.5 · xwOBA=0.336 <span class="tag tag-due">📈 DUE 0 HR L5</span> BLASTS</span><span class="pick-odds">+367</span></div>
+    <div class="pick-row"><span class="pick-rank">—</span><span class="pick-name">Joc Pederson</span><span class="pick-wt">Wt=~28</span><span class="pick-stats">LHB vs LHP Whisenhunt — Pederson gets platoon advantage here · Power LHB at Globe Life</span><span class="pick-odds">—</span></div>
+    <h3>SF batters vs Bradford (Neu 50)</h3>
+    <p class="section-note">Bradford Neutral 50 at neutral park. SF lineup (Eldridge, Adames, Devers, Susac, Gilbert) — modest setup, no stack alert. Fade SF HR props in this half.</p>
+    <h3>K Props</h3>
+    <p class="section-note">Whisenhunt: no K data (Score=0.0) — sample size issue. Bradford also 0.0 score. This is a K prop skip game despite Whisenhunt's BB%. Cody Bradford K line=5.5, 49% over — push zone.</p>
+    <h3>NRFI/YRFI</h3>
+    <p class="section-note"><span class="nrfi-yrfi"><b>YRFI LEAN</b></span> — Whisenhunt (Att 85, wild) pitching to TEX. Seager/Pederson/Nimmo can do damage. 6-batter stack means TEX likely gets to Whisenhunt early.</p>
+  </div>
+</div>
+
+<!-- LAD@CHC -->
+<div class="game-section">
+  <div class="game-header">
+    <span class="game-title">LAD @ CHC — Wrigley Field</span>
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+      <span class="park-badge park-hot">×1.07 Hitter Friendly</span>
+      <span class="pitcher-badge att-badge">Lauer: 🟢 Att 69</span>
+      <span class="pitcher-badge neu-badge">Imanaga: 🟡 Neu 50</span>
+      <span style="font-size:11px;color:var(--purple)">★★ 8-BATTER STACK (CHC vs Lauer)</span>
+    </div>
+  </div>
+  <div class="game-body">
+    <div class="stack-alert">⚡ BIGGEST STACK on slate: 8 CHC batters ≥40 matchup score vs Lauer (Att 69, LHP). Wrigley ×1.07. Kelly, Conforto, Suzuki, Happ, Crow-Armstrong — deep lineup attack.</div>
+    <h3>LAD vs Imanaga (Neu 50)</h3>
+    <div class="pick-row"><span class="pick-rank">#12</span><span class="pick-name">Shohei Ohtani</span><span class="pick-wt">Wt=36.4</span><span class="pick-stats">HR%=22.9 · Brl/BIP=16.3 · EV=93.5 · xwOBA=0.411 · xISO=0.278 <span class="tag tag-att">✓ ACTIVE 1 HR L5</span></span><span class="pick-odds">+337</span></div>
+    <p class="section-note">Note: Imanaga (Neu 50) facing LAD is a solid pitcher vs great lineup — Ohtani's number is driven by his elite profile, not matchup advantage. Wrigley helps but Neutral pitcher limits ceiling.</p>
+    <h3>K Props</h3>
+    <p class="section-note"><b>Imanaga: Score=68.0, Line=5.5, 52% over</b> — best K play in this game. K%=23.3, SwStr=29.1 (excellent). Imanaga vs LAD is a quality matchup setup for Ks but LAD lineup is not K-prone. Narrow over edge.<br><b>Lauer: Score=17.2, Line=4.0, 45% over</b> — skip. Low K upside facing 8-batter attacking lineup.</p>
+    <h3>NRFI/YRFI</h3>
+    <p class="section-note"><span class="nrfi-nrfi"><b>NRFI LEAN</b></span> — Imanaga pitched a gem yesterday (0.94 ERA L3). Faces LAD which is a disciplined lineup. LAD was held to 1 run yesterday at CHC. CHC vs Lauer could score but 8-batter stacks sometimes don't produce first-inning runs.</p>
+  </div>
+</div>
+
+<!-- STL@NYY -->
+<div class="game-section">
+  <div class="game-header">
+    <span class="game-title">STL @ NYY — Yankee Stadium</span>
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+      <span class="park-badge park-hot">×1.19 HR Friendly</span>
+      <span class="pitcher-badge neu-badge">Warren: 🟡 Neu 46</span>
+      <span class="pitcher-badge avo-badge">Pallante: 🔴 Avo 26</span>
+      <span style="font-size:11px;color:var(--gold)">★ IDEAL SETUP — NYY Lineup</span>
+    </div>
+  </div>
+  <div class="game-body">
+    <p class="section-note">Same series as yesterday (STL@NYY). Yesterday: 0-2 NRFI shutout. Today Will Warren replaces Logan Weathers on the NYY side? Actually: Warren is the NYY pitcher facing STL, and Pallante pitches for STL vs NYY bats.</p>
+    <h3>STL bats vs Warren (Neu 46) + Yankee Stadium ×1.19 → IDEAL SETUP</h3>
+    <div class="pick-row"><span class="pick-rank">#8</span><span class="pick-name">Alec Burleson <span class="ideal-flag">✦IDEAL</span></span><span class="pick-wt">Wt=41.3</span><span class="pick-stats">HR%=23.4 · Brl/BIP=11.7 · EV=91.8 · xwOBA=0.385 <span class="tag tag-fire">🔥 FIRE 3+ HR L5</span></span><span class="pick-odds">+327</span></div>
+    <div class="pick-row"><span class="pick-rank">#16</span><span class="pick-name">Nelson Velázquez <span class="ideal-flag">✦IDEAL</span></span><span class="pick-wt">Wt=35.7</span><span class="pick-stats">HR%=21.9 · Brl/BIP=12.0 · EV=94.6 (elite) · xwOBA=0.363 AIR PULL BLASTS</span><span class="pick-odds">+357</span></div>
+    <h3>NYY bats vs Pallante (Avo 26)</h3>
+    <div class="pick-row"><span class="pick-rank">—</span><span class="pick-name">Ben Rice</span><span class="pick-wt">Wt=24.8</span><span class="pick-stats">Avo penalty (raw 34.4) — Pallante suppresses despite Yankee Stadium. Fade NYY HR props here.</span><span class="pick-odds">—</span></div>
+    <div class="fade-box">🚫 FADE: Pallante (Avo 26) means NYY power hitters (Rice, García, Grisham, Wells) get full Avoid weight penalty. NRFI lean for NYY's half vs Pallante.</div>
+    <h3>NRFI/YRFI</h3>
+    <p class="section-note"><span class="nrfi-push"><b>PUSH</b></span> — Two contrasting halves. STL likely scores (Warren Neutral + Yankee road), NYY suppressed (Pallante Avoid). Split-half game — no clean NRFI/YRFI angle.</p>
+    <h3>K Props</h3>
+    <p class="section-note">Warren Score=44.5, Line=5.5, 48% over — push. Pallante Score=33.1, Line=5.0, 44% over — lean under.</p>
+  </div>
+</div>
+
+<!-- ATH@CIN -->
+<div class="game-section">
+  <div class="game-header">
+    <span class="game-title">ATH @ CIN — Great American Ball Park</span>
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+      <span class="park-badge park-hot">×1.22 Hitter Friendly</span>
+      <span class="pitcher-badge neu-badge">Lowder: 🟡 Neu 61</span>
+      <span class="pitcher-badge avo-badge">Lopez: 🔴 Avo 29</span>
+    </div>
+  </div>
+  <div class="game-body">
+    <h3>ATH bats vs Lowder (Neu 61)</h3>
+    <p class="section-note">Lowder 9.8% BB — walk eligible. ATH sends Kurtz, Heim, Butler, Soderstrom, Walton. Yesterday's IDEAL SETUP group (Singer Neutral 58 at same park) went 0/5 for HRs. Today's Lowder (Neutral 61) is similar tier. Temper expectations but watch Butler (LHB platoon advantage at Great American vs RHP Lowder).</p>
+    <h3>CIN bats vs Lopez (Avo 29)</h3>
+    <p class="section-note">Lopez (Avo 29) means De La Cruz, Stephenson, Stewart, Hayes all get Avoid discount. Fade CIN HR props despite the park. De La Cruz Wt=29.4 (raw 40.8 cut to 29.4 by Avoid).</p>
+    <h3>NRFI/YRFI</h3>
+    <p class="section-note"><span class="nrfi-nrfi"><b>NRFI LEAN</b></span> — Lopez (Avoid) suppresses CIN, Lowder (Neutral) is not Attackable. Great American can fool you — quality pitching keeps it quiet early.</p>
+  </div>
+</div>
+
+<!-- MIA@ATL -->
+<div class="game-section">
+  <div class="game-header">
+    <span class="game-title">MIA @ ATL — Truist Park</span>
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+      <span class="park-badge park-neu">×0.98 Neutral</span>
+      <span class="pitcher-badge neu-badge">Pérez: 🟡 Neu 49</span>
+      <span class="pitcher-badge avo-badge">Elder: 🔴 Avo 40</span>
+    </div>
+  </div>
+  <div class="game-body">
+    <div class="pick-row"><span class="pick-rank">#9</span><span class="pick-name">Drake Baldwin</span><span class="pick-wt">Wt=39.1</span><span class="pick-stats">HR%=20.0 · Brl/BIP=14.7 · EV=91.6 · xwOBA=0.383 · xISO=0.236 <span class="tag tag-due">📈 DUE 0 HR L5 elite profile</span></span><span class="pick-odds">+400</span></div>
+    <div class="pick-row"><span class="pick-rank">#11</span><span class="pick-name">Matt Olson</span><span class="pick-wt">Wt=37.4</span><span class="pick-stats">HR%=22.3 · Brl/BIP=14.7 · EV=92.6 · xwOBA=0.362 <span class="tag tag-fire">🔥 FIRE 3+ HR L5</span></span><span class="pick-odds">+348</span></div>
+    <p class="section-note">Baldwin DUE at +400 is the standout value play here if you believe the signal eventually fires. 3rd straight DUE day with elite profile (xwOBA=0.383). MIA bats vs Elder (Avo 40) — Conine, Stowers raw are attractive but Avoid discount brings wt down. Conine is still 32.1 weighted but the Avoid penalty is real.</p>
+    <h3>K Props</h3>
+    <p class="section-note">Pérez Score=61.2, Line=6.0, 46% over. K%=26.5, SwStr=27.9, BB%=9.5 — Pérez is one of the most K-capable pitchers on the slate today but with walk risk. Elder Score=39.5, Line=5.0, 44% over — lean under.</p>
+    <h3>NRFI/YRFI</h3>
+    <p class="section-note"><span class="nrfi-nrfi"><b>NRFI LEAN</b></span> — Pérez (Neutral, pitching for MIA) facing ATL's disciplined lineup. Elder (Avoid) shuts down MIA's power. Game opened 2-4 yesterday — these are scoring patterns not first-inning focused.</p>
+  </div>
+</div>
+
+<!-- LAA@BAL -->
+<div class="game-section">
+  <div class="game-header">
+    <span class="game-title">LAA @ BAL — Oriole Park Camden Yards</span>
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+      <span class="park-badge park-hot">×1.08 HR Friendly</span>
+      <span class="pitcher-badge avo-badge">Rogers: 🔴 Avo 41</span>
+      <span class="pitcher-badge avo-badge">Detmers: 🔴 Avo 39</span>
+    </div>
+  </div>
+  <div class="game-body">
+    <p class="section-note">Two Avoid arms despite a HR-friendly park. Rogers (Avo 41, LHP) faces BAL lineup with RHB=7 — Alonso, CES, Cowser, Mayo, O'Neill. RHB platoon advantage vs LHP Rogers BUT Avoid tier discounts their expected output.</p>
+    <div class="fade-box">🚫 FADE HR PROPS: Trout (Wt=29.4 raw 40.8), Alonso (Wt=27.0 raw 37.5), CES (Wt=25.8). Both arms are Avoid — full weight penalty applies. Strongest fades in the game.</div>
+    <h3>K Props — Best Play of the Game</h3>
+    <p class="section-note"><b>Reid Detmers: Score=70.3, Line=6.5, 52% OVER</b> — top-tier K arm today. Detmers faces LAA lineup which includes... himself on the other side. Actually: Detmers (LAA) faces BAL and Rogers (LAA) faces BAL? Wait — Detmers pitches for LAA facing BAL batters (Alonso, CES, Cowser, Mayo). BAL has a 10.3% team BB rate (patient) and also Ks at above-average rate. Detmers K%=28.3, SwStr=29.0. At 6.5 with 52% over — <b>lean over on Detmers Ks</b>.</p>
+    <h3>NRFI/YRFI</h3>
+    <p class="section-note"><span class="nrfi-nrfi"><b>NRFI LEAN</b></span> — Rogers (Avoid) suppresses LAA power, Detmers (Avoid) suppresses BAL. Both arms are quality enough to hold first innings clean.</p>
+  </div>
+</div>
+
+<!-- MIN@KC -->
+<div class="game-section">
+  <div class="game-header">
+    <span class="game-title">MIN @ KC — Kauffman Stadium</span>
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+      <span class="park-badge park-sup">×0.96 Suppressor</span>
+      <span class="pitcher-badge att-badge">Kremer: 🟢 Att 65</span>
+      <span class="pitcher-badge neu-badge">Cameron: 🟡 Neu 55</span>
+      <span style="font-size:11px;color:var(--purple)">★ 5-BATTER STACK (KC)</span>
+    </div>
+  </div>
+  <div class="game-body">
+    <div class="pick-row"><span class="pick-rank">#13</span><span class="pick-name">Ryan Jeffers</span><span class="pick-wt">Wt=36.0</span><span class="pick-stats">HR%=17.7 · Brl/BIP=11.4 · EV=89.3 · xwOBA=0.368 <span class="tag tag-att">✓ ACTIVE 1 HR L5</span></span><span class="pick-odds">+465</span></div>
+    <div class="pick-row"><span class="pick-rank">#17</span><span class="pick-name">John Rave</span><span class="pick-wt">Wt=35.4</span><span class="pick-stats">HR%=26.7 · Brl/BIP=22.2 (elite!) · EV=86.8 · xwOBA=0.382 · xISO=0.286 <span class="tag tag-att">✓ ACTIVE</span> SUPPRESSED: FS</span><span class="pick-odds">+275</span></div>
+    <p class="section-note">Kremer (Att 65) at a suppressor park — moderate setup. KC's Witt Jr., Caglianone, Jensen, Perez all active. Kauffman (×0.96) tempers ceiling slightly. Watch Rave's Brl/BIP=22.2 — elite barrel rate, just watch the splitter (weak vs FS).</p>
+    <h3>K Props</h3>
+    <p class="section-note">Kremer: Score=65.0, Line=5.0, 41% over — lean under. Cameron: Score=51.6, Line=5.0, 44% over — lean under. Neither is a strong K play here.</p>
+  </div>
+</div>
+
+<!-- PIT@MIL -->
+<div class="game-section">
+  <div class="game-header">
+    <span class="game-title">PIT @ MIL — American Family Field</span>
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+      <span class="park-badge park-neu">×1.02 Neutral</span>
+      <span class="pitcher-badge avo-badge">Harrison: 🔴 Avo 29</span>
+      <span class="pitcher-badge avo-badge">Skenes: 🔴 Avo 23</span>
+    </div>
+  </div>
+  <div class="game-body">
+    <p class="section-note"><b>Top K matchup on slate.</b> Harrison (74.6, just under K ELITE) vs Skenes (73.5) — two elite swing-and-miss arms in the same game. Both are Avoid tier so HR props are fades. This is a strikeout paradise, not a HR game.</p>
+    <h3>K Props — Best Value Game</h3>
+    <p class="section-note"><b>Kyle Harrison: Score=74.6, Line=5.5, 49% over</b> — push zone but near-elite arm. K%=29.6, SwStr=29.0. MIL lineup Ks at above-average rate — Bauers, Lara, Vaughn, Sánchez are all chase-prone.<br><b>Paul Skenes: Score=73.5, Line=6.0, 46% over</b> — Skenes faces PIT lineup (Rodríguez, Ozuna, Reynolds, Lowe). 30.5% K rate season. The 6.0 line is high but Skenes is legitimate.</p>
+    <div class="fade-box">🚫 FADE ALL HR PROPS: Harrison (Avo 29) and Skenes (Avo 23) — strongest fade game on the slate for power props.</div>
+    <h3>NRFI/YRFI</h3>
+    <p class="section-note"><span class="nrfi-nrfi"><b>STRONG NRFI</b></span> — Two elite arms, neutral park. Both held clean first innings regularly. Best NRFI candidate on the slate.</p>
+  </div>
+</div>
+
+<!-- SD@AZ -->
+<div class="game-section">
+  <div class="game-header">
+    <span class="game-title">SD @ AZ — Chase Field</span>
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+      <span class="park-badge park-hot">×1.06 Slight Advantage</span>
+      <span class="pitcher-badge neu-badge">Bratt: 🟡 Neu 57</span>
+      <span class="pitcher-badge avo-badge">Mize: 🔴 Avo 29</span>
+    </div>
+  </div>
+  <div class="game-body">
+    <div class="walk-box">🚶 WALK PROP FOCUS: Mitch Bratt 15.3% BB (highest on entire slate). LHP facing AZ's RHB-heavy lineup (Machado, Tatis, France, Campusano, Bowen — 6 righties). RHB platoon vs LHP + extreme walk rate. AZ team BB%=8.8% means they work counts. Best walk prop game on slate: AZ batters (Machado, Tatis, Carroll, Marte) walking vs Bratt.</div>
+    <p class="section-note">SD bats vs Mize (Avo 29) — Machado, Tatis etc get full Avoid penalty. Chase Field slight advantage but suppressed matchup. Fade SD HR props.</p>
+    <h3>K Props</h3>
+    <p class="section-note">Casey Mize: Score=66.4, Line=5.5, <b>53% over</b> — highest single over% on slate today. K%=24.9, SwStr=27.8, BB%=5.6. Faces SD lineup (Machado, Tatis, France) — SD is 9.2% team BB (patient) which works both ways: they work counts but also see more pitches = more K chances. Lean over on Mize 5.5.</p>
+    <h3>NRFI/YRFI</h3>
+    <p class="section-note"><span class="nrfi-push"><b>PUSH</b></span> — Bratt is Neutral with extreme walk rate (games turn into pitchers' counts); Mize is Avoid. Moderate scoring game, unclear first inning.</p>
+  </div>
+</div>
+
+<!-- CWS@BOS -->
+<div class="game-section">
+  <div class="game-header">
+    <span class="game-title">CWS @ BOS — Fenway Park</span>
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+      <span class="park-badge park-hot">×1.04 Slight Advantage</span>
+      <span class="pitcher-badge avo-badge">Burke: 🔴 Avo 39</span>
+      <span class="pitcher-badge avo-badge">Gray: 🔴 Avo 35</span>
+    </div>
+  </div>
+  <div class="game-body">
+    <p class="section-note">BOS destroyed CWS yesterday 14-2. Murakami (Wt=31.1 raw 43.2) and Vargas (Wt=25.6 raw 35.6) are Avoid-discounted. Burke (Avo 39) suppresses CWS. Gray (Avo 35) suppresses BOS. Both are quality pitchers despite beatable records. Avoid fades on both lineups. Fantasy angle: Vargas and Murakami are cheap DFS options with upside.</p>
+    <div class="fade-box">🚫 FADE: Wilyer Abreu hit 2 HRs yesterday vs Davis Martin. Today he faces Gray (Avo 35) — Avoid penalty. Don't chase yesterday's hero.</div>
+  </div>
+</div>
+
+<!-- NYM@CLE -->
+<div class="game-section">
+  <div class="game-header">
+    <span class="game-title">NYM @ CLE — Progressive Field</span>
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+      <span class="park-badge park-sup">×0.97 Suppressor</span>
+      <span class="pitcher-badge neu-badge">Bibee: 🟡 Neu 53</span>
+      <span class="pitcher-badge avo-badge">Scott: 🔴 Avo 34</span>
+    </div>
+  </div>
+  <div class="game-body">
+    <p class="section-note">Christian Scott (Avo 34, BB%=10.2) vs CLE — DeLauter drew 3 walks vs Manaea yesterday; Scott has similar walk issues. CLE lineup (Ramírez, Lowe, DeLauter, Adell, Hoskins) faces a wild pitcher at a suppressor park. Walk props on CLE batters vs Scott (10.2% BB) are interesting even though HR props are muted.<br>NYM vs Bibee (Neu 53): Lindor, Benge, Semien, Alvarez — moderate setup. Benge hit a HR yesterday. No stack alert.</p>
+  </div>
+</div>
+
+<!-- DET@SEA -->
+<div class="game-section">
+  <div class="game-header">
+    <span class="game-title">DET @ SEA — T-Mobile Park</span>
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+      <span class="park-badge park-sup">×0.91 Suppressor</span>
+      <span class="pitcher-badge avo-badge">Woo: 🔴 Avo 38</span>
+      <span class="pitcher-badge avo-badge">Anderson: 🔴 Avo 29</span>
+    </div>
+  </div>
+  <div class="game-body">
+    <p class="section-note">DET won 8-0 yesterday with Greene + Dingler HRs. T-Mobile (×0.91 suppressor) + Woo (Avo 38) = hard fade. Greene today faces Woo (Avo) at T-Mobile — full penalty. Greene Wt=25.6 (raw 35.6). Anderson K score=68.0 (Line=5.0, 44% over) — decent K arm, lean under given the suppressor park and DET lineup quality.</p>
+    <div class="fade-box">🚫 FADE DET HR PROPS: Greene, Dingler, McGonigle all Avoid-discounted vs Woo. Park ×0.91 compounds the suppression. Strong fade game for power props.</div>
+    <h3>K Props</h3>
+    <p class="section-note">Bryan Woo: Score=59.6, Line=5.5, 50% over — push zone. Anderson: Score=68.0, Line=5.0, 44% over. Two quality arms in a pitcher's park — lean under on K totals given suppressor environment and the under-K tendency at T-Mobile.</p>
+    <h3>NRFI/YRFI</h3>
+    <p class="section-note"><span class="nrfi-nrfi"><b>STRONG NRFI</b></span> — Two Avoid arms, T-Mobile ×0.91. DET scored early yesterday at Seattle but that was against Bryan Woo who suppresses. Anderson + Woo in a pitcher's park = low-scoring early.</p>
+  </div>
+</div>
+
+<hr class="divider">
+
+<h2>📊 FULL K BOARD — 8/5</h2>
+<table>
+<thead>
+  <tr><th>Pitcher</th><th>Score</th><th>K%</th><th>SwStr%</th><th>BB%</th><th>Line</th><th>Over%</th><th>Projection</th><th>Game</th></tr>
+</thead>
+<tbody>
+  <tr><td><b>Kyle Harrison</b></td><td>74.6</td><td>29.6%</td><td>29.0%</td><td>5.9%</td><td>5.5</td><td>49%</td><td>5.6K</td><td>PIT@MIL</td></tr>
+  <tr><td><b>Paul Skenes</b></td><td>73.5</td><td>30.5%</td><td>28.5%</td><td>6.3%</td><td>6.0</td><td>46%</td><td>6.4K</td><td>PIT@MIL</td></tr>
+  <tr><td><b>Reid Detmers</b></td><td>70.3</td><td>28.3%</td><td>29.0%</td><td>7.4%</td><td>6.5</td><td><b>52%</b></td><td>6.8K</td><td>LAA@BAL</td></tr>
+  <tr><td><b>Shota Imanaga</b></td><td>68.0</td><td>23.3%</td><td>29.1%</td><td>5.7%</td><td>5.5</td><td><b>52%</b></td><td>5.8K</td><td>LAD@CHC</td></tr>
+  <tr><td><b>Drew Anderson</b></td><td>68.0</td><td>28.2%</td><td>29.3%</td><td>9.0%</td><td>5.0</td><td>44%</td><td>5.3K</td><td>DET@SEA</td></tr>
+  <tr><td><b>Casey Mize</b></td><td>66.4</td><td>24.9%</td><td>27.8%</td><td>5.6%</td><td>5.5</td><td><b>53%</b></td><td>5.8K</td><td>SD@AZ</td></tr>
+  <tr><td>Dean Kremer</td><td>65.0</td><td>24.8%</td><td>28.4%</td><td>7.2%</td><td>5.0</td><td>41%</td><td>5.1K</td><td>MIN@KC</td></tr>
+  <tr><td>Sean Burke</td><td>61.2</td><td>27.7%</td><td>25.9%</td><td>7.3%</td><td>6.5</td><td>51%</td><td>6.7K</td><td>CWS@BOS</td></tr>
+  <tr><td>Eury Pérez</td><td>61.2</td><td>26.5%</td><td>27.9%</td><td>9.5%</td><td>6.0</td><td>46%</td><td>6.4K</td><td>MIA@ATL</td></tr>
+  <tr><td>Bryan Woo</td><td>59.6</td><td>24.5%</td><td>25.2%</td><td>5.2%</td><td>5.5</td><td>50%</td><td>5.7K</td><td>DET@SEA</td></tr>
+  <tr><td>Christian Scott</td><td>56.8</td><td>28.8%</td><td>25.8%</td><td>10.2%</td><td>6.5</td><td>48%</td><td>6.7K</td><td>NYM@CLE</td></tr>
+  <tr><td>Hunter Brown</td><td>55.8</td><td>24.7%</td><td>27.7%</td><td>13.5%</td><td>5.5</td><td>50%</td><td>5.8K</td><td>TOR@HOU</td></tr>
+  <tr><td><b>Jameson Taillon</b></td><td>50.4</td><td>20.9%</td><td>25.7%</td><td>8.3%</td><td><b>3.5</b></td><td><b>56%</b></td><td>3.7K</td><td>TOR@HOU</td></tr>
+  <tr><td>Jake Irvin</td><td>50.0</td><td>23.8%</td><td>25.1%</td><td>9.7%</td><td>5.5</td><td>51%</td><td>5.6K</td><td>WSH@PHI</td></tr>
+</tbody>
+</table>
+<p style="font-size:11px;color:var(--muted);margin-top:6px;">No K ELITE (≥75) arms today. Closest: Harrison 74.6, Skenes 73.5. Best single over%: Taillon o3.5 at 56% (line is set very low). Best quality K plays: Detmers o6.5 (52%), Imanaga o5.5 (52%), Mize o5.5 (53%).</p>
+
+<hr class="divider">
+
+<h2>🏆 FANTASY TOP 25</h2>
+<table>
+<thead>
+  <tr><th>#</th><th>Player</th><th>Team</th><th>FScore</th><th>Matchup</th></tr>
+</thead>
+<tbody>
+  <tr><td>1</td><td><b>Yordan Alvarez</b></td><td>HOU</td><td>88.3</td><td>vs Taillon (Att 86) · Daikin ×1.08</td></tr>
+  <tr><td>2</td><td>Osleivis Basabe</td><td>SF</td><td>69.3</td><td>vs Bradford (Neu 50) · Globe Life</td></tr>
+  <tr><td>3</td><td>Eduardo Valencia</td><td>DET</td><td>68.5</td><td>vs Woo (Avo 38) · T-Mobile ×0.91</td></tr>
+  <tr><td>4</td><td><b>Junior Caminero</b></td><td>TB</td><td>68.2</td><td>vs Sugano (Att 84) · Coors ×1.27 ✦IDEAL</td></tr>
+  <tr><td>5</td><td>Bryan De La Cruz</td><td>PHI</td><td>67.8</td><td>vs Irvin (Att 74) · CBP ×1.14</td></tr>
+  <tr><td>6</td><td>Shohei Ohtani</td><td>LAD</td><td>66.6</td><td>vs Imanaga (Neu 50) · Wrigley ×1.07</td></tr>
+  <tr><td>7</td><td>Griffin Conine</td><td>MIA</td><td>65.9</td><td>vs Pérez (Neu 49) · Truist ×0.98</td></tr>
+  <tr><td>8</td><td><b>Alec Burleson</b></td><td>STL</td><td>65.8</td><td>vs Warren (Neu 46) · Yankee ×1.19 ✦IDEAL</td></tr>
+  <tr><td>9</td><td>Bobby Witt Jr.</td><td>KC</td><td>65.6</td><td>vs Cameron (Neu 55) · Kauffman ×0.96</td></tr>
+  <tr><td>10</td><td>Miguel Vargas</td><td>CWS</td><td>65.5</td><td>vs Gray (Avo 35) · Fenway ×1.04</td></tr>
+  <tr><td>11</td><td>Mike Trout</td><td>LAA</td><td>64.2</td><td>vs Rogers (Avo 41) · Camden ×1.08</td></tr>
+  <tr><td>12</td><td><b>Brandon Nimmo</b></td><td>TEX</td><td>64.0</td><td>vs Whisenhunt (Att 85) · Globe Life ★ Soft Arm</td></tr>
+  <tr><td>13</td><td>John Rave</td><td>KC</td><td>63.3</td><td>vs Cameron (Neu 55) · Kauffman</td></tr>
+  <tr><td>14</td><td><b>Bryce Harper</b></td><td>PHI</td><td>61.9</td><td>vs Irvin (Att 74) · CBP ×1.14 🔥 HOT</td></tr>
+  <tr><td>15</td><td>Munetaka Murakami</td><td>CWS</td><td>61.7</td><td>vs Gray (Avo 35) · Fenway</td></tr>
+  <tr><td>16</td><td>Elly De La Cruz</td><td>CIN</td><td>61.2</td><td>vs Lopez (Avo 29) · Great American ×1.22</td></tr>
+  <tr><td>17</td><td>Ryan Jeffers</td><td>MIN</td><td>61.2</td><td>vs Kremer (Att 65) · Kauffman</td></tr>
+  <tr><td>18</td><td>Ben Rice</td><td>NYY</td><td>61.1</td><td>vs Pallante (Avo 26) · Yankee ×1.19</td></tr>
+  <tr><td>19</td><td>Drake Baldwin</td><td>ATL</td><td>61.0</td><td>vs Pérez (Neu 49) · Truist</td></tr>
+  <tr><td>20</td><td><b>Andrés Chaparro</b></td><td>WSH</td><td>60.8</td><td>vs Painter (Neu 62) · CBP ×1.14 ★ Soft Arm</td></tr>
+  <tr><td>21</td><td>Kyle Schwarber</td><td>PHI</td><td>60.5</td><td>vs Irvin (Att 74) · CBP ×1.14</td></tr>
+  <tr><td>22</td><td>Yandy Díaz</td><td>TB</td><td>60.0</td><td>vs Sugano (Att 84) · Coors ×1.27 ✦IDEAL</td></tr>
+  <tr><td>23</td><td>Riley Greene</td><td>DET</td><td>60.0</td><td>vs Woo (Avo 38) · T-Mobile ×0.91</td></tr>
+  <tr><td>24</td><td>Dillon Dingler</td><td>DET</td><td>59.7</td><td>vs Woo (Avo 38) · T-Mobile ×0.91</td></tr>
+  <tr><td>25</td><td>Jonathan Aranda</td><td>TB</td><td>59.2</td><td>vs Sugano (Att 84) · Coors ×1.27 ✦IDEAL</td></tr>
+</tbody>
+</table>
+
+<hr class="divider">
+
+<h2>🏟️ NRFI / YRFI GRID</h2>
+<div class="nrfi-grid">
+  <div class="nrfi-cell"><div>TB@COL · Coors</div><div class="verdict nrfi-yrfi">YRFI ★★</div><div style="font-size:10px;color:var(--muted)">Sugano Att 84 + Coors ×1.27 + Caminero FIRE</div></div>
+  <div class="nrfi-cell"><div>TOR@HOU · Daikin</div><div class="verdict nrfi-yrfi">YRFI ★</div><div style="font-size:10px;color:var(--muted)">Taillon Att 86 + HOU home + Alvarez DUE</div></div>
+  <div class="nrfi-cell"><div>SF@TEX · Globe Life</div><div class="verdict nrfi-yrfi">YRFI ★</div><div style="font-size:10px;color:var(--muted)">Whisenhunt Att 85 + 6-batter TEX stack</div></div>
+  <div class="nrfi-cell"><div>WSH@PHI · CBP</div><div class="verdict nrfi-yrfi">YRFI lean</div><div style="font-size:10px;color:var(--muted)">Irvin Att 74 · Harper HOT · CBP ×1.14</div></div>
+  <div class="nrfi-cell"><div>PIT@MIL · Am. Family</div><div class="verdict nrfi-nrfi">NRFI ★★</div><div style="font-size:10px;color:var(--muted)">Harrison + Skenes · both Avoid · neutral park</div></div>
+  <div class="nrfi-cell"><div>DET@SEA · T-Mobile</div><div class="verdict nrfi-nrfi">NRFI ★</div><div style="font-size:10px;color:var(--muted)">Woo + Anderson Avo · ×0.91 suppressor</div></div>
+  <div class="nrfi-cell"><div>LAA@BAL · Camden</div><div class="verdict nrfi-nrfi">NRFI lean</div><div style="font-size:10px;color:var(--muted)">Rogers + Detmers both Avo · quality arms</div></div>
+  <div class="nrfi-cell"><div>LAD@CHC · Wrigley</div><div class="verdict nrfi-nrfi">NRFI lean</div><div style="font-size:10px;color:var(--muted)">Imanaga gem L3 · LAD held 1 run yesterday</div></div>
+  <div class="nrfi-cell"><div>ATH@CIN · Gt American</div><div class="verdict nrfi-nrfi">NRFI lean</div><div style="font-size:10px;color:var(--muted)">Lopez Avo 29 shuts CIN · Lowder Neutral</div></div>
+  <div class="nrfi-cell"><div>STL@NYY · Yankee</div><div class="verdict nrfi-push">PUSH</div><div style="font-size:10px;color:var(--muted)">Warren Neu vs Pallante Avo — split halves</div></div>
+  <div class="nrfi-cell"><div>NYM@CLE · Progressive</div><div class="verdict nrfi-push">PUSH</div><div style="font-size:10px;color:var(--muted)">Bibee Neu 53 · Scott Avo 34 · suppressor</div></div>
+  <div class="nrfi-cell"><div>MIA@ATL · Truist</div><div class="verdict nrfi-nrfi">NRFI lean</div><div style="font-size:10px;color:var(--muted)">Elder Avo 40 + Pérez Neu vs neutral park</div></div>
+</div>
+
+<hr class="divider">
+
+<h2>🚶 WALK PROP TARGETS</h2>
+<table>
+<thead><tr><th>Pitcher</th><th>BB%</th><th>Tier</th><th>Game</th><th>Opp BB%</th><th>Target Batters</th></tr></thead>
+<tbody>
+  <tr><td><b>Mitch Bratt (L)</b></td><td><b>15.3%</b></td><td>Neu 57</td><td>SD@AZ</td><td>AZ 8.8%</td><td>Tatis, Machado, Marte, Carroll — RHB vs LHP</td></tr>
+  <tr><td><b>Carson Whisenhunt (L)</b></td><td><b>13.8%</b></td><td>Att 85</td><td>SF@TEX</td><td>TEX 8.5%</td><td>Seager, Pederson, Nimmo, Langford — patient TEX</td></tr>
+  <tr><td>Hunter Brown (R)</td><td>13.5%</td><td>Avo 27</td><td>TOR@HOU</td><td>TOR 7.3%</td><td>Okamoto, Guerrero, Valenzuela</td></tr>
+  <tr><td>Jacob Lopez (L)</td><td>12.9%</td><td>Avo 29</td><td>ATH@CIN</td><td>ATH 8.9%</td><td>Kurtz, Butler, Heim, Soderstrom</td></tr>
+  <tr><td>Christian Scott (R)</td><td>10.2%</td><td>Avo 34</td><td>NYM@CLE</td><td>CLE 9.6%</td><td>Ramírez, DeLauter, Adell — CLE is patient (drew 5 walks yesterday)</td></tr>
+  <tr><td>Jake Irvin (R)</td><td>9.7%</td><td>Att 74</td><td>WSH@PHI</td><td>PHI 8.0%</td><td>Harper, Schwarber — Harper drew 2 walks yesterday</td></tr>
+  <tr><td>Rhett Lowder (R)</td><td>9.8%</td><td>Neu 61</td><td>ATH@CIN</td><td>ATH 8.9%</td><td>ATH lineup patient; Kurtz, Butler walk eligible</td></tr>
+</tbody>
+</table>
+
+<hr class="divider">
+
+<h2>🚫 FADES & AVOIDS</h2>
+<div class="fade-box">
+  <b>Griffin Conine</b> (MIA, Wt=32.1) — 3rd straight game in board as Avoid-adjacent; Elder (Avo 40) suppresses at neutral Truist. Yesterday held 0 HR despite HOT tag.
+</div>
+<div class="fade-box">
+  <b>Riley Greene / Dillon Dingler</b> (DET) — Hit HRs yesterday. Today faces Bryan Woo (Avo 38) at T-Mobile (×0.91). Two Avoid penalties + suppressor park. Don't chase.
+</div>
+<div class="fade-box">
+  <b>NYY lineup vs Pallante</b> — Ben Rice, García, Grisham, Wells all get raw Wt slashed to 20-25 by Avoid 26 penalty. Yankee Stadium ×1.19 partially offsets but not enough. Fade.
+</div>
+<div class="fade-box">
+  <b>BAL lineup vs Detmers</b> — Alonso, CES, Cowser vs Avo 39 Detmers. Park (×1.08) helps but pitcher suppresses. Let Detmers K them; bet his Ks not their HRs.
+</div>
+<div class="fade-box">
+  <b>CIN lineup vs Lopez</b> — De La Cruz, Stephenson vs Avo 29. Great American ×1.22 is tempting but Avoid 29 is a strong suppressor signal. Lean hard fade on CIN HR props.
+</div>
+
+<hr class="divider">
+
+<h2>📌 SLATE SUMMARY</h2>
+<div style="background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:14px;font-size:12px;line-height:2;">
+  <b>Single best HR prop:</b> Yordan Alvarez (TOR@HOU, Taillon Att 86, +145) — DUE, elite profile, home park<br>
+  <b>Stack of the day:</b> TB@COL — Coors ×1.27 + Sugano Att 84. Caminero/Aranda/Goodman/Moniak/Díaz 5-deep<br>
+  <b>Best value play:</b> Drake Baldwin +400 (DUE, 0 HR L5, xwOBA=0.383) — 3rd straight DUE game, one will break<br>
+  <b>Best K edge:</b> Taillon o3.5 (56% over) · Mize o5.5 (53%) · Detmers o6.5 (52%) · Imanaga o5.5 (52%)<br>
+  <b>No K ELITE today</b> — Harrison 74.6, Skenes 73.5 both just miss the threshold<br>
+  <b>Walk prop focus:</b> Bratt (15.3% BB) vs AZ + Whisenhunt (13.8%) vs TEX. Both walk a ton.<br>
+  <b>Best NRFI:</b> PIT@MIL (Harrison + Skenes, two elite arms, neutral park)<br>
+  <b>Best YRFI:</b> TB@COL (Coors + Attackable + Caminero FIRE)<br>
+  <b>Signal note:</b> IDEAL SETUP went 0/16 yesterday. Recalibrating — still tracking but reducing confidence. Avoid tier (88.3% L4) remains the strongest signal in the model.<br>
+  <b>Fantasy anchors:</b> Alvarez (88.3), Caminero (68.2), Harper (61.9), Burleson (65.8), Chaparro (60.8)
+</div>
+
+<p style="font-size:10px;color:var(--muted);margin-top:16px;text-align:center;">propstats · Aug 5 2026 · Personal use only · All probabilities model-derived from Statcast/MLB data</p>
+
+</body>
+</html>

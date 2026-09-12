@@ -1,0 +1,869 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PropStats — Full Slate 8/6/2026</title>
+<style>
+:root {
+  --bg: #0f1117; --bg2: #181c27; --bg3: #1e2436;
+  --border: #2a3050; --border2: #3a4468;
+  --txt: #e8eaf0; --txt2: #9ba3bf; --txt3: #6b749a;
+  --gold: #f0c040; --green: #3ecf6e; --red: #f05555;
+  --blue: #5b9cf6; --purple: #a078f0; --orange: #f0924a;
+  --teal: #3ec8c8; --pink: #f06898;
+  --elite: #f0c040; --threat: #5b9cf6; --avoid: #f05555;
+  --attackable: #3ecf6e; --neutral: #f0924a;
+}
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #f5f6fa; --bg2: #ffffff; --bg3: #eef0f8;
+    --border: #d0d5e8; --border2: #b0b8d8;
+    --txt: #1a1e30; --txt2: #4a5278; --txt3: #8890b0;
+    --gold: #c08800; --green: #1a8a44; --red: #c03030;
+    --blue: #1a5cc0; --purple: #6030c0; --orange: #b05810;
+    --teal: #1a8888; --pink: #b03060;
+    --elite: #c08800; --threat: #1a5cc0; --avoid: #c03030;
+    --attackable: #1a8a44; --neutral: #b05810;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1117; --bg2: #181c27; --bg3: #1e2436;
+  --border: #2a3050; --border2: #3a4468;
+  --txt: #e8eaf0; --txt2: #9ba3bf; --txt3: #6b749a;
+  --gold: #f0c040; --green: #3ecf6e; --red: #f05555;
+  --blue: #5b9cf6; --purple: #a078f0; --orange: #f0924a;
+  --teal: #3ec8c8; --pink: #f06898;
+  --elite: #f0c040; --threat: #5b9cf6; --avoid: #f05555;
+  --attackable: #3ecf6e; --neutral: #f0924a;
+}
+:root[data-theme="light"] {
+  --bg: #f5f6fa; --bg2: #ffffff; --bg3: #eef0f8;
+  --border: #d0d5e8; --border2: #b0b8d8;
+  --txt: #1a1e30; --txt2: #4a5278; --txt3: #8890b0;
+  --gold: #c08800; --green: #1a8a44; --red: #c03030;
+  --blue: #1a5cc0; --purple: #6030c0; --orange: #b05810;
+  --teal: #1a8888; --pink: #b03060;
+  --elite: #c08800; --threat: #1a5cc0; --avoid: #c03030;
+  --attackable: #1a8a44; --neutral: #b05810;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--txt); font-family: 'Courier New', monospace; font-size: 13px; line-height: 1.55; }
+.container { max-width: 1060px; margin: 0 auto; padding: 20px 16px 60px; }
+/* Header */
+.header { border-bottom: 2px solid var(--gold); padding-bottom: 14px; margin-bottom: 22px; }
+.header h1 { font-size: 22px; color: var(--gold); letter-spacing: 2px; text-transform: uppercase; }
+.header .sub { color: var(--txt2); font-size: 11px; margin-top: 4px; letter-spacing: 1px; }
+/* Section */
+.section { margin-bottom: 28px; }
+.section-title { font-size: 12px; letter-spacing: 2px; text-transform: uppercase; color: var(--gold); border-bottom: 1px solid var(--border); padding-bottom: 6px; margin-bottom: 14px; }
+/* Cards */
+.card { background: var(--bg2); border: 1px solid var(--border); border-radius: 4px; padding: 12px 14px; margin-bottom: 10px; }
+.card.highlight { border-color: var(--gold); }
+.card.attackable-card { border-left: 3px solid var(--attackable); }
+.card.neutral-card { border-left: 3px solid var(--neutral); }
+.card.avoid-card { border-left: 3px solid var(--avoid); }
+.card.elite-card { border-left: 3px solid var(--elite); }
+/* Rank badge */
+.rank { display: inline-block; background: var(--bg3); color: var(--txt2); font-size: 11px; padding: 1px 6px; border-radius: 2px; margin-right: 6px; min-width: 28px; text-align: center; }
+.rank.top { background: var(--gold); color: #000; }
+/* Tags */
+.tag { display: inline-block; font-size: 10px; padding: 1px 5px; border-radius: 2px; margin: 1px 2px; }
+.tag.due    { background: rgba(90,160,240,.18); color: var(--blue); border: 1px solid rgba(90,160,240,.3); }
+.tag.hot    { background: rgba(240,80,80,.18); color: var(--red); border: 1px solid rgba(240,80,80,.3); }
+.tag.fire   { background: rgba(240,146,74,.22); color: var(--orange); border: 1px solid rgba(240,146,74,.35); }
+.tag.ideal  { background: rgba(240,192,64,.18); color: var(--gold); border: 1px solid rgba(240,192,64,.35); }
+.tag.stack  { background: rgba(62,207,110,.18); color: var(--green); border: 1px solid rgba(62,207,110,.3); }
+.tag.barrel { background: rgba(160,120,240,.18); color: var(--purple); border: 1px solid rgba(160,120,240,.3); }
+.tag.avoid  { background: rgba(240,85,85,.14); color: var(--red); border: 1px solid rgba(240,85,85,.25); }
+.tag.nrfi   { background: rgba(62,207,110,.15); color: var(--teal); border: 1px solid rgba(62,200,200,.3); }
+.tag.walk   { background: rgba(240,104,152,.15); color: var(--pink); border: 1px solid rgba(240,104,152,.28); }
+.tag.neutral-t { background: rgba(240,146,74,.15); color: var(--orange); border: 1px solid rgba(240,146,74,.28); }
+/* Pitcher tier */
+.ptier { font-size: 10px; padding: 1px 6px; border-radius: 2px; font-weight: bold; }
+.ptier.att { background: rgba(62,207,110,.2); color: var(--attackable); }
+.ptier.neu { background: rgba(240,146,74,.2); color: var(--neutral); }
+.ptier.avo { background: rgba(240,85,85,.2); color: var(--avoid); }
+/* Stats row */
+.stats-row { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 6px; }
+.stat { }
+.stat .label { font-size: 10px; color: var(--txt3); text-transform: uppercase; letter-spacing: .5px; }
+.stat .val { color: var(--txt); font-size: 13px; }
+.stat .val.hi { color: var(--green); }
+.stat .val.mid { color: var(--orange); }
+.stat .val.lo  { color: var(--red); }
+/* Grid */
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+@media (max-width: 680px) { .grid2,.grid3 { grid-template-columns: 1fr; } }
+/* Table */
+.tbl-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 12px; }
+th { background: var(--bg3); color: var(--txt3); font-size: 10px; letter-spacing: 1px; text-transform: uppercase; padding: 5px 8px; text-align: left; border-bottom: 1px solid var(--border); }
+td { padding: 5px 8px; border-bottom: 1px solid var(--border); color: var(--txt); vertical-align: top; }
+tr:hover td { background: var(--bg3); }
+.td-right { text-align: right; font-variant-numeric: tabular-nums; }
+/* Postmortem */
+.pm-hit { color: var(--green); }
+.pm-miss { color: var(--red); }
+.pm-push { color: var(--txt2); }
+/* Divider */
+.div { border-top: 1px solid var(--border); margin: 18px 0; }
+/* Score badge */
+.score-badge { display: inline-block; background: var(--bg3); border: 1px solid var(--border2); border-radius: 3px; padding: 2px 8px; font-size: 13px; font-variant-numeric: tabular-nums; }
+.score-badge.top { border-color: var(--gold); color: var(--gold); }
+/* Inlinetext */
+.hl { color: var(--gold); }
+.hl-g { color: var(--green); }
+.hl-r { color: var(--red); }
+.hl-b { color: var(--blue); }
+.hl-o { color: var(--orange); }
+.hl-p { color: var(--purple); }
+.hl-t { color: var(--teal); }
+.dim { color: var(--txt2); }
+.xs { font-size: 11px; }
+.mono { font-family: 'Courier New', monospace; }
+/* Game header strip */
+.game-strip { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.game-label { font-size: 14px; color: var(--txt); font-weight: bold; letter-spacing: 1px; }
+.pf-badge { font-size: 10px; padding: 1px 5px; border-radius: 2px; }
+.pf-up { background: rgba(62,207,110,.2); color: var(--green); }
+.pf-dn { background: rgba(240,85,85,.14); color: var(--red); }
+.pf-neu { background: var(--bg3); color: var(--txt3); }
+/* Play number */
+.play-num { font-size: 18px; color: var(--gold); font-weight: bold; margin-right: 6px; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<!-- HEADER -->
+<div class="header">
+  <h1>⚾ PropStats Full Slate — August 6, 2026</h1>
+  <div class="sub">HR BOARD · K PROPS · WALK PROPS · FANTASY · NRFI/YRFI · FADES &amp; AVOIDS</div>
+</div>
+
+<!-- 8/5 POST-MORTEM -->
+<div class="section">
+  <div class="section-title">8/5 Post-Mortem</div>
+  <div class="card">
+    <div style="margin-bottom:8px;"><span class="hl">Scores:</span> TB 4 COL 0 · AZ 10 SD 4 · PHI 4 WSH 10 · BOS 4 CWS 0 · ATL 4 MIA 1 · CHC 7 LAD 6 · BAL 5 LAA 2 · CLE 5 NYM 6 · MIL 4 PIT 2 · SEA 4 DET 2 · KC 2 MIN 1</div>
+    <div class="div"></div>
+
+    <div style="margin-bottom:6px;"><span class="hl">HR Props:</span></div>
+    <div class="grid2">
+      <div>
+        <div class="pm-miss">❌ Yordan Alvarez (#1 play) — 0 HR, TOR 5 HOU 4</div>
+        <div class="pm-miss">❌ COL Coors stack (Aranda DUE, Goodman HOT, Moniak HOT) — COL scored <em>zero</em> vs Martinez (0ER, 0BB)</div>
+        <div class="pm-hit">✅ Caminero FIRE (TB) vs Sugano Att — 1 HR at Coors ✓</div>
+        <div class="pm-miss">❌ Schwarber DUE, Harper HOT vs Irvin Att — 0 HR for both (Arraez 1HR)</div>
+        <div class="pm-hit">✅ AZ mega-stack: Mize bombed 8ER/3.1IP, AZ scores 10</div>
+      </div>
+      <div>
+        <div style="color:var(--txt2);font-size:11px;margin-bottom:4px;">HR board top picks: 1/8 direct hits · Avoid tier: 5/6 clean (83%)</div>
+        <div><span class="tag avoid">Note</span> COL 0-run performance vs Neutral Lean Martinez was the day's big fade. Avoid tier continues holding.</div>
+        <div style="margin-top:8px;color:var(--txt2);">HR hitters of note: PCA 2HR, Ohtani 2HR (CHC/LAD), BAL trio (Taveras+O'Neill+Mayo), Dingler DET 1HR</div>
+      </div>
+    </div>
+
+    <div class="div"></div>
+    <div style="margin-bottom:6px;"><span class="hl">K Props:</span></div>
+    <div class="grid2">
+      <div>
+        <div class="pm-hit">✅ Harrison MIL o4.5 — 10K, massive over</div>
+        <div class="pm-hit">✅ Imanaga CHC o5.5 — 6K ✓</div>
+        <div class="pm-hit">✅ Skenes PIT — 6K (line ~5.5) ✓ (also 4BB, walk line paid too)</div>
+        <div class="pm-hit">✅ Taillon TOR o3.5 — 4K ✓</div>
+        <div class="pm-miss">❌ Mize SD o5.5 — 1K, bombed in 3.1IP</div>
+      </div>
+      <div>
+        <div class="pm-hit">✅ Bratt AZ walk prop — 3BB over o2.5 ✓ (top target)</div>
+        <div class="pm-hit">✅ Whisenhunt SF walk prop — 3BB over o2.5 ✓</div>
+        <div style="margin-top:6px;color:var(--txt2);font-size:11px;">K board: 4/5 overs hit · Walk props: 2/2 hit</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TOP PLAYS -->
+<div class="section">
+  <div class="section-title">Today's Top Plays — 8/6/2026</div>
+
+  <!-- Play #1 -->
+  <div class="card highlight attackable-card">
+    <div class="game-strip">
+      <span class="play-num">#1</span>
+      <span class="game-label">Kyle Schwarber · WSH@PHI</span>
+      <span class="ptier att">Attackable 64</span>
+      <span class="pf-badge pf-up">CBP ×1.14</span>
+      <span class="tag due">📈 DUE</span>
+    </div>
+    <div class="stats-row">
+      <div class="stat"><div class="label">Wt Score</div><div class="val hi">74.0</div></div>
+      <div class="stat"><div class="label">HR%</div><div class="val hi">80.7</div></div>
+      <div class="stat"><div class="label">Match Score</div><div class="val">66</div></div>
+      <div class="stat"><div class="label">BRL/BIP</div><div class="val">11.7%</div></div>
+      <div class="stat"><div class="label">xISO</div><div class="val">.232</div></div>
+      <div class="stat"><div class="label">Pitcher</div><div class="val">Mikolas (WSH, away)</div></div>
+    </div>
+    <div style="margin-top:8px;color:var(--txt2);">Miles Mikolas <span class="hl">Attackable 64</span> — travels to CBP as the WSH away pitcher facing PHI's lineup. Schwarber (LHB) is <span class="hl">DUE (0 HR last 5 games)</span> with elite barrel profile. BARREL SIGNAL + AIR PULL + BLASTS. SI/FF hr-edge pitches vs Mikolas. CBP right-field porch (330ft) in play. STRONG SETUP.</div>
+  </div>
+
+  <!-- Play #2 -->
+  <div class="card highlight attackable-card">
+    <div class="game-strip">
+      <span class="play-num">#2</span>
+      <span class="game-label">Bryce Harper · WSH@PHI</span>
+      <span class="ptier att">Attackable 64</span>
+      <span class="pf-badge pf-up">CBP ×1.14</span>
+      <span class="tag hot">🔥 HOT</span>
+    </div>
+    <div class="stats-row">
+      <div class="stat"><div class="label">Wt Score</div><div class="val hi">63.8</div></div>
+      <div class="stat"><div class="label">HR%</div><div class="val">60.6</div></div>
+      <div class="stat"><div class="label">Match Score</div><div class="val">68</div></div>
+      <div class="stat"><div class="label">xWOBA</div><div class="val">.388</div></div>
+      <div class="stat"><div class="label">HR/FB%</div><div class="val">19.0</div></div>
+    </div>
+    <div style="margin-top:8px;color:var(--txt2);">Stack partner — Harper is <span class="hl">HOT (2 HR last 5)</span>. BLASTS + HR/FB ELITE. FF/SL edges vs Mikolas. PHI (Schwarber+Harper) vs Attackable Mikolas at CBP is the <span class="hl">game-of-day stack.</span></div>
+  </div>
+
+  <!-- Play #3 -->
+  <div class="card highlight">
+    <div class="game-strip">
+      <span class="play-num">#3</span>
+      <span class="game-label">Dylan Cease K ELITE — TOR vs CHC</span>
+      <span class="ptier avo">K ELITE 85.8</span>
+      <span class="pf-badge pf-up">Wrigley ×1.07</span>
+      <span class="tag walk">🚶 Walk Machine Dual</span>
+    </div>
+    <div class="stats-row">
+      <div class="stat"><div class="label">K Score</div><div class="val" style="color:var(--elite);">85.8</div></div>
+      <div class="stat"><div class="label">K%</div><div class="val hi">36.2%</div></div>
+      <div class="stat"><div class="label">SwStr%</div><div class="val hi">35.4%</div></div>
+      <div class="stat"><div class="label">Proj Ks</div><div class="val">7.8</div></div>
+      <div class="stat"><div class="label">Line</div><div class="val">7.5</div></div>
+      <div class="stat"><div class="label">Over%</div><div class="val mid">52%</div></div>
+      <div class="stat"><div class="label">BB%</div><div class="val">10.6%</div></div>
+      <div class="stat"><div class="label">Walk Proj</div><div class="val">2.76</div></div>
+    </div>
+    <div style="margin-top:8px;color:var(--txt2);">K ELITE arm. 36.2% K-rate + 35.4% SwStr — elite whiff rates. CHC lineup K%=27.3% (very strikeout-prone). o7.5 Ks at 52% = PUSH ZONE but best line today. <span class="hl">DUAL ACTION:</span> also #1 walk prop — RISING trend (3BB last 2 starts), CHC lineup 10.4% BB draw. <span class="hl">Walk o2.5 at 52%</span> is most interesting angle. Note: Cease is also Avoid tier for HR — fade CHC batters for HRs.</div>
+  </div>
+
+  <!-- Play #4 -->
+  <div class="card neutral-card">
+    <div class="game-strip">
+      <span class="play-num">#4</span>
+      <span class="game-label">GABP Stack — ATH@CIN</span>
+      <span class="ptier neu">Neutral Lean 46</span>
+      <span class="pf-badge pf-up">GABP ×1.22</span>
+      <span class="tag ideal">★ PARK PLAY</span>
+    </div>
+    <div class="stats-row">
+      <div class="stat"><div class="label">De La Cruz</div><div class="val">60.3 Wt · ACTIVE</div></div>
+      <div class="stat"><div class="label">JJ Bleday</div><div class="val">59.4 Wt · DUE</div></div>
+      <div class="stat"><div class="label">T. Stephenson</div><div class="val">54.8 Wt · HOT</div></div>
+      <div class="stat"><div class="label">PF</div><div class="val hi">1.22</div></div>
+    </div>
+    <div style="margin-top:8px;color:var(--txt2);">Mason Barnett (ATH) is Neutral Lean 46 — not Attackable, so no full IDEAL tag. But GABP at ×1.22 is the <span class="hl">biggest park factor on today's board</span>. CIN batters (De La Cruz ACTIVE 1HR L5, Bleday DUE, Stephenson HOT 2HR L5) get full park boost. Play individuals rather than mass stack. Barnett's 11.1% BB rate also makes him a walk prop target (o1.5 62%, o2.5 34%).</div>
+  </div>
+
+  <!-- Play #5 -->
+  <div class="card attackable-card">
+    <div class="game-strip">
+      <span class="play-num">#5</span>
+      <span class="game-label">Manny Machado (DUE) · SD@AZ</span>
+      <span class="ptier att">Attackable 95</span>
+      <span class="pf-badge pf-up">Chase Field ×1.06</span>
+      <span class="tag due">📈 DUE</span>
+    </div>
+    <div class="stats-row">
+      <div class="stat"><div class="label">Wt Score</div><div class="val">59.7</div></div>
+      <div class="stat"><div class="label">Vuln Score</div><div class="val hi">95</div></div>
+      <div class="stat"><div class="label">Stack Count</div><div class="val hi">8</div></div>
+      <div class="stat"><div class="label">BRL/BIP</div><div class="val">10.8%</div></div>
+    </div>
+    <div style="margin-top:8px;color:var(--txt2);">Drake is the <span class="hl">most Attackable arm today (95 vuln)</span> but lacks K data (DATA SPARSE on K board). Yesterday AZ destroyed SD with Mize getting bombed. Today the SD side faces Drake — Machado DUE, Workman, France DUE, Marte DUE, Carroll, Tatis, Bowen. <span class="hl">8 stackable batters</span> at Chase (1.06). Play 3-4 of them as a stack or hunt individuals.</div>
+  </div>
+</div>
+
+<!-- FULL GAME BREAKDOWNS -->
+<div class="section">
+  <div class="section-title">Full Game Breakdowns</div>
+
+  <!-- WSH@PHI -->
+  <div class="card attackable-card">
+    <div class="game-strip">
+      <span class="game-label">WSH@PHI · Citizens Bank Park ×1.14</span>
+      <span class="ptier att">Mikolas Att 64</span>
+      <span class="ptier avo">Sánchez K ELITE Avo</span>
+    </div>
+    <div class="grid2" style="margin-top:8px;">
+      <div>
+        <div class="xs dim">PHI batters vs Mikolas (away)</div>
+        <div><span class="tag due">DUE</span> Schwarber Wt=74.0 HR%=80.7</div>
+        <div><span class="tag hot">HOT</span> Harper Wt=63.8 HR%=60.6</div>
+        <div class="dim xs" style="margin-top:4px;">Derek Hill 51 · Brandon Marsh 50</div>
+        <div style="margin-top:6px;color:var(--txt2);">PHI stack is the <span class="hl">play of the day</span>. Mikolas Att 64 at CBP. Si/FF edges for both Schwarber (L) and Harper (L). Schwarber is DUE hard after 0 HR last 5 with elite barrel profile (80.7 HR%).</div>
+      </div>
+      <div>
+        <div class="xs dim">WSH batters vs Sánchez K ELITE (home)</div>
+        <div><span class="tag avoid">FADE</span> <span class="hl-r">Sánchez K ELITE 84.1</span></div>
+        <div class="dim xs">K%=27.9% SwStr=32.9% — o6.0 Ks at 45%</div>
+        <div style="margin-top:6px;color:var(--txt2);">PHI pitcher Sánchez is a K ELITE arm — <span class="hl-r">fade WSH batters for HRs</span>. Avoid tier. But Sánchez himself is the 2nd K ELITE arm today — K prop o6.0 at 45% (lean only). Use Sánchez vs WSH as a <span class="hl">K prop play, not HR side.</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SD@AZ -->
+  <div class="card attackable-card">
+    <div class="game-strip">
+      <span class="game-label">SD@AZ · Chase Field ×1.06</span>
+      <span class="ptier att">Drake Att 95</span>
+      <span class="ptier neu">Buehler Neu 48</span>
+      <span class="tag stack">STACK(8)</span>
+    </div>
+    <div class="grid2" style="margin-top:8px;">
+      <div>
+        <div class="xs dim">AZ batters vs Drake (Att 95 — DATA SPARSE K board)</div>
+        <div><span class="tag due">DUE</span> Machado Wt=59.7 HR%=57.9 MS=62</div>
+        <div>Gage Workman Wt=59.1 · Ty France Wt=53.7 (DUE)</div>
+        <div>Jase Bowen Wt=54.1 · Carroll Wt=53.3</div>
+        <div>Marte Wt=56.9 (DUE) · Tatis Wt=52.2 · Moreno Wt=50.6</div>
+        <div style="margin-top:6px;color:var(--txt2);">8 batters over MS=40 vs Att 95. Drake is highly vulnerable but we lack K data. Chase ×1.06. Volume play — use in DFS multi-batter, not as a primary prop single.</div>
+      </div>
+      <div>
+        <div class="xs dim">SD batters vs Buehler (Neu 48, WALK THREAT BB%=9.7%)</div>
+        <div><span class="tag due">DUE</span> Ketel Marte Wt=56.9</div>
+        <div>Fernando Tatis Jr. Wt=52.2 · Bogaerts Wt=46.8</div>
+        <div style="margin-top:6px;color:var(--txt2);">Buehler FALLING walk trend — improving. Best angle vs SD/Buehler is o1.5 walks (57%) rather than HR side. Buehler's Neutral tier limits HR upside. SD batters under-stackable vs him.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- LAA@BAL -->
+  <div class="card attackable-card">
+    <div class="game-strip">
+      <span class="game-label">LAA@BAL · Camden Yards ×1.08</span>
+      <span class="ptier att">Johnson Att 68</span>
+      <span class="ptier neu">Young Neu 42</span>
+    </div>
+    <div class="grid2" style="margin-top:8px;">
+      <div>
+        <div class="xs dim">BAL batters vs Johnson (Att 68)</div>
+        <div>C. Encarnacion-Strand Wt=56.1 HR%=74.7</div>
+        <div>Pete Alonso Wt=51.0 · Cowser Wt=49 · O'Neill Wt=49</div>
+        <div style="margin-top:4px;color:var(--txt2);">Johnson Att 68 + Camden ×1.08. Encarnacion-Strand is the top target (74.7 HR% — elite barrel). Offense is COLD (2.8 R/G). Johnson's walk rate (9.5%, STABLE) gives walk prop angle — o1.5 at 56%.</div>
+      </div>
+      <div>
+        <div class="xs dim">LAA batters vs Young (Neu 42)</div>
+        <div><span class="tag due">DUE</span> Mike Trout Wt=60.5 HR%=69.8</div>
+        <div style="margin-top:4px;color:var(--txt2);">Trout DUE (0 HR L5, elite profile) vs Neutral arm. Moderate setup. LAA offense cold (2.8 R/G). Trout has the highest ceiling but Neutral Lean pitcher limits conviction. Low-confidence individual play.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ATH@CIN -->
+  <div class="card neutral-card">
+    <div class="game-strip">
+      <span class="game-label">ATH@CIN · Great American Ball Park ×1.22</span>
+      <span class="ptier neu">Abbott Neu 51</span>
+      <span class="ptier neu">Barnett Neu 46</span>
+    </div>
+    <div class="grid2" style="margin-top:8px;">
+      <div>
+        <div class="xs dim">CIN batters vs Barnett (Neu 46) — GABP ×1.22</div>
+        <div><span class="tag ideal">★PARK</span><span class="tag hot">HOT</span> De La Cruz Wt=60.3 (1HR L5)</div>
+        <div><span class="tag ideal">★PARK</span><span class="tag due">DUE</span> JJ Bleday Wt=59.4</div>
+        <div><span class="tag ideal">★PARK</span><span class="tag hot">HOT</span> Stephenson Wt=54.8 (2HR L5)</div>
+        <div style="margin-top:4px;color:var(--txt2);">Neither pitcher is Attackable so no full IDEAL. But GABP park factor (1.22) is elite today. CIN trio is dangerous. Also watch Barnett as walk prop — 11.1% BB season, o1.5 at 62%.</div>
+      </div>
+      <div>
+        <div class="xs dim">ATH batters vs Abbott (Neu 51) — GABP ×1.22</div>
+        <div>Max Muncy Wt=48 · Soderstrom Wt=43</div>
+        <div><span class="tag walk">Walk</span> Abbott BB%=11.2% RISING — 5BB last start, 4BB start before</div>
+        <div style="margin-top:4px;color:var(--txt2);">Abbott is the <span class="hl">walk prop of the day</span> — o1.5 at 71%, o2.5 at 45%. WORSENING CTRL tag. 5BB on 8/1 is alarming. ATH offense is COLD (2.8 R/G) so HR side is weaker here.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CWS@BOS -->
+  <div class="card neutral-card">
+    <div class="game-strip">
+      <span class="game-label">CWS@BOS · Fenway Park ×1.04</span>
+      <span class="ptier neu">Castillo Neu 60</span>
+      <span class="ptier avo">Suarez Avo</span>
+      <span class="pf-badge pf-up">🔥 HOT OFFENSE (7.2 R/G)</span>
+    </div>
+    <div class="grid2" style="margin-top:8px;">
+      <div>
+        <div class="xs dim">BOS batters vs Suarez (Avoid)</div>
+        <div><span class="tag avoid">FADE HR</span> Suarez is Avoid tier</div>
+        <div class="dim xs">BOS offense is 🔥 HOT (7.2 R/G) but Suarez suppresses HRs</div>
+        <div style="margin-top:4px;color:var(--txt2);">Suarez Avoid → fade BOS HR props. BOS may score via other means (walks, singles) but not the HR vehicle today.</div>
+      </div>
+      <div>
+        <div class="xs dim">CWS batters vs Castillo (Neu 60) — Fenway ×1.04</div>
+        <div><span class="tag hot">FIRE</span> Wilyer Abreu Wt=59.7 (3+ HR L5)</div>
+        <div><span class="tag hot">ACTIVE</span> Contreras Wt=62.2</div>
+        <div class="dim xs">Murakami Wt=66.6 · M. Vargas Wt=65.6 (HOT)</div>
+        <div style="margin-top:4px;color:var(--txt2);">CWS trio faces Castillo Neutral 60. Contreras, Abreu FIRE (3+ HR L5), Murakami and Vargas all heavy. Castillo walk rate (7.2%) RISING — walk o1.5 at 58% (lean).</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MIN@KC -->
+  <div class="card neutral-card">
+    <div class="game-strip">
+      <span class="game-label">MIN@KC · Kauffman Stadium ×0.93</span>
+      <span class="ptier neu">Ober Neu 60</span>
+      <span class="ptier neu">Wacha Neu 45</span>
+    </div>
+    <div class="grid2" style="margin-top:8px;">
+      <div>
+        <div class="xs dim">KC batters vs Ober (Neu 60) — K-stad ×0.93</div>
+        <div>John Rave Wt=74.5 HR%=69.5 MS=81 <span class="tag barrel">BARREL</span></div>
+        <div>Jac Caglianone Wt=63.3 · Bobby Witt Jr. Wt=54.5 (DUE)</div>
+        <div style="margin-top:4px;color:var(--txt2);">Rave has the <span class="hl">highest matchup score today (MS=81)</span> but Kauffman is a pitcher's park (×0.93). Ober is Neutral Lean — not enough to push this to a top play, but Rave at this MS is worth a lean. Low-confidence park spot.</div>
+      </div>
+      <div>
+        <div class="xs dim">MIN batters vs Wacha (Neu 45)</div>
+        <div>Ryan Jeffers Wt=58.1 (1HR L5) · Correa Wt=49</div>
+        <div style="margin-top:4px;color:var(--txt2);">Wacha IMPROVING walk trend (FALLING), walk line under. MIN offense COLD (3.5 R/G). Low-priority game today.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOR@CHC -->
+  <div class="card neutral-card">
+    <div class="game-strip">
+      <span class="game-label">TOR@CHC · Wrigley Field ×1.07</span>
+      <span class="ptier neu">Peterson Neu 47</span>
+      <span class="ptier avo">Cease K ELITE Avo</span>
+    </div>
+    <div class="grid2" style="margin-top:8px;">
+      <div>
+        <div class="xs dim">CHC batters vs Peterson (Neu 47) — Wrigley ×1.07</div>
+        <div><span class="tag due">DUE</span> Kazuma Okamoto Wt=54.6</div>
+        <div>Luis Urías Wt=49 · B. Valenzuela Wt=47</div>
+        <div style="margin-top:4px;color:var(--txt2);">Peterson Neutral — no strong HR angle. Wrigley 1.07 helps slightly. Okamoto DUE is the lone individual play. Low conviction.</div>
+      </div>
+      <div>
+        <div class="xs dim">TOR batters vs Cease K ELITE (Avoid)</div>
+        <div><span class="tag avoid">FADE HR</span> <span class="hl-r">Cease K ELITE 85.8 / Avoid</span></div>
+        <div style="margin-top:4px;color:var(--txt2);">Cease is the <span class="hl-r">must-fade for TOR HR props</span>. He's Avoid tier — 88% clean miss rate for Avoid pitchers in our sample. Instead bet Cease K over and walk over. Do not play TOR batters for HRs.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DET@SEA -->
+  <div class="card avoid-card">
+    <div class="game-strip">
+      <span class="game-label">DET@SEA · T-Mobile Park ×0.91</span>
+      <span class="ptier avo">Valdez Avo 36</span>
+      <span class="ptier avo">Miller K Threat Avo</span>
+      <span class="tag nrfi">★★ NRFI</span>
+    </div>
+    <div class="grid2" style="margin-top:8px;">
+      <div>
+        <div><span class="tag nrfi">NRFI TARGET</span> — BOTH pitchers Avoid, pitcher's park</div>
+        <div class="dim xs" style="margin-top:4px;">Valdez (SEA) Avo 36 · Bryce Miller (SEA, facing DET) K Threat Avo</div>
+        <div style="margin-top:4px;color:var(--txt2);">Double-Avoid pitchers at T-Mobile (×0.91). Miller is a K Threat (67.2 K score, 54% over 5.5 Ks) — fades DET HR props hard. Valdez WORSENING walk trend (RISING) but still Avoid for HRs. <span class="hl">NRFI is the only play here.</span></div>
+      </div>
+      <div>
+        <div class="xs dim">SEA batters vs Valdez (Avo)</div>
+        <div>Cal Raleigh Wt=43 · Canzone Wt=39 · J. Rodríguez Wt=35</div>
+        <div class="xs dim" style="margin-top:4px;">DET batters vs Miller (Avo)</div>
+        <div>Dillon Dingler Wt=60.2 FIRE (3+ HR L5) — but Avoid pitcher + pitcher's park. <span class="hl-r">Don't chase Dingler here.</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MIA@ATL -->
+  <div class="card avoid-card">
+    <div class="game-strip">
+      <span class="game-label">MIA@ATL · Truist Park ×0.98</span>
+      <span class="ptier avo">Junk Avo 43</span>
+      <span class="ptier avo">Pérez Avo</span>
+      <span class="tag nrfi">★★ NRFI</span>
+    </div>
+    <div style="margin-top:6px;color:var(--txt2);">Double-Avoid game at a slightly pitcher-friendly park. Pérez has 9.8% BB (FALLING trend) — walk o1.5 at 68%. Junk Avoid means ATL batters (Olson, Acuña, Harris) are all fades for HR. Best angle: NRFI + Pérez walk o1.5. <span class="hl">Fade HRs both sides.</span></div>
+  </div>
+
+  <!-- PIT@MIL -->
+  <div class="card avoid-card">
+    <div class="game-strip">
+      <span class="game-label">PIT@MIL · American Family Field ×1.04</span>
+      <span class="ptier avo">May Avo 35</span>
+      <span class="ptier avo">Ashcraft K Threat Avo</span>
+      <span class="tag nrfi">★★ NRFI</span>
+    </div>
+    <div style="margin-top:6px;color:var(--txt2);">Third double-Avoid game. Ashcraft (K Threat 63.4, K%=26.6%) makes MIL batters strikeout-prone. May Avoid limits PIT batters. AmFam ×1.04 slight help but not enough vs two Avoid arms. <span class="hl">NRFI play</span> — both pitchers suppress HRs. Ashcraft K over (5.0 line, 40%) is push zone.</div>
+  </div>
+
+  <!-- NYM@CLE -->
+  <div class="card neutral-card">
+    <div class="game-strip">
+      <span class="game-label">NYM@CLE · Progressive Field ×0.93</span>
+      <span class="ptier neu">Griffin Neu 48</span>
+      <span class="ptier avo">McLean Avo</span>
+    </div>
+    <div style="margin-top:6px;color:var(--txt2);">Griffin (NYM, Manageable 53.7 K score, o4.5 at 54%) faces CLE in a pitcher's park. McLean is Avoid for CLE pitching. Mixed signals — pitcher's park limits upside. NYM batters (Alvarez 53, Lindor 50) vs McLean (Avoid) = fade. CLE batters vs Griffin = lean neutral.</div>
+  </div>
+</div>
+
+<!-- K BOARD -->
+<div class="section">
+  <div class="section-title">K Prop Board — 8/6/2026</div>
+  <div class="tbl-wrap">
+    <table>
+      <tr>
+        <th>#</th><th>Pitcher</th><th>Opp</th><th>K Score</th><th>Tier</th>
+        <th>K%</th><th>SwStr%</th><th>BB%</th><th>Proj</th><th>Line</th><th>Ov%</th><th>Edge</th>
+      </tr>
+      <tr style="background:rgba(240,192,64,.08)">
+        <td>1</td><td><strong>Dylan Cease</strong> (TOR)</td><td>CHC</td>
+        <td class="td-right" style="color:var(--elite)">85.8</td>
+        <td><span class="ptier avo">K ELITE</span></td>
+        <td class="td-right hl-g">36.2%</td><td class="td-right hl-g">35.4%</td><td class="td-right">10.6%</td>
+        <td class="td-right">7.8</td><td class="td-right">7.5</td>
+        <td class="td-right">52%</td>
+        <td>PUSH ZONE — also top walk prop</td>
+      </tr>
+      <tr style="background:rgba(240,192,64,.06)">
+        <td>2</td><td><strong>Cristopher Sánchez</strong> (PHI)</td><td>WSH</td>
+        <td class="td-right" style="color:var(--elite)">84.1</td>
+        <td><span class="ptier avo">K ELITE</span></td>
+        <td class="td-right hl-g">27.9%</td><td class="td-right hl-g">32.9%</td><td class="td-right">5.5%</td>
+        <td class="td-right">6.4</td><td class="td-right">6.0</td>
+        <td class="td-right">45%</td>
+        <td>LEAN UNDER side — vs WSH</td>
+      </tr>
+      <tr>
+        <td>3</td><td><strong>Bryce Miller</strong> (SEA)</td><td>DET</td>
+        <td class="td-right" style="color:var(--threat)">67.2</td>
+        <td><span class="ptier neu">K Threat</span></td>
+        <td class="td-right">26.1%</td><td class="td-right">26.9%</td><td class="td-right">4.6%</td>
+        <td class="td-right">5.9</td><td class="td-right">5.5</td>
+        <td class="td-right">54%</td>
+        <td>LEAN OVER · NRFI game</td>
+      </tr>
+      <tr>
+        <td>4</td><td><strong>Braxton Ashcraft</strong> (MIL)</td><td>PIT</td>
+        <td class="td-right" style="color:var(--threat)">63.4</td>
+        <td><span class="ptier neu">K Threat</span></td>
+        <td class="td-right">26.6%</td><td class="td-right">26.2%</td><td class="td-right">5.9%</td>
+        <td class="td-right">5.1</td><td class="td-right">5.0</td>
+        <td class="td-right">40%</td>
+        <td>PUSH ZONE</td>
+      </tr>
+      <tr>
+        <td>5</td><td><strong>Nolan McLean</strong> (CLE)</td><td>NYM</td>
+        <td class="td-right">58.5</td>
+        <td><span class="ptier neu">K Threat</span></td>
+        <td class="td-right">28.4%</td><td class="td-right">25.5%</td><td class="td-right">8.6%</td>
+        <td class="td-right">6.4</td><td class="td-right">6.0</td>
+        <td class="td-right">45%</td>
+        <td>LEAN UNDER</td>
+      </tr>
+      <tr>
+        <td>6</td><td>Foster Griffin (NYM)</td><td>CLE</td>
+        <td class="td-right">53.7</td><td>Manageable</td>
+        <td class="td-right">22.1%</td><td class="td-right">24.4%</td><td class="td-right">5.7%</td>
+        <td class="td-right">4.9</td><td class="td-right">4.5</td>
+        <td class="td-right">54%</td>
+        <td>LEAN OVER (54%)</td>
+      </tr>
+      <tr>
+        <td>7</td><td>Dustin May (MIL)</td><td>PIT</td>
+        <td class="td-right">44.6</td><td>Manageable</td>
+        <td class="td-right">23.1%</td><td class="td-right">22.4%</td><td class="td-right">7.6%</td>
+        <td class="td-right">4.7</td><td class="td-right">4.5</td>
+        <td class="td-right">51%</td>
+        <td>PUSH ZONE</td>
+      </tr>
+      <tr>
+        <td>8</td><td>Walker Buehler (SD)</td><td>AZ</td>
+        <td class="td-right">32.0</td><td>Manageable</td>
+        <td class="td-right">20.2%</td><td class="td-right"></td><td class="td-right">9.7%</td>
+        <td class="td-right">5.0</td><td class="td-right">4.5</td>
+        <td class="td-right">56%</td>
+        <td>LEAN OVER — walk prop angle stronger</td>
+      </tr>
+      <tr>
+        <td>9</td><td>Janson Junk (ATL)</td><td>MIA</td>
+        <td class="td-right">18.7</td><td>Manageable</td>
+        <td class="td-right">18.1%</td><td class="td-right"></td><td class="td-right">6.5%</td>
+        <td class="td-right">3.9</td><td class="td-right">3.5</td>
+        <td class="td-right">55%</td>
+        <td>LEAN OVER (55%) · Avoid HR</td>
+      </tr>
+      <tr>
+        <td>10</td><td style="color:var(--txt2)">Miles Mikolas (WSH)</td><td>PHI</td>
+        <td class="td-right">11.6</td><td>Manageable</td>
+        <td class="td-right">11.9%</td><td class="td-right"></td><td class="td-right">4.8%</td>
+        <td class="td-right">3.1</td><td class="td-right">3.5</td>
+        <td class="td-right">38%</td>
+        <td>STRONG UNDER · Play PHI HR props instead</td>
+      </tr>
+    </table>
+  </div>
+  <div class="card" style="margin-top:10px;color:var(--txt2);">
+    <strong class="hl">K Summary:</strong> Two K ELITE arms today — Cease (85.8) and Sánchez (84.1). Cease is in a dual-action spot (walk prop too). No clean STRONG OVER plays at the top; 52% and 45% are both in push/lean territory. Best clean K lean: Bryce Miller o5.5 at 54% (NRFI game, pitcher's park = deeper outings). Foster Griffin o4.5 at 54% is another lean. <span class="hl-r">Fade Mikolas K line</span> — under is the call (38% over, STRONG UNDER).
+  </div>
+</div>
+
+<!-- WALK PROPS -->
+<div class="section">
+  <div class="section-title">Walk Prop Board — 8/6/2026</div>
+  <div class="card" style="margin-bottom:10px;color:var(--txt2);font-size:11px;">Model: BB%(50) + Recent Trend(25) + Opp Lineup Patience(25) · Poisson projection · No K ELITE guard applied</div>
+  <div class="tbl-wrap">
+    <table>
+      <tr>
+        <th>#</th><th>Pitcher</th><th>Opp</th><th>Walk Score</th><th>Tier</th>
+        <th>BB%</th><th>OppBB%</th><th>Trend</th><th>o1.5</th><th>o2.5</th><th>o3.5</th><th>Last 5G</th>
+      </tr>
+      <tr style="background:rgba(240,104,152,.08)">
+        <td>1</td><td><strong>Dylan Cease</strong> (TOR)</td><td>CHC</td>
+        <td class="td-right" style="color:var(--pink)">63.9</td><td><span class="tag walk">WALK THREAT</span></td>
+        <td class="td-right">10.6%</td><td class="td-right hl-g">10.4%</td>
+        <td style="color:var(--orange)">↑ RISING</td>
+        <td class="td-right hl-g">76%</td><td class="td-right">52%</td><td class="td-right">30%</td>
+        <td class="xs dim">3BB 3BB 1BB 3BB 1BB</td>
+      </tr>
+      <tr style="background:rgba(240,104,152,.06)">
+        <td>2</td><td><strong>Andrew Abbott</strong> (CIN)</td><td>ATH</td>
+        <td class="td-right" style="color:var(--pink)">63.4</td><td><span class="tag walk">WALK THREAT</span></td>
+        <td class="td-right">11.2%</td><td class="td-right">7.4%</td>
+        <td style="color:var(--red)">↑↑ RISING</td>
+        <td class="td-right hl-g">71%</td><td class="td-right">45%</td><td class="td-right">24%</td>
+        <td class="xs dim">5BB 4BB 2BB 3BB 0BB</td>
+      </tr>
+      <tr>
+        <td>3</td><td><strong>Walker Buehler</strong> (SD)</td><td>AZ</td>
+        <td class="td-right">62.3</td><td><span class="tag walk">WALK THREAT</span></td>
+        <td class="td-right">9.7%</td><td class="td-right">9.1%</td>
+        <td style="color:var(--green)">↓ FALLING</td>
+        <td class="td-right">57%</td><td class="td-right">30%</td><td class="td-right">12%</td>
+        <td class="xs dim">2BB 2BB 5BB 4BB 1BB</td>
+      </tr>
+      <tr>
+        <td>4</td><td>Ryan Johnson (LAA)</td><td>BAL</td>
+        <td class="td-right">59.6</td><td><span class="tag walk">WALK THREAT</span></td>
+        <td class="td-right">9.5%</td><td class="td-right">9.2%</td>
+        <td>→ STABLE</td>
+        <td class="td-right">56%</td><td class="td-right">29%</td><td class="td-right">12%</td>
+        <td class="xs dim">3BB 1BB 3BB 3BB 1BB</td>
+      </tr>
+      <tr>
+        <td>5</td><td>Martín Pérez (ATL)</td><td>MIA</td>
+        <td class="td-right">58.0</td><td><span class="tag walk">WALK THREAT</span></td>
+        <td class="td-right">9.8%</td><td class="td-right">8.8%</td>
+        <td style="color:var(--green)">↓ FALLING</td>
+        <td class="td-right">68%</td><td class="td-right">42%</td><td class="td-right">21%</td>
+        <td class="xs dim">2BB 1BB 4BB 2BB 3BB</td>
+      </tr>
+      <tr>
+        <td>6</td><td>Mason Barnett (ATH)</td><td>CIN</td>
+        <td class="td-right">62.0</td><td><span class="tag walk">WALK THREAT</span></td>
+        <td class="td-right">11.1%</td><td class="td-right">9.1%</td>
+        <td>→ STABLE</td>
+        <td class="td-right">62%</td><td class="td-right">34%</td><td class="td-right">16%</td>
+        <td class="xs dim">1BB 1BB 1BB 2BB 0BB</td>
+      </tr>
+    </table>
+  </div>
+  <div class="grid2" style="margin-top:12px;gap:10px;">
+    <div class="card" style="border-color:var(--pink);">
+      <div class="hl" style="margin-bottom:6px;">🎯 Top Walk Bets</div>
+      <div><span class="hl">1. Cease o2.5</span> (52%) — RISING + CHC patience. Dual K/walk game. Best play.</div>
+      <div style="margin-top:4px;"><span class="hl">2. Abbott o1.5</span> (71%) — Recent form is alarming (5BB+4BB last 2). Do NOT play o2.5 (45%).</div>
+      <div style="margin-top:4px;"><span class="hl">3. Pérez o1.5</span> (68%) — FALLING trend helps; use o1.5 not o2.5.</div>
+      <div style="margin-top:4px;"><span class="hl">4. Buehler o1.5</span> (57%) — FALLING trend (improving), but high season BB%. Lean only.</div>
+    </div>
+    <div class="card" style="border-color:var(--teal);">
+      <div class="hl-t" style="margin-bottom:6px;">🚫 Walk Fades (Under)</div>
+      <div><span class="hl-r">Mikolas UNDER</span> (4.8% BB, STABLE, 1BB per start) — walk under is the prop play.</div>
+      <div style="margin-top:4px;"><span class="hl-r">Sánchez UNDER</span> (5.5% BB, elite command) — K ELITE arm with iron control.</div>
+      <div style="margin-top:4px;"><span class="dim">Barnett</span> — 11.1% season BB but STABLE recent (1BB last 3 starts). High score, contradicted by recent form. Fade o2.5.</div>
+    </div>
+  </div>
+</div>
+
+<!-- FANTASY TOP 15 -->
+<div class="section">
+  <div class="section-title">Fantasy Top 25 — 8/6/2026</div>
+  <div class="tbl-wrap">
+    <table>
+      <tr><th>#</th><th>Player</th><th>Team</th><th>Score</th><th>vs Pitcher</th><th>Notes</th></tr>
+      <tr><td>1</td><td>Bryan De La Cruz</td><td>PHI</td><td class="td-right">70.5</td><td>Mikolas (Att)</td><td class="xs dim">CBP park boost</td></tr>
+      <tr><td>2</td><td><strong>Bryce Harper</strong></td><td>PHI</td><td class="td-right">66.8</td><td>Mikolas (Att)</td><td class="xs"><span class="tag hot">HOT</span></td></tr>
+      <tr><td>3</td><td>Bobby Witt Jr.</td><td>KC</td><td class="td-right">66.3</td><td>Ober (Neu)</td><td class="xs"><span class="tag due">DUE</span></td></tr>
+      <tr><td>4</td><td><strong>Willson Contreras</strong></td><td>BOS</td><td class="td-right">66.2</td><td>Suarez (Avo)</td><td class="xs dim">HOT offense</td></tr>
+      <tr><td>5</td><td>C. Encarnacion-Strand</td><td>BAL</td><td class="td-right">66.0</td><td>Johnson (Att)</td><td class="xs">Camden ×1.08</td></tr>
+      <tr><td>6</td><td><strong>John Rave</strong></td><td>KC</td><td class="td-right">66.0</td><td>Ober (Neu)</td><td class="xs dim">MS=81 highest today</td></tr>
+      <tr><td>7</td><td>Griffin Conine</td><td>MIA</td><td class="td-right">63.4</td><td>Junk (Avo)</td><td class="xs"><span class="tag avoid">Avoid pitcher</span></td></tr>
+      <tr><td>8</td><td>Drake Baldwin</td><td>ATL</td><td class="td-right">63.3</td><td>Pérez (Avo)</td><td class="xs"><span class="tag avoid">Avoid pitcher</span></td></tr>
+      <tr><td>9</td><td>Fernando Tatis Jr.</td><td>SD</td><td class="td-right">62.9</td><td>Buehler (Neu)</td><td class="xs dim">SD@AZ Chase ×1.06</td></tr>
+      <tr><td>10</td><td>Mike Trout</td><td>LAA</td><td class="td-right">62.7</td><td>Young (Neu)</td><td class="xs"><span class="tag due">DUE</span> Camden ×1.08</td></tr>
+      <tr><td>11</td><td><strong>Kyle Schwarber</strong></td><td>PHI</td><td class="td-right">62.5</td><td>Mikolas (Att)</td><td class="xs"><span class="tag due">DUE</span> <span class="tag barrel">BARREL</span></td></tr>
+      <tr><td>12</td><td>Miguel Vargas</td><td>CWS</td><td class="td-right">62.1</td><td>Castillo (Neu)</td><td class="xs"><span class="tag hot">HOT</span> Fenway ×1.04</td></tr>
+      <tr><td>13</td><td>Pete Alonso</td><td>BAL</td><td class="td-right">61.5</td><td>Johnson (Att)</td><td class="xs">Camden ×1.08</td></tr>
+      <tr><td>14</td><td>Eduardo Valencia</td><td>DET</td><td class="td-right">61.4</td><td>Valdez (Avo)</td><td class="xs"><span class="tag avoid">Avoid pitcher</span></td></tr>
+      <tr><td>15</td><td>Gabriel Moreno</td><td>AZ</td><td class="td-right">61.3</td><td>Drake (Att)</td><td class="xs">Chase ×1.06 Att 95</td></tr>
+    </table>
+  </div>
+  <div style="margin-top:8px;color:var(--txt2);font-size:11px;">⚠ Conine, Baldwin, Valencia score well but all face Avoid-tier pitchers — fantasy scoring doesn't penalize Avoid pitchers. Use with caution for HR-dependent formats. For standard points (hits, runs, RBIs), they can still produce.</div>
+</div>
+
+<!-- NRFI / YRFI -->
+<div class="section">
+  <div class="section-title">NRFI / YRFI Grid — 8/6/2026</div>
+  <div class="grid2">
+    <div>
+      <div class="xs dim" style="margin-bottom:8px;">NRFI Targets</div>
+      <div class="card" style="border-color:var(--teal);margin-bottom:8px;">
+        <div><span class="tag nrfi">★★ NRFI</span> <strong>DET@SEA</strong> T-Mobile ×0.91</div>
+        <div class="xs dim" style="margin-top:4px;">Framber Valdez (Avo 36) · Bryce Miller (K Threat, Avo)</div>
+        <div style="margin-top:4px;color:var(--txt2);">Both Avoid at the toughest HR park on the board. Strongest NRFI setup of the day. DET offense cold, SEA bats suppressed by Valdez.</div>
+      </div>
+      <div class="card" style="border-color:var(--teal);margin-bottom:8px;">
+        <div><span class="tag nrfi">★★ NRFI</span> <strong>MIA@ATL</strong> Truist ×0.98</div>
+        <div class="xs dim" style="margin-top:4px;">Janson Junk (Avo 43) · Martín Pérez (Avo)</div>
+        <div style="margin-top:4px;color:var(--txt2);">Double-Avoid at Truist (neutral park). Both sides suppressed. Walk o1.5 on Pérez adds a second angle in this game.</div>
+      </div>
+      <div class="card" style="border-color:var(--teal);margin-bottom:8px;">
+        <div><span class="tag nrfi">★★ NRFI</span> <strong>PIT@MIL</strong> AmFam ×1.04</div>
+        <div class="xs dim" style="margin-top:4px;">Dustin May (Avo 35) · Braxton Ashcraft (K Threat, Avo)</div>
+        <div style="margin-top:4px;color:var(--txt2);">Double-Avoid. Ashcraft's K Threat profile bodes well for first-inning control. Park is slight hitter's but both arms suppress HRs.</div>
+      </div>
+      <div class="card" style="border-color:var(--border);margin-bottom:8px;">
+        <div><span class="tag nrfi" style="background:rgba(62,200,200,.08)">→ Lean NRFI</span> <strong>TOR@CHC</strong> Wrigley ×1.07</div>
+        <div class="xs dim" style="margin-top:4px;">Dylan Cease (K ELITE Avo) · David Peterson (Neu 47)</div>
+        <div style="margin-top:4px;color:var(--txt2);">Cease is Avoid tier AND K ELITE — first inning Ks are likely. Peterson is Neutral. Mixed signal. Lean NRFI but not strong.</div>
+      </div>
+    </div>
+    <div>
+      <div class="xs dim" style="margin-bottom:8px;">YRFI Targets</div>
+      <div class="card" style="border-color:var(--orange);margin-bottom:8px;">
+        <div><span class="tag hot" style="background:rgba(240,146,74,.2);color:var(--orange);border-color:rgba(240,146,74,.35)">★ YRFI Lean</span> <strong>ATH@CIN</strong> GABP ×1.22</div>
+        <div class="xs dim" style="margin-top:4px;">Andrew Abbott (Neu 51) · Mason Barnett (Neu 46)</div>
+        <div style="margin-top:4px;color:var(--txt2);">Neither pitcher is Avoid — both are Neutral Lean with high walk rates. GABP ×1.22 is the best park factor today. Abbott's 5BB last start could bleed into YRFI territory. Speculative but best YRFI lean.</div>
+      </div>
+      <div class="card" style="border-color:var(--orange);margin-bottom:8px;">
+        <div><span class="tag hot" style="background:rgba(240,146,74,.2);color:var(--orange);border-color:rgba(240,146,74,.35)">★ YRFI Lean</span> <strong>WSH@PHI</strong> CBP ×1.14</div>
+        <div class="xs dim" style="margin-top:4px;">Miles Mikolas (Att 64) · Cristopher Sánchez (K ELITE Avo)</div>
+        <div style="margin-top:4px;color:var(--txt2);">Mikolas is Attackable — PHI batters (Schwarber DUE, Harper HOT) set up well for 1st inning contact. Sánchez is K ELITE on the other side which complicates it, but Mikolas facing power PHI lineup at CBP suggests first-inning fireworks are possible.</div>
+      </div>
+      <div class="card" style="border-color:var(--border);">
+        <div class="dim">Not recommended — CWS@BOS</div>
+        <div class="xs dim" style="margin-top:4px;">Suarez (Avo) vs Castillo (Neu) — Suarez suppresses first inning. BOS HOT offense but Suarez Avoid limits first-inning output.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- HR BOARD SUMMARY TABLE -->
+<div class="section">
+  <div class="section-title">HR Board — Top 20 Batters</div>
+  <div class="tbl-wrap">
+    <table>
+      <tr><th>#</th><th>Batter</th><th>Game</th><th>Wt</th><th>HR%</th><th>MS</th><th>Pitcher</th><th>Ptier</th><th>PF</th><th>Tags</th></tr>
+      <tr><td>1</td><td>John Rave</td><td>MIN@KC</td><td class="td-right">74.5</td><td class="td-right">69.5</td><td class="td-right">81</td><td>Bailey Ober</td><td><span class="ptier neu">Neu</span></td><td>0.93</td><td><span class="tag barrel">BARREL</span></td></tr>
+      <tr style="background:rgba(62,207,110,.06)"><td>2</td><td><strong>Kyle Schwarber ★</strong></td><td>WSH@PHI</td><td class="td-right hl-g">74.0</td><td class="td-right">80.7</td><td class="td-right">66</td><td>Mikolas</td><td><span class="ptier att">Att</span></td><td class="hl-g">1.14</td><td><span class="tag due">DUE</span></td></tr>
+      <tr><td>3</td><td>Griffin Conine</td><td>MIA@ATL</td><td class="td-right">70.0</td><td class="td-right">73.9</td><td class="td-right">65</td><td>Junk</td><td><span class="ptier avo">Avo</span></td><td>0.98</td><td><span class="tag avoid">×0.72</span></td></tr>
+      <tr><td>4</td><td>Munetaka Murakami</td><td>CWS@BOS</td><td class="td-right">66.6</td><td class="td-right">70.6</td><td class="td-right">62</td><td>Castillo</td><td><span class="ptier neu">Neu</span></td><td>1.04</td><td><span class="tag barrel">BARREL</span></td></tr>
+      <tr><td>5</td><td>Miguel Vargas</td><td>CWS@BOS</td><td class="td-right">65.6</td><td class="td-right">71.6</td><td class="td-right">58</td><td>Castillo</td><td><span class="ptier neu">Neu</span></td><td>1.04</td><td><span class="tag hot">HOT</span></td></tr>
+      <tr style="background:rgba(62,207,110,.06)"><td>6</td><td><strong>Bryce Harper ★</strong></td><td>WSH@PHI</td><td class="td-right hl-g">63.8</td><td class="td-right">60.6</td><td class="td-right">68</td><td>Mikolas</td><td><span class="ptier att">Att</span></td><td class="hl-g">1.14</td><td><span class="tag hot">HOT</span></td></tr>
+      <tr><td>7</td><td>Jac Caglianone</td><td>MIN@KC</td><td class="td-right">63.3</td><td class="td-right">67.5</td><td class="td-right">58</td><td>Ober</td><td><span class="ptier neu">Neu</span></td><td>0.93</td><td><span class="tag barrel">BARREL</span></td></tr>
+      <tr><td>8</td><td>Willson Contreras</td><td>CWS@BOS</td><td class="td-right">62.2</td><td class="td-right">68.7</td><td class="td-right">54</td><td>Castillo</td><td><span class="ptier neu">Neu</span></td><td>1.04</td><td><span class="tag barrel">BARREL</span></td></tr>
+      <tr><td>9</td><td>Endy Rodríguez</td><td>PIT@MIL</td><td class="td-right">62.0</td><td class="td-right">61.8</td><td class="td-right">62</td><td>Ashcraft</td><td><span class="ptier avo">Avo</span></td><td>1.04</td><td><span class="tag hot">HOT</span><span class="tag avoid">×0.72</span></td></tr>
+      <tr><td>10</td><td>Mike Trout</td><td>LAA@BAL</td><td class="td-right">60.5</td><td class="td-right">69.8</td><td class="td-right">49</td><td>Young</td><td><span class="ptier neu">Neu</span></td><td>1.08</td><td><span class="tag due">DUE</span></td></tr>
+      <tr style="background:rgba(240,192,64,.06)"><td>11</td><td><strong>Elly De La Cruz</strong></td><td>ATH@CIN</td><td class="td-right">60.3</td><td class="td-right">62.5</td><td class="td-right">58</td><td>Barnett</td><td><span class="ptier neu">Neu</span></td><td class="hl-g">1.22</td><td><span class="tag ideal">★PARK</span></td></tr>
+      <tr><td>12</td><td>Dillon Dingler</td><td>DET@SEA</td><td class="td-right">60.2</td><td class="td-right">64.2</td><td class="td-right">55</td><td>Miller</td><td><span class="ptier avo">Avo</span></td><td>0.91</td><td><span class="tag fire">FIRE</span><span class="tag avoid">×0.72</span></td></tr>
+      <tr><td>13</td><td>Manny Machado</td><td>SD@AZ</td><td class="td-right">59.7</td><td class="td-right">57.9</td><td class="td-right">62</td><td>Drake</td><td><span class="ptier att">Att</span></td><td>1.06</td><td><span class="tag due">DUE</span></td></tr>
+      <tr><td>14</td><td>Wilyer Abreu</td><td>CWS@BOS</td><td class="td-right">59.7</td><td class="td-right">60.3</td><td class="td-right">59</td><td>Castillo</td><td><span class="ptier neu">Neu</span></td><td>1.04</td><td><span class="tag fire">FIRE</span></td></tr>
+      <tr style="background:rgba(240,192,64,.06)"><td>15</td><td><strong>JJ Bleday</strong></td><td>ATH@CIN</td><td class="td-right">59.4</td><td class="td-right">63.6</td><td class="td-right">54</td><td>Barnett</td><td><span class="ptier neu">Neu</span></td><td class="hl-g">1.22</td><td><span class="tag ideal">★PARK</span><span class="tag due">DUE</span></td></tr>
+      <tr><td>16</td><td>Gage Workman</td><td>SD@AZ</td><td class="td-right">59.1</td><td class="td-right">69.0</td><td class="td-right">47</td><td>Drake</td><td><span class="ptier att">Att</span></td><td>1.06</td><td><span class="tag barrel">BARREL</span></td></tr>
+      <tr><td>17</td><td>Ryan Jeffers</td><td>MIN@KC</td><td class="td-right">58.1</td><td class="td-right">59.3</td><td class="td-right">57</td><td>Wacha</td><td><span class="ptier neu">Neu</span></td><td>0.93</td><td class="xs dim">ACTIVE</td></tr>
+      <tr><td>18</td><td>Ketel Marte</td><td>SD@AZ</td><td class="td-right">56.9</td><td class="td-right">59.3</td><td class="td-right">54</td><td>Buehler</td><td><span class="ptier neu">Neu</span></td><td>1.06</td><td><span class="tag due">DUE</span></td></tr>
+      <tr><td>19</td><td>C. Encarnacion-Strand</td><td>LAA@BAL</td><td class="td-right">56.1</td><td class="td-right">74.7</td><td class="td-right">33</td><td>Johnson</td><td><span class="ptier att">Att</span></td><td>1.08</td><td><span class="tag barrel">BARREL</span></td></tr>
+      <tr style="background:rgba(240,192,64,.06)"><td>20</td><td>Tyler Stephenson</td><td>ATH@CIN</td><td class="td-right">54.8</td><td class="td-right">61.1</td><td class="td-right">47</td><td>Barnett</td><td><span class="ptier neu">Neu</span></td><td class="hl-g">1.22</td><td><span class="tag ideal">★PARK</span><span class="tag hot">HOT</span></td></tr>
+    </table>
+  </div>
+  <div style="margin-top:8px;color:var(--txt2);font-size:11px;">★ Highlighted: PHI stack (Schwarber+Harper vs Mikolas Att at CBP) and GABP trio (De La Cruz, Bleday, Stephenson vs Barnett at ×1.22). Avoid-tier batters shown with ×0.72 penalty already applied in Wt. Conine (70.0) and Rodríguez (62.0) high-raw but Avoid-penalized.</div>
+</div>
+
+<!-- FADES & AVOIDS -->
+<div class="section">
+  <div class="section-title">Fades &amp; Avoids</div>
+  <div class="grid2">
+    <div>
+      <div class="card avoid-card">
+        <div class="hl-r" style="margin-bottom:6px;">🚫 HR Fades — Avoid-Tier Pitchers</div>
+        <div><span class="tag avoid">FADE</span> <strong>TOR batters for HR</strong> — Cease K ELITE 85.8 / Avoid. Easiest fade on board.</div>
+        <div style="margin-top:4px;"><span class="tag avoid">FADE</span> <strong>WSH batters for HR</strong> — Sánchez K ELITE 84.1 / Avoid at PHI.</div>
+        <div style="margin-top:4px;"><span class="tag avoid">FADE</span> <strong>ATL batters (Olson, Acuña, Harris)</strong> — Junk Avoid 43 at Truist.</div>
+        <div style="margin-top:4px;"><span class="tag avoid">FADE</span> <strong>SEA batters for HR</strong> — Valdez Avoid 36 + T-Mobile ×0.91.</div>
+        <div style="margin-top:4px;"><span class="tag avoid">FADE</span> <strong>MIL batters</strong> — May Avoid 35. PIT@MIL.</div>
+        <div style="margin-top:4px;"><span class="tag avoid">FADE</span> <strong>Dillon Dingler HR</strong> — FIRE but Avoid pitcher + T-Mobile. Raw score misleads.</div>
+      </div>
+    </div>
+    <div>
+      <div class="card">
+        <div class="hl" style="margin-bottom:6px;">⚠ Context Caveats</div>
+        <div><strong>John Rave #1 raw Wt (74.5)</strong> — Kauffman ×0.93 pitcher's park limits ceiling. Ober is Neutral Lean not Attackable. Best case: individual lean, not a stack cornerstone.</div>
+        <div style="margin-top:6px;"><strong>Griffin Conine #3 raw (70.0)</strong> — Junk is Avoid. ×0.72 penalty already applied. Raw number is misleading — trust the penalized score.</div>
+        <div style="margin-top:6px;"><strong>CWS@BOS CWS batters</strong> — Castillo Neutral 60 is not a free pass. Fenway ×1.04 modest. BOS is HOT on offense which may mean Castillo pitches well tonight. Moderate conviction only.</div>
+        <div style="margin-top:6px;"><strong>SD@AZ SD side (Marte, Tatis)</strong> — vs Buehler Neutral 48. Lower ceiling than the AZ/Drake side. Use AZ batters for HR DFS, SD batters for hit props.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SLATE SUMMARY -->
+<div class="section">
+  <div class="section-title">Slate Summary</div>
+  <div class="card highlight">
+    <div class="grid3" style="gap:16px;">
+      <div>
+        <div class="xs dim" style="margin-bottom:6px;">🏆 TOP HR PLAYS</div>
+        <div class="hl">1. Schwarber DUE (PHI)</div>
+        <div>2. Harper HOT (PHI)</div>
+        <div>3. De La Cruz (CIN/GABP)</div>
+        <div>4. Machado DUE (AZ/Chase)</div>
+        <div>5. JJ Bleday DUE (CIN/GABP)</div>
+        <div class="xs dim" style="margin-top:6px;">Stack: PHI (Schwarber+Harper) vs Mikolas</div>
+      </div>
+      <div>
+        <div class="xs dim" style="margin-bottom:6px;">⚡ K PROPS</div>
+        <div><span class="hl">Cease o7.5 (52%)</span> — push zone, take it</div>
+        <div>Miller o5.5 (54%) — lean over</div>
+        <div>Griffin o4.5 (54%) — lean over</div>
+        <div class="hl-r">Sánchez — lean under (45%)</div>
+        <div class="hl-r">Mikolas — STRONG UNDER (38%)</div>
+      </div>
+      <div>
+        <div class="xs dim" style="margin-bottom:6px;">🚶 WALK / NRFI / YRFI</div>
+        <div class="hl">Abbott o1.5 walks (71%)</div>
+        <div>Cease o2.5 walks (52%)</div>
+        <div>Pérez o1.5 walks (68%)</div>
+        <div class="hl-t">★★ NRFI: DET@SEA, MIA@ATL, PIT@MIL</div>
+        <div class="hl-o">★ YRFI Lean: ATH@CIN, WSH@PHI</div>
+      </div>
+    </div>
+    <div class="div"></div>
+    <div style="color:var(--txt2);">
+      <strong class="hl">Game of Day:</strong> WSH@PHI — PHI batters (Schwarber DUE + Harper HOT) vs Mikolas Att 64 at CBP ×1.14. Sánchez K ELITE on the other side means TWO prop types in one game: PHI HR + Sánchez Ks.
+      <span style="margin-left:12px;"><strong class="hl">Key Avoids:</strong> TOR/WSH batters for HR (K ELITE arms), Dingler at T-Mobile/Avoid, Junk/May/Valdez games all NRFI lean.</span>
+    </div>
+  </div>
+</div>
+
+<div style="text-align:center;color:var(--txt3);font-size:10px;margin-top:30px;padding-top:12px;border-top:1px solid var(--border);">
+  PropStats · 8/6/2026 · 22 games · 22 K arms · 22 walk arms · 286 fantasy players
+</div>
+
+</div>
+</body>
+</html>
