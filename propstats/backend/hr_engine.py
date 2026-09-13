@@ -1619,6 +1619,29 @@ def enrich_statcast_recent(results: list, game_date: str, top_n: int = 120,
             if w15["avg_dist"] and not b.get("avg_dist"):
                 b["avg_dist"] = w15["avg_dist"]
 
+            # Recent form vs this batter's own season baseline — the swing in
+            # form matters more than the absolute number for a one-game bet.
+            season_ev  = b.get("exit_velo") or 0.0
+            season_brl = b.get("brl_bip") or 0.0
+            season_hh  = b.get("hh_pct") or 0.0
+            season_la  = b.get("la_avg") or 0.0
+            d = {}
+            if season_ev and w10["avg_ev"]:
+                d["ev"] = round(w10["avg_ev"] - season_ev, 1)
+            if season_brl and w10["brl_pct"]:
+                d["brl_pct_rel"] = round((w10["brl_pct"] - season_brl) / season_brl * 100, 1)
+            if season_hh and w10["hh_pct"]:
+                d["hh_pct_rel"] = round((w10["hh_pct"] - season_hh) / season_hh * 100, 1)
+            if season_la and w10["avg_la"]:
+                d["la"] = round(w10["avg_la"] - season_la, 1)
+            if w5["max_ev"] and b.get("max_ev_season"):
+                d["max_ev"] = round(w5["max_ev"] - b["max_ev_season"], 1)
+            b["form_delta"] = d
+            b["heating_up"] = bool(d.get("ev", 0) >= 2.0 and d.get("brl_pct_rel", 0) >= 15.0)
+            if b["heating_up"]:
+                tg = b.setdefault("tags", [])
+                tg.insert(0, f"📈 HEATING (EV {d['ev']:+.1f} · brl {d['brl_pct_rel']:+.0f}%)")
+
             season_rate = (b.get("xiso") or 0.0) * 0.22 or LEAGUE_HR_PA
             l10_rate    = w10["hr"] / w10["pa"] if w10["pa"] else season_rate
             ratio       = l10_rate / season_rate if season_rate else 1.0
@@ -1815,6 +1838,86 @@ def enrich_pitcher_hand_mix(results: list, game_date: str, lookback_days: int = 
             if swing_tags:
                 tags.append(f"HAND MIX v{side}HB: " + ", ".join(swing_tags[:2]))
         r["top_batters"].sort(key=lambda x: (x.get("in_lineup") is False, -x["matchup_score"]))
+    return results
+
+
+# ── Calibration ───────────────────────────────────────────────────────────────
+# Multipliers below are anchored to measured hit-rate lift over a 12-slate,
+# 2,721-pick sample (base rate 10.9%). Lifts are damped toward 1.0 because the
+# per-signal samples are small; see grade_engine.py to re-measure.
+#
+#   signal          n     rate    lift    applied
+#   OWNS PITCHER    13    30.8%   2.83x   1.55
+#   FIRE (3+ L5)    51    21.6%   1.98x   1.40
+#   HARD LUCK       50    20.0%   1.84x   1.35
+#   EV SURGE       118    16.1%   1.48x   1.18
+#   DUE            289    15.6%   1.43x   1.15
+#   HOT (2 L5)     154    12.3%   1.13x   1.06
+#   DOMINATED       21     4.8%   0.44x   0.65
+#
+# Pitcher vulnerability measured only 1.14x from Attackable to Avoid, so its
+# multiplier range is compressed from the original 0.40–1.70 to 0.88–1.14.
+SIGNAL_MULTS = [
+    ("OWNS PITCHER", 1.55),
+    ("🔥 FIRE",      1.40),
+    ("HARD LUCK",    1.35),
+    ("EV SURGE",     1.18),
+    ("DUE",          1.15),
+    ("🔥 HOT",       1.06),
+    ("DOMINATED",    0.65),
+]
+CAL_SHRINK_KNEE = 0.15   # probabilities above this are pulled toward the knee
+CAL_SHRINK_RATE = 0.55   # observed 20-25% band ran ~6 pts hot, 25%+ ran far hotter
+CAL_MAX_SIGNAL  = 2.10   # cap stacked signals so one bat cannot run away
+
+
+def calibrate_probabilities(results: list) -> list:
+    """
+    Final pipeline pass: rebuild hr_prob from weighted components now that tags,
+    Statcast form, H2H and lineup slots are all attached.
+
+        lam = hr_rate_per_pa x expected_PA x vuln x park x zone x signals
+
+    Component weights come from grade_engine measurements rather than intuition:
+    signal tags earn real multipliers, pitcher vulnerability is demoted, and the
+    top of the distribution is shrunk because it ran consistently hot.
+
+    Keeps the pre-calibration value in hr_prob_raw so the shift stays auditable.
+    """
+    for r in results:
+        vuln = r["vuln"]["score"]
+        for b in r["top_batters"]:
+            xiso = b.get("xiso") or 0.0
+            base_rate = (xiso * 0.22) if xiso > 0 else LEAGUE_HR_PA
+            exp_pa = _expected_pa(b["order"]) if b.get("order") else 4.0
+
+            vuln_mult = 0.88 + (vuln / 100.0) * 0.26
+            park_mult = b.get("park_hr_factor") or 1.0
+            zone_mult = 0.92 + (b.get("hr_zone_score") or 0.0) / 100.0 * 0.22
+
+            tags = b.get("tags", [])
+            sig_mult, fired = 1.0, []
+            for needle, mult in SIGNAL_MULTS:
+                if any(needle in t for t in tags):
+                    sig_mult *= mult
+                    fired.append(needle)
+            sig_mult = min(sig_mult, CAL_MAX_SIGNAL)
+
+            lam = base_rate * exp_pa * vuln_mult * park_mult * zone_mult * sig_mult
+            prob = 1.0 - math.exp(-max(lam, 0.0005))
+
+            # Shrink the top end: the 20%+ bands ran 6-18 points hot when graded
+            if prob > CAL_SHRINK_KNEE:
+                prob = CAL_SHRINK_KNEE + (prob - CAL_SHRINK_KNEE) * CAL_SHRINK_RATE
+
+            pct = round(prob * 100, 1)
+            b["hr_prob_raw"]   = b.get("hr_prob")
+            b["hr_prob"]       = pct
+            b["implied_odds"]  = _prob_to_odds(pct)
+            b["hr_lam"]        = round(lam, 4)
+            b["cal_signals"]   = fired
+            b["cal_sig_mult"]  = round(sig_mult, 3)
+            b["cal_vuln_mult"] = round(vuln_mult, 3)
     return results
 
 
