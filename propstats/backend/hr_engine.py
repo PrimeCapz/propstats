@@ -1552,6 +1552,61 @@ def _statcast_window(events: list, n_games: int) -> dict:
     }
 
 
+# Plate grid: 5 columns of 0.5 ft across, 5 rows of 0.6 ft up, catcher's view.
+# Middle 3x3 approximates the strike zone; the outer ring is chase territory.
+ZONE_X = (-1.25, 1.25)
+ZONE_Z = (1.00, 4.00)
+ZONE_N = 5
+
+
+def _zone_grid(events: list) -> list:
+    """
+    Per-location damage for one batter: a 5x5 grid of swing outcomes.
+
+    Each cell carries how often the ball was put in play there, the average exit
+    velocity, mean xwOBA on contact, and home runs — enough to show where a
+    hitter does damage and where he can be beaten.
+    """
+    cells = [{"n": 0, "ev": 0.0, "xw": 0.0, "hr": 0, "swings": 0, "whiffs": 0}
+             for _ in range(ZONE_N * ZONE_N)]
+    xw_lo, xw_hi = ZONE_X
+    z_lo, z_hi = ZONE_Z
+    xstep = (xw_hi - xw_lo) / ZONE_N
+    zstep = (z_hi - z_lo) / ZONE_N
+
+    for e in events:
+        px, pz = e.get("plate_x"), e.get("plate_z")
+        if px is None or pz is None or (px == 0.0 and pz == 0.0):
+            continue
+        col = int((px - xw_lo) / xstep)
+        row = int((z_hi - pz) / zstep)          # row 0 = top of the zone
+        if not (0 <= col < ZONE_N and 0 <= row < ZONE_N):
+            continue
+        c = cells[row * ZONE_N + col]
+        if e.get("is_swing"):
+            c["swings"] += 1
+        if e.get("is_whiff"):
+            c["whiffs"] += 1
+        if e.get("in_play") and e.get("launch_speed", 0) > 0:
+            c["n"] += 1
+            c["ev"] += e["launch_speed"]
+            c["xw"] += e.get("xwoba") or 0.0
+            if e.get("events") == "home_run":
+                c["hr"] += 1
+
+    out = []
+    for c in cells:
+        out.append({
+            "n": c["n"],
+            "ev": round(c["ev"] / c["n"], 1) if c["n"] else None,
+            "xwoba": round(c["xw"] / c["n"], 3) if c["n"] else None,
+            "hr": c["hr"],
+            "whiff": round(c["whiffs"] / c["swings"] * 100, 1) if c["swings"] >= 3 else None,
+            "swings": c["swings"],
+        })
+    return out
+
+
 def enrich_statcast_recent(results: list, game_date: str, top_n: int = 120,
                            lookback_days: int = 30) -> list:
     """
@@ -1596,6 +1651,8 @@ def enrich_statcast_recent(results: list, game_date: str, top_n: int = 120,
             key=lambda e: -e["launch_speed"])[:3]
         sc_map[bid] = {
             "L5": w5, "L10": w10, "L15": w15,
+            "zone_grid": _zone_grid(events),
+            "zone_window_days": lookback_days,
             "hard_luck_hits": [{
                 "date": e["game_date"][5:], "ev": e["launch_speed"],
                 "la": e["launch_angle"], "dist": int(e["hit_distance"]),
