@@ -1927,6 +1927,36 @@ CAL_SHRINK_KNEE = 0.15   # probabilities above this are pulled toward the knee
 CAL_SHRINK_RATE = 0.55   # observed 20-25% band ran ~6 pts hot, 25%+ ran far hotter
 CAL_MAX_SIGNAL  = 2.10   # cap stacked signals so one bat cannot run away
 
+# Bucketed multipliers fitted on 1,632 graded picks across six slates and damped
+# toward 1.0 by sample size (n/(n+60)). Leave-one-slate-out, ranking by the
+# resulting score took the top-20 hit rate from 16.7% to 20.8%, beating the old
+# ranking on five of six held-out days.
+#
+# Park fit turned out to be the strongest single feature in the whole model
+# (0.44x at the bottom, 1.52x at the top) despite previously only feeding a
+# display tag. HR/FB rate and lineup slot were similarly under-used. Barrel rate
+# is deliberately non-monotonic: the 11-14% band outperforms the 17%+ band,
+# which is a small and streaky group.
+FIT_MULTS = {
+    "park_fit":  [(0, 30, 0.44), (30, 50, 0.91), (50, 70, 1.44), (70, 1e9, 1.52)],
+    "hr_fb_pct": [(0, 10, 0.56), (10, 14, 0.97), (14, 18, 1.53), (18, 1e9, 1.10)],
+    "brl_bip":   [(0, 8, 0.79), (8, 11, 0.76), (11, 14, 1.66), (14, 17, 1.41), (17, 1e9, 0.91)],
+    "ev10":      [(0, 86, 0.94), (86, 89, 1.26), (89, 92, 1.27), (92, 1e9, 1.61)],
+    "zone":      [(0, 20, 0.82), (20, 45, 1.20), (45, 70, 1.41), (70, 1e9, 1.16)],
+    "vuln":      [(0, 25, 0.88), (25, 45, 1.02), (45, 63, 1.11), (63, 1e9, 1.04)],
+    "park":      [(0, 0.92, 0.92), (0.92, 1.02, 0.87), (1.02, 1.12, 0.99), (1.12, 1e9, 1.26)],
+}
+ORDER_MULTS = [(1, 3, 1.53), (3, 6, 1.31), (6, 10, 0.90)]
+
+
+def _bucket_mult(table: list, val) -> float:
+    if val is None:
+        return 1.0
+    for lo, hi, m in table:
+        if lo <= val < hi:
+            return m
+    return 1.0
+
 
 def calibrate_probabilities(results: list) -> list:
     """
@@ -1947,10 +1977,23 @@ def calibrate_probabilities(results: list) -> list:
             xiso = b.get("xiso") or 0.0
             base_rate = (xiso * 0.22) if xiso > 0 else LEAGUE_HR_PA
             exp_pa = _expected_pa(b["order"]) if b.get("order") else 4.0
+            ev10 = ((b.get("statcast") or {}).get("L10") or {}).get("avg_ev")
 
-            vuln_mult = 0.88 + (vuln / 100.0) * 0.26
-            park_mult = b.get("park_hr_factor") or 1.0
-            zone_mult = 0.92 + (b.get("hr_zone_score") or 0.0) / 100.0 * 0.22
+            parts = {
+                "park_fit":  _bucket_mult(FIT_MULTS["park_fit"], b.get("park_fit")),
+                "hr_fb_pct": _bucket_mult(FIT_MULTS["hr_fb_pct"], b.get("hr_fb_pct")),
+                "brl_bip":   _bucket_mult(FIT_MULTS["brl_bip"], b.get("brl_bip")),
+                "ev10":      _bucket_mult(FIT_MULTS["ev10"], ev10),
+                "zone":      _bucket_mult(FIT_MULTS["zone"], b.get("hr_zone_score")),
+                "vuln":      _bucket_mult(FIT_MULTS["vuln"], vuln),
+                "park":      _bucket_mult(FIT_MULTS["park"], b.get("park_hr_factor")),
+            }
+            order_mult = 1.0
+            if b.get("order"):
+                for lo, hi, m in ORDER_MULTS:
+                    if lo <= b["order"] < hi:
+                        order_mult = m
+                        break
 
             tags = b.get("tags", [])
             sig_mult, fired = 1.0, []
@@ -1960,7 +2003,11 @@ def calibrate_probabilities(results: list) -> list:
                     fired.append(needle)
             sig_mult = min(sig_mult, CAL_MAX_SIGNAL)
 
-            lam = base_rate * exp_pa * vuln_mult * park_mult * zone_mult * sig_mult
+            feat_mult = 1.0
+            for m in parts.values():
+                feat_mult *= m
+
+            lam = base_rate * exp_pa * feat_mult * order_mult * sig_mult
             prob = 1.0 - math.exp(-max(lam, 0.0005))
 
             # Shrink the top end: the 20%+ bands ran 6-18 points hot when graded
@@ -1974,7 +2021,8 @@ def calibrate_probabilities(results: list) -> list:
             b["hr_lam"]        = round(lam, 4)
             b["cal_signals"]   = fired
             b["cal_sig_mult"]  = round(sig_mult, 3)
-            b["cal_vuln_mult"] = round(vuln_mult, 3)
+            b["cal_parts"]     = {k: round(v, 3) for k, v in parts.items()}
+            b["cal_order_mult"] = order_mult
     return results
 
 
