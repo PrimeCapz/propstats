@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Build HTML artifact for 2026-09-13 MLB slate."""
+"""Build HTML artifact for 2026-09-14 MLB slate."""
 import json, os, math
 
 SP = "/tmp/claude-0/-home-user-propstats/4a29f92c-2ab2-55a2-aa2c-327f896f1d05/scratchpad"
-DATE = "2026-09-13"
-DS = "20260913"
+DATE = "2026-09-14"
+DS = "20260914"
 OUT = f"{SP}/slate_{DS}.html"
 
 def load(name):
@@ -787,11 +787,17 @@ def build_outs_tab():
 
 # ── HR tab ─────────────────────────────────────────────────────────────────────
 
+def _best_prob(g):
+    live = [b.get("hr_prob") or 0 for b in g["top_batters"] if b.get("in_lineup") is not False]
+    return max(live) if live else 0
+
 def build_hr_tab():
     html = build_leverage_strip()
     html += build_due_strip()
     html += '<div class="board-grid">'
-    for g in hr_board:
+    # Ordered by the best calibrated bat in each matchup. Pitcher vulnerability
+    # graded at only a 1.07x lift, so it no longer decides what you see first.
+    for g in sorted(hr_board, key=_best_prob, reverse=True):
         v = g["vuln"]
         vuln_score = v["score"]
         vuln_cls = "badge-attack" if v["tier"] == "Attackable" else "badge-avoid" if v["tier"] == "Avoid" else "badge-neutral"
@@ -1161,7 +1167,7 @@ f5_html = build_f5_tab()
 fantasy_html = build_fantasy_tab()
 parlays_html = build_parlays_tab()
 
-page = f"""<title>PropStats Sep 13</title>
+page = f"""<title>PropStats Sep 14</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&family=IBM+Plex+Sans+Condensed:wght@300;400;500;600;700&display=swap">
 <style>
@@ -1461,7 +1467,7 @@ b{{color:var(--text)}}
 
 <div class="site-header">
   <div class="site-logo">PropStats</div>
-  <div class="site-date mono">Sep 13, 2026 · MLB Slate</div>
+  <div class="site-date mono">Sep 14, 2026 · MLB Slate</div>
   <div class="header-stats">
     <span>{len(k_board)} pitchers</span>
     <span>{len(nrfi_board)} games (NRFI)</span>

@@ -2050,51 +2050,67 @@ MARQUEE_BATS = {
 }
 
 
+LEVERAGE_MODEL_CUT = 0.15   # must sit in the model's top 15% to qualify at all
+LEVERAGE_MIN_GAP   = 0.05   # and the crowd must rank it at least this much lower
+
+
 def tag_chalk_levels(results: list) -> list:
     """
-    Score how public/obvious each HR play is (0-100) and tag a tier.
+    Label how public each play is, and flag the ones the crowd is underrating.
 
-    Chalk is a popularity proxy, not a quality judgement — a heavy-chalk bat can
-    still be the best bet. Three inputs:
-      price  (50%) — short odds draw the crowd; scaled across this slate's probs
-      rank   (30%) — position on the board everyone else is also reading
-      name   (20%) — marquee bats get bet regardless of matchup
+    An earlier version tagged anything with a long price and no marquee name as
+    LEVERAGE. Graded over 986 such picks it returned a 0.80x lift — below the
+    base rate — because a long price usually just means a bad hitter. Low
+    profile on its own is not an edge.
 
-    Tiers: HEAVY CHALK (>=70) / CHALKY (50-69) / BALANCED (30-49) / LEVERAGE (<30)
+    Leverage is now a disagreement measure: the play has to rank in the model's
+    top 15% *and* sit meaningfully lower in a crowd-facing ranking (price plus
+    marquee status). That version graded 16.3% against a 10.4% base, a 1.57x
+    lift on roughly 9% of the board.
+
+    The other tiers stay descriptive rather than predictive — marquee bats in
+    the model's top 20% hit 15.0% versus 14.2% for everyone else, so fading
+    chalk for its own sake has no measurable edge.
     """
     live = [(b, r) for r in results for b in r["top_batters"]
             if b.get("in_lineup") is not False]
     if not live:
         return results
+    n = len(live)
 
-    probs = sorted((b.get("hr_prob") or 0.0 for b, _ in live), reverse=True)
-    hi = probs[0] or 1.0
-    lo = probs[-1]
-    span = (hi - lo) or 1.0
+    by_model = sorted(live, key=lambda x: -(x[0].get("hr_prob") or 0.0))
+    model_rank = {id(b): i / n for i, (b, _) in enumerate(by_model)}
 
-    ranked = sorted(live, key=lambda x: -(x[0].get("matchup_score") or 0))
-    rank_of = {id(b): i for i, (b, _) in enumerate(ranked)}
-    n = len(ranked)
+    # What a bettor scanning a board sees: the price, plus the name they know.
+    def crowd_key(pair):
+        b = pair[0]
+        return -((b.get("hr_prob") or 0.0) * 0.75 +
+                 (30.0 if b["batter_name"] in MARQUEE_BATS else 0.0))
+    by_crowd = sorted(live, key=crowd_key)
+    crowd_rank = {id(b): i / n for i, (b, _) in enumerate(by_crowd)}
 
-    for b, r in live:
-        price = ((b.get("hr_prob") or 0.0) - lo) / span * 100.0
-        rank  = max(0.0, 100.0 * (1.0 - rank_of[id(b)] / max(1, min(n, 40))))
-        star  = 100.0 if b["batter_name"] in MARQUEE_BATS else 0.0
-        score = price * 0.50 + rank * 0.30 + star * 0.20
+    for b, _r in live:
+        mr, cr = model_rank[id(b)], crowd_rank[id(b)]
+        gap = cr - mr                       # positive: model rates it above the crowd
+        marquee = b["batter_name"] in MARQUEE_BATS
+        public = (1.0 - cr) * 100.0         # 100 = most public play on the slate
 
-        if score >= 70:
-            tier, badge = "HEAVY CHALK", "🔒"
-        elif score >= 50:
-            tier, badge = "CHALKY", "⚠️"
-        elif score >= 30:
-            tier, badge = "BALANCED", "○"
-        else:
+        if mr <= LEVERAGE_MODEL_CUT and gap >= LEVERAGE_MIN_GAP:
             tier, badge = "LEVERAGE", "💎"
+        elif public >= 85 or (marquee and public >= 70):
+            tier, badge = "HEAVY CHALK", "🔒"
+        elif public >= 65:
+            tier, badge = "CHALKY", "⚠️"
+        else:
+            tier, badge = "BALANCED", "○"
 
-        b["chalk_score"] = round(score, 1)
-        b["chalk_tier"]  = tier
-        b["chalk_badge"] = badge
-        b["is_marquee"]  = b["batter_name"] in MARQUEE_BATS
+        b["chalk_score"]  = round(public, 1)
+        b["chalk_tier"]   = tier
+        b["chalk_badge"]  = badge
+        b["is_marquee"]   = marquee
+        b["model_rank"]   = round(mr, 4)
+        b["crowd_rank"]   = round(cr, 4)
+        b["leverage_gap"] = round(gap, 4)
 
     for r in results:
         for b in r["top_batters"]:
