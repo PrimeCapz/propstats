@@ -413,20 +413,41 @@ def build_board_tab():
                               "prob", "odds", "order", "arch_p", "arch_b", "fams", "side",
                               "brl", "hh", "iso", "zone", "bgrid", "pgrid", "all_tags")},
                              separators=(",", ":"))
-        body += (f'<tr class="brow" data-chalk="{r["chalk"]}" data-detail=\'{esc_attr(detail)}\'>{tds}</tr>'
+        body += (f'<tr class="brow" data-chalk="{r["chalk"]}" data-pit="{esc_attr(r["pitcher"])}"'
+                 f' data-game="{esc_attr(r["game"])}" data-detail=\'{esc_attr(detail)}\'>{tds}</tr>'
                  f'<tr class="drow" hidden><td colspan="{len(BOARD_COLS)}"></td></tr>')
 
+    pit_opts = "".join(f'<option value="{esc_attr(p)}">{esc_attr(p)}</option>'
+                       for p in sorted({r["pitcher"] for r in rows}))
+    game_opts = "".join(f'<option value="{esc_attr(gm)}">{esc_attr(gm)}</option>'
+                        for gm in sorted({r["game"] for r in rows}))
     return f'''<div class="board-wrap">
   <div class="board-bar">
-    <span class="board-title">Full board — {len(rows)} hitters</span>
-    <span class="board-hint">Click a column to sort · <b>click a player to open his last 5 games</b></span>
+    <span class="board-title">Full board — <span id="bd-count">{len(rows)}</span> hitters</span>
+    <span class="board-hint">Sort by any column · filters stack · <b>click a player for his last 5 games</b></span>
     <span class="board-filters">
       <button class="fbtn active" data-f="all">All</button>
-      <button class="fbtn" data-f="LEVERAGE">💎 Leverage</button>
-      <button class="fbtn" data-f="BALANCED">○ Balanced</button>
-      <button class="fbtn" data-f="CHALKY">⚠️ Chalky</button>
-      <button class="fbtn" data-f="HEAVY CHALK">🔒 Chalk</button>
+      <button class="fbtn" data-f="LEVERAGE">Leverage</button>
+      <button class="fbtn" data-f="BALANCED">Balanced</button>
+      <button class="fbtn" data-f="CHALKY">Chalky</button>
+      <button class="fbtn" data-f="HEAVY CHALK">Chalk</button>
     </span>
+  </div>
+  <div class="board-bar board-bar2">
+    <label class="fsel">Pitcher
+      <select id="f-pit"><option value="">any</option>{pit_opts}</select></label>
+    <label class="fsel">Game
+      <select id="f-game"><option value="">any</option>{game_opts}</select></label>
+    <label class="fsel">Min EV L10
+      <select id="f-ev"><option value="">any</option><option value="88">88+</option>
+        <option value="90">90+</option><option value="91.3">91.3+ (top third)</option>
+        <option value="93">93+</option><option value="95">95+</option></select></label>
+    <label class="fsel">Min HR%
+      <select id="f-prob"><option value="">any</option><option value="12">12%+</option>
+        <option value="15">15%+</option><option value="18">18%+</option><option value="20">20%+</option></select></label>
+    <label class="fsel fchk"><input type="checkbox" id="f-sig"> Has a signal</label>
+    <button class="fbtn" id="f-clear">Clear</button>
+    <span class="fstate" id="f-state"></span>
   </div>
   <div class="board-scroll"><table class="board-tbl" id="bigboard">
     <thead><tr>{head}</tr></thead><tbody>{body}</tbody>
@@ -752,6 +773,8 @@ def build_games_tab():
         html += f'<div class="game-header"><span class="game-title">{game}</span>'
         if lam > 0:
             html += f'<span class="lam-badge">λ {lam:.2f}</span>'
+        html += (f'<button class="game-open" data-open-game="{esc_attr(game)}" '
+                 f'title="Open the board filtered to this game">Open board &rarr;</button>')
         html += '</div>'
 
         # NRFI row
@@ -1485,7 +1508,21 @@ details.pitch-drop[open] summary::before{{content:"▾ "}}
 .board-filters{{margin-left:auto;display:flex;gap:4px}}
 .fbtn{{font-size:11px;font-family:'DM Mono',monospace;background:var(--surface2);color:var(--muted);border:1px solid var(--border);border-radius:2px;padding:3px 10px;cursor:pointer}}
 .fbtn:hover{{color:var(--text)}}
-.fbtn.active{{background:var(--accent);color:#fff;border-color:var(--accent)}}
+.fbtn.active{{background:var(--accent);color:var(--bg);border-color:var(--accent);font-weight:600}}
+.board-bar2{{gap:14px;background:var(--surface);border-bottom:1px solid var(--border)}}
+.fsel{{display:flex;align-items:center;gap:5px;font-size:10px;letter-spacing:.6px;text-transform:uppercase;color:var(--muted)}}
+.fsel select{{background:var(--surface2);border:1px solid var(--border);border-radius:2px;color:var(--text);
+  font-family:'IBM Plex Mono',monospace;font-size:11px;padding:3px 6px;text-transform:none;letter-spacing:0}}
+.fsel select:focus{{outline:none;border-color:var(--accent)}}
+.fchk{{cursor:pointer}}
+.fchk input{{accent-color:var(--accent);margin:0}}
+.fstate{{margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--accent)}}
+table.board-tbl td:nth-child(2),table.board-tbl td:nth-child(3){{cursor:pointer}}
+table.board-tbl td:nth-child(2):hover,table.board-tbl td:nth-child(3):hover{{color:var(--accent);text-decoration:underline}}
+.game-open{{margin-left:auto;background:transparent;border:1px solid var(--border);border-radius:2px;
+  color:var(--muted);font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.4px;
+  padding:2px 8px;cursor:pointer}}
+.game-open:hover{{color:var(--accent);border-color:var(--accent)}}
 .board-scroll{{overflow:auto;max-height:78vh}}
 table.board-tbl{{border-collapse:separate;border-spacing:0;width:100%;font-size:11.5px;font-family:'DM Mono',monospace;font-variant-numeric:tabular-nums}}
 table.board-tbl th{{position:sticky;top:0;z-index:3;background:var(--surface2);color:var(--muted);font-family:'IBM Plex Sans Condensed',sans-serif;font-size:11px;font-weight:600;letter-spacing:.3px;text-align:right;padding:7px 8px;border-bottom:1px solid var(--border);cursor:pointer;white-space:nowrap;user-select:none}}
@@ -2042,18 +2079,99 @@ function showTab(id) {{
     }});
   }});
 
-  document.querySelectorAll('.fbtn').forEach(btn => {{
+  // Filters stack: tier, pitcher, game, EV floor, probability floor, signals.
+  // Sorting is independent, so you can lock to one pitcher and still re-rank by EV.
+  const colIndex = name => Array.from(tbl.querySelectorAll('th')).findIndex(t => t.dataset.col === name);
+  const iEv = colIndex('ev10'), iProb = colIndex('prob'), iSig = colIndex('sigs');
+  const F = {{tier: 'all', pit: '', game: '', ev: '', prob: '', sig: false}};
+
+  function applyFilters() {{
+    let shown = 0;
+    Array.from(tbody.querySelectorAll('tr.brow')).forEach(r => {{
+      const num = i => parseFloat(r.cells[i]?.dataset.v);
+      let ok = (F.tier === 'all' || r.dataset.chalk === F.tier)
+            && (!F.pit  || r.dataset.pit  === F.pit)
+            && (!F.game || r.dataset.game === F.game);
+      if (ok && F.ev)   {{ const v = num(iEv);   ok = !Number.isNaN(v) && v >= +F.ev; }}
+      if (ok && F.prob) {{ const v = num(iProb); ok = !Number.isNaN(v) && v >= +F.prob; }}
+      if (ok && F.sig)  {{ ok = (r.cells[iSig]?.textContent || '').trim().length > 0; }}
+      r.hidden = !ok;
+      r.classList.remove('open');
+      const d = r.nextElementSibling;
+      if (d && d.classList.contains('drow')) d.hidden = true;
+      if (ok) shown++;
+    }});
+    const cnt = document.getElementById('bd-count');
+    if (cnt) cnt.textContent = shown;
+    const bits = [];
+    if (F.tier !== 'all') bits.push(F.tier.toLowerCase());
+    if (F.pit)  bits.push('vs ' + F.pit);
+    if (F.game) bits.push(F.game);
+    if (F.ev)   bits.push('EV ' + F.ev + '+');
+    if (F.prob) bits.push(F.prob + '%+');
+    if (F.sig)  bits.push('signalled');
+    const st = document.getElementById('f-state');
+    if (st) st.textContent = bits.length ? bits.join(' · ') : '';
+  }}
+
+  document.querySelectorAll('.fbtn[data-f]').forEach(btn => {{
     btn.addEventListener('click', () => {{
-      document.querySelectorAll('.fbtn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.fbtn[data-f]').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
-      const f = btn.dataset.f;
-      Array.from(tbody.rows).forEach(r => {{
-        if (r.classList.contains('drow')) {{ r.hidden = true; return; }}
-        r.hidden = !(f === 'all' || r.dataset.chalk === f);
-        r.classList.remove('open');
-      }});
+      F.tier = btn.dataset.f;
+      applyFilters();
     }});
   }});
+  const bind = (id, key) => {{
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('change', () => {{
+      F[key] = el.type === 'checkbox' ? el.checked : el.value;
+      applyFilters();
+    }});
+  }};
+  bind('f-pit','pit'); bind('f-game','game'); bind('f-ev','ev');
+  bind('f-prob','prob'); bind('f-sig','sig');
+  const clr = document.getElementById('f-clear');
+  if (clr) clr.addEventListener('click', () => {{
+    Object.assign(F, {{tier:'all', pit:'', game:'', ev:'', prob:'', sig:false}});
+    ['f-pit','f-game','f-ev','f-prob'].forEach(i => {{ const e = document.getElementById(i); if (e) e.value=''; }});
+    const s = document.getElementById('f-sig'); if (s) s.checked = false;
+    document.querySelectorAll('.fbtn[data-f]').forEach(b => b.classList.toggle('active', b.dataset.f === 'all'));
+    applyFilters();
+  }});
+
+  // Clicking a pitcher or game cell locks the board to it
+  tbody.addEventListener('click', ev => {{
+    const cell = ev.target.closest('td');
+    const row = ev.target.closest('tr.brow');
+    if (!cell || !row) return;
+    const lock = (key, id, val) => {{
+      ev.stopPropagation();
+      F[key] = (F[key] === val) ? '' : val;
+      const sel = document.getElementById(id);
+      if (sel) sel.value = F[key];
+      applyFilters();
+    }};
+    if (cell.cellIndex === colIndex('pitcher')) lock('pit', 'f-pit', row.dataset.pit);
+    else if (cell.cellIndex === colIndex('game')) lock('game', 'f-game', row.dataset.game);
+  }}, true);
+
+  // "Open board" on a game card jumps here with that game locked in
+  window.openGameBoard = function (game) {{
+    document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+    document.getElementById('board').classList.add('active');
+    const btn = Array.from(document.querySelectorAll('.tab-btn'))
+      .find(b => (b.getAttribute('onclick') || '').includes("'board'"));
+    if (btn) btn.classList.add('active');
+    F.game = game;
+    const sel = document.getElementById('f-game');
+    if (sel) sel.value = game;
+    applyFilters();
+    document.getElementById('board').scrollIntoView({{behavior: 'smooth', block: 'start'}});
+  }};
+  document.querySelectorAll('[data-open-game]').forEach(b =>
+    b.addEventListener('click', () => window.openGameBoard(b.dataset.openGame)));
 
   // Click a player row to open his recent form underneath it
   const f1 = (v, d) => (v === null || v === undefined) ? '·' : (+v).toFixed(d);
