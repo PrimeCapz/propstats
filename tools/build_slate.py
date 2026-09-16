@@ -373,6 +373,10 @@ def build_board_tab():
                 "edges": [e["label"] for e in b.get("hr_edges", [])][:3],
                 "weak": [w["label"] for w in b.get("weak_spots", [])][:2],
                 "h2h": (lambda h: h if h.get("pa") else None)(b.get("h2h") or {}),
+                "h2h_kind": ("owns" if "OWNS" in (b.get("h2h_signal") or "")
+                             else "dom" if "DOMIN" in (b.get("h2h_signal") or "")
+                             else "hr" if (b.get("h2h") or {}).get("hr", 0) >= 1
+                             else "any" if (b.get("h2h") or {}).get("pa") else ""),
                 "sig": b.get("cal_signals", []),
                 "arch_p": pitcher_archetype(g, b.get("hand_usage_applied") or
                                             (b.get("bats") if b.get("bats") in ("L", "R") else "R")),
@@ -414,7 +418,8 @@ def build_board_tab():
                               "brl", "hh", "iso", "zone", "bgrid", "pgrid", "all_tags")},
                              separators=(",", ":"))
         body += (f'<tr class="brow" data-chalk="{r["chalk"]}" data-pit="{esc_attr(r["pitcher"])}"'
-                 f' data-game="{esc_attr(r["game"])}" data-detail=\'{esc_attr(detail)}\'>{tds}</tr>'
+                 f' data-game="{esc_attr(r["game"])}" data-h2h="{r.get("h2h_kind","")}"'
+                 f' data-detail=\'{esc_attr(detail)}\'>{tds}</tr>'
                  f'<tr class="drow" hidden><td colspan="{len(BOARD_COLS)}"></td></tr>')
 
     pit_opts = "".join(f'<option value="{esc_attr(p)}">{esc_attr(p)}</option>'
@@ -445,6 +450,10 @@ def build_board_tab():
     <label class="fsel">Min HR%
       <select id="f-prob"><option value="">any</option><option value="12">12%+</option>
         <option value="15">15%+</option><option value="18">18%+</option><option value="20">20%+</option></select></label>
+    <label class="fsel">Head to head
+      <select id="f-h2h"><option value="">any</option><option value="any">has faced him</option>
+        <option value="hr">has a HR off him</option><option value="owns">owns him</option>
+        <option value="dom">dominated by him</option></select></label>
     <label class="fsel fchk"><input type="checkbox" id="f-sig"> Has a signal</label>
     <button class="fbtn" id="f-clear">Clear</button>
     <span class="fstate" id="f-state"></span>
@@ -588,6 +597,94 @@ def build_matchup_tab():
 </div>
 <script id="mm-bat-data" type="application/json">{json.dumps(bat, separators=(",", ":"))}</script>
 <script id="mm-pit-data" type="application/json">{json.dumps(pit, separators=(",", ":"))}</script>'''
+
+
+def build_h2h_tab():
+    """Every batter on the slate who has faced tonight's starter before."""
+    rows, seen = [], set()
+    for g in hr_board:
+        for b in g["top_batters"]:
+            h = b.get("h2h") or {}
+            key = (b["batter_id"], g["pitcher_id"])
+            if not h.get("pa") or key in seen:
+                continue
+            seen.add(key)
+            pa, ab = h["pa"], h.get("ab") or 0
+            hr_, hits = h.get("hr") or 0, h.get("h") or 0
+            ops = h.get("ops") or 0
+            # Confidence grows with sample; quality is OPS against a 0.720 league line
+            conf = min(1.0, pa / 25)
+            score = (ops - 0.720) * conf * 100 + hr_ * 6 * conf
+            rows.append({
+                "b": b["batter_name"], "bats": b.get("bats", ""), "order": b.get("order"),
+                "p": g["pitcher_name"], "th": g.get("pitcher_throws", ""), "game": g["game"],
+                "pa": pa, "ab": ab, "h": hits, "hr": hr_, "bb": h.get("bb") or 0, "k": h.get("k") or 0,
+                "avg": h.get("avg") or 0, "obp": h.get("obp") or 0, "slg": h.get("slg") or 0,
+                "ops": ops, "kp": h.get("k_pct") or 0, "score": score,
+                "prob": b.get("hr_prob") or 0, "odds": b.get("implied_odds", ""),
+                "sig": b.get("h2h_signal") or "", "benched": b.get("in_lineup") is False,
+            })
+    rows.sort(key=lambda x: -x["score"])
+    live = [r for r in rows if not r["benched"]]
+
+    def verdict(r):
+        if r["sig"] and "OWNS" in r["sig"]:
+            return '<span class="sg sg-owns">OWNS</span>'
+        if r["sig"] and "DOMIN" in r["sig"]:
+            return '<span class="sg sg-dom">DOM</span>'
+        if r["pa"] >= 10 and r["ops"] >= 0.900:
+            return '<span class="sg sg-fire">STRONG</span>'
+        if r["pa"] >= 10 and r["ops"] <= 0.550:
+            return '<span class="sg sg-dom">WEAK</span>'
+        return '<span class="dim">—</span>'
+
+    def tbl(data, limit=None):
+        body = ""
+        for i, r in enumerate(data[:limit] if limit else data, 1):
+            slot = f'<span class="slot-badge slot-in">#{r["order"]}</span>' if r.get("order") else ""
+            ben = ' <span class="sg sg-dom">OUT</span>' if r["benched"] else ""
+            body += (f'<tr><td class="num dim">{i}</td>'
+                     f'<td data-v="{esc_attr(r["b"])}">{slot}<b>{esc_attr(r["b"])}</b>'
+                     f'<span class="hand">{r["bats"]}</span>{ben}</td>'
+                     f'<td data-v="{esc_attr(r["p"])}">{esc_attr(r["p"])}<span class="hand">{r["th"]}</span></td>'
+                     f'<td class="dim" data-v="{esc_attr(r["game"])}">{esc_attr(r["game"])}</td>'
+                     f'<td class="num" data-v="{r["pa"]}">{r["pa"]}</td>'
+                     f'<td class="num" data-v="{r["h"]}">{r["h"]}-{r["ab"]}</td>'
+                     f'<td class="num strong" data-v="{r["hr"]}">{r["hr"]}</td>'
+                     f'<td class="num" data-v="{r["bb"]}">{r["bb"]}</td>'
+                     f'<td class="num" data-v="{r["k"]}">{r["k"]}</td>'
+                     f'<td class="num" data-v="{r["avg"]}">{r["avg"]:.3f}</td>'
+                     f'<td class="num" data-v="{r["slg"]}">{r["slg"]:.3f}</td>'
+                     f'<td class="num strong" data-v="{r["ops"]}" style="{_heat(r["ops"], 0.450, 1.250)}">{r["ops"]:.3f}</td>'
+                     f'<td class="num" data-v="{r["prob"]}">{r["prob"]:.1f}%</td>'
+                     f'<td class="num dim" data-v="{r["prob"]}">{esc_attr(r["odds"])}</td>'
+                     f'<td data-v="{r["score"]:.1f}">{verdict(r)}</td></tr>')
+        return body
+
+    head = ("<tr><th></th><th>Batter</th><th>vs Pitcher</th><th>Game</th><th>PA</th><th>H</th>"
+            "<th>HR</th><th>BB</th><th>K</th><th>AVG</th><th>SLG</th><th>OPS</th>"
+            "<th>Model</th><th>Fair</th><th>Read</th></tr>")
+    owns = [r for r in live if r["sig"] and "OWNS" in r["sig"]]
+    doms = [r for r in live if r["sig"] and "DOMIN" in r["sig"]]
+
+    return f'''<div class="board-wrap">
+  <div class="board-bar">
+    <span class="board-title">Head to head — {len(live)} in tonight's lineups</span>
+    <span class="board-hint">Career meetings since 2020 · ranked by quality weighted to sample size ·
+      <b>{len(owns)} owns, {len(doms)} dominated</b></span>
+  </div>
+  <div class="board-bar board-bar2">
+    <label class="fsel">Minimum PA
+      <select id="h-pa"><option value="1">any</option><option value="6">6+</option>
+        <option value="10" selected>10+</option><option value="15">15+</option><option value="20">20+</option></select></label>
+    <label class="fsel">Show
+      <select id="h-kind"><option value="all">everything</option><option value="owns">owns the pitcher</option>
+        <option value="dom">dominated by him</option><option value="hr">has a home run</option></select></label>
+    <span class="fstate" id="h-state"></span>
+  </div>
+  <div class="board-scroll"><table class="board-tbl h2h-tbl" id="h2hboard">
+    <thead>{head}</thead><tbody>{tbl(live)}</tbody></table></div>
+</div>'''
 
 
 def build_due_strip():
@@ -1300,6 +1397,7 @@ hr_html = build_hr_tab()
 board_html = build_board_tab()
 lookup_html = build_lookup_tab()
 matchup_html = build_matchup_tab()
+h2h_html = build_h2h_tab()
 nrfi_html = build_nrfi_tab()
 hits_html = build_hits_tab()
 f5_html = build_f5_tab()
@@ -1709,6 +1807,7 @@ b{{color:var(--text)}}
   <button class="tab-btn" onclick="showTab('board')">Big Board</button>
   <button class="tab-btn" onclick="showTab('lookup')">Lookup</button>
   <button class="tab-btn" onclick="showTab('matchup')">Matchup Machine</button>
+  <button class="tab-btn" onclick="showTab('h2h')">Head to Head</button>
   <button class="tab-btn" onclick="showTab('nrfi')">NRFI / YRFI</button>
   <button class="tab-btn" onclick="showTab('hits')">Hits</button>
   <button class="tab-btn" onclick="showTab('f5')">F5</button>
@@ -1723,6 +1822,7 @@ b{{color:var(--text)}}
 <div id="board" class="tab-content">{board_html}</div>
 <div id="lookup" class="tab-content">{lookup_html}</div>
 <div id="matchup" class="tab-content">{matchup_html}</div>
+<div id="h2h" class="tab-content">{h2h_html}</div>
 <div id="nrfi" class="tab-content">{nrfi_html}</div>
 <div id="hits" class="tab-content">{hits_html}</div>
 <div id="f5" class="tab-content">{f5_html}</div>
@@ -1736,6 +1836,53 @@ function showTab(id) {{
   document.getElementById(id).classList.add('active');
   event.target.classList.add('active');
 }}
+
+// Head-to-head table: sort any column, narrow by sample size or verdict
+(function () {{
+  const t = document.getElementById('h2hboard');
+  if (!t) return;
+  const tb = t.tBodies[0];
+  let col = -1, desc = true;
+  t.querySelectorAll('th').forEach((th, i) => {{
+    if (i === 0) return;
+    th.style.cursor = 'pointer';
+    th.addEventListener('click', () => {{
+      if (col === i) desc = !desc; else {{ col = i; desc = true; }}
+      const rows = Array.from(tb.rows);
+      rows.sort((a, b) => {{
+        const av = a.cells[i].dataset.v, bv = b.cells[i].dataset.v;
+        const x = parseFloat(av), y = parseFloat(bv);
+        const r = (!Number.isNaN(x) && !Number.isNaN(y)) ? x - y
+                : String(av || '').localeCompare(String(bv || ''));
+        return desc ? -r : r;
+      }});
+      rows.forEach(r => tb.appendChild(r));
+      renumber();
+    }});
+  }});
+  function renumber() {{
+    let n = 0;
+    Array.from(tb.rows).forEach(r => {{ if (!r.hidden) r.cells[0].textContent = ++n; }});
+    const st = document.getElementById('h-state');
+    if (st) st.textContent = n + ' matchups';
+  }}
+  function applyH() {{
+    const minPa = +(document.getElementById('h-pa')?.value || 1);
+    const kind = document.getElementById('h-kind')?.value || 'all';
+    Array.from(tb.rows).forEach(r => {{
+      const pa = +r.cells[4].dataset.v, hr = +r.cells[6].dataset.v;
+      const read = r.cells[14].textContent;
+      let ok = pa >= minPa;
+      if (ok && kind === 'owns') ok = read.includes('OWNS');
+      if (ok && kind === 'dom')  ok = read.includes('DOM');
+      if (ok && kind === 'hr')   ok = hr >= 1;
+      r.hidden = !ok;
+    }});
+    renumber();
+  }}
+  ['h-pa', 'h-kind'].forEach(id => document.getElementById(id)?.addEventListener('change', applyH));
+  applyH();
+}})();
 
 (function () {{
   const bRaw = document.getElementById('mm-bat-data'), pRaw = document.getElementById('mm-pit-data');
@@ -2083,7 +2230,8 @@ function showTab(id) {{
   // Sorting is independent, so you can lock to one pitcher and still re-rank by EV.
   const colIndex = name => Array.from(tbl.querySelectorAll('th')).findIndex(t => t.dataset.col === name);
   const iEv = colIndex('ev10'), iProb = colIndex('prob'), iSig = colIndex('sigs');
-  const F = {{tier: 'all', pit: '', game: '', ev: '', prob: '', sig: false}};
+  const F = {{tier: 'all', pit: '', game: '', ev: '', prob: '', sig: false, h2h: ''}};
+  const H2H_RANK = {{any: 1, hr: 2, owns: 3, dom: 1}};
 
   function applyFilters() {{
     let shown = 0;
@@ -2095,6 +2243,12 @@ function showTab(id) {{
       if (ok && F.ev)   {{ const v = num(iEv);   ok = !Number.isNaN(v) && v >= +F.ev; }}
       if (ok && F.prob) {{ const v = num(iProb); ok = !Number.isNaN(v) && v >= +F.prob; }}
       if (ok && F.sig)  {{ ok = (r.cells[iSig]?.textContent || '').trim().length > 0; }}
+      if (ok && F.h2h)  {{
+        const k = r.dataset.h2h || '';
+        ok = (F.h2h === 'any')  ? !!k
+           : (F.h2h === 'hr')   ? (k === 'hr' || k === 'owns')
+           : k === F.h2h;
+      }}
       r.hidden = !ok;
       r.classList.remove('open');
       const d = r.nextElementSibling;
@@ -2110,6 +2264,7 @@ function showTab(id) {{
     if (F.ev)   bits.push('EV ' + F.ev + '+');
     if (F.prob) bits.push(F.prob + '%+');
     if (F.sig)  bits.push('signalled');
+    if (F.h2h)  bits.push({{any:'has history', hr:'HR off him', owns:'owns him', dom:'dominated'}}[F.h2h]);
     const st = document.getElementById('f-state');
     if (st) st.textContent = bits.length ? bits.join(' · ') : '';
   }}
@@ -2130,11 +2285,11 @@ function showTab(id) {{
     }});
   }};
   bind('f-pit','pit'); bind('f-game','game'); bind('f-ev','ev');
-  bind('f-prob','prob'); bind('f-sig','sig');
+  bind('f-prob','prob'); bind('f-sig','sig'); bind('f-h2h','h2h');
   const clr = document.getElementById('f-clear');
   if (clr) clr.addEventListener('click', () => {{
-    Object.assign(F, {{tier:'all', pit:'', game:'', ev:'', prob:'', sig:false}});
-    ['f-pit','f-game','f-ev','f-prob'].forEach(i => {{ const e = document.getElementById(i); if (e) e.value=''; }});
+    Object.assign(F, {{tier:'all', pit:'', game:'', ev:'', prob:'', sig:false, h2h:''}});
+    ['f-pit','f-game','f-ev','f-prob','f-h2h'].forEach(i => {{ const e = document.getElementById(i); if (e) e.value=''; }});
     const s = document.getElementById('f-sig'); if (s) s.checked = false;
     document.querySelectorAll('.fbtn[data-f]').forEach(b => b.classList.toggle('active', b.dataset.f === 'all'));
     applyFilters();
