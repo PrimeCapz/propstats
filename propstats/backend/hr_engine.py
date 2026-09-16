@@ -1812,6 +1812,56 @@ def _pitcher_hand_split(rows: list) -> dict:
     }
 
 
+def _pitcher_zone_grid(rows: list) -> list:
+    """
+    Where a pitcher lives and where he gets hurt, on the same 5x5 plate grid as
+    the hitters. Location share says how often he puts the ball in each cell;
+    xwOBA and home runs say what happens when he does.
+    """
+    cells = [{"n": 0, "xw": 0.0, "hr": 0, "bbe": 0, "ev": 0.0,
+              "swings": 0, "whiffs": 0} for _ in range(ZONE_N * ZONE_N)]
+    x_lo, x_hi = ZONE_X
+    z_lo, z_hi = ZONE_Z
+    xstep = (x_hi - x_lo) / ZONE_N
+    zstep = (z_hi - z_lo) / ZONE_N
+    total = 0
+
+    for e in rows:
+        px, pz = e.get("plate_x"), e.get("plate_z")
+        if px is None or pz is None or (px == 0.0 and pz == 0.0):
+            continue
+        col = int((px - x_lo) / xstep)
+        row = int((z_hi - pz) / zstep)
+        if not (0 <= col < ZONE_N and 0 <= row < ZONE_N):
+            continue
+        c = cells[row * ZONE_N + col]
+        c["n"] += 1
+        total += 1
+        if e.get("is_swing"):
+            c["swings"] += 1
+        if e.get("is_whiff"):
+            c["whiffs"] += 1
+        if e.get("in_play") and e.get("launch_speed", 0) > 0:
+            c["bbe"] += 1
+            c["ev"] += e["launch_speed"]
+            c["xw"] += e.get("xwoba") or 0.0
+            if e.get("events") == "home_run":
+                c["hr"] += 1
+
+    out = []
+    for c in cells:
+        out.append({
+            "pitches": c["n"],
+            "loc_pct": round(c["n"] / total * 100, 1) if total else 0.0,
+            "bbe": c["bbe"],
+            "xwoba": round(c["xw"] / c["bbe"], 3) if c["bbe"] else None,
+            "ev": round(c["ev"] / c["bbe"], 1) if c["bbe"] else None,
+            "hr": c["hr"],
+            "whiff": round(c["whiffs"] / c["swings"] * 100, 1) if c["swings"] >= 3 else None,
+        })
+    return out
+
+
 def _pitcher_hand_profile(rows: list, recent_starts: int = 3) -> dict:
     """{'L': {'all': split, 'recent': split, 'games': n}, 'R': {...}} by batter side."""
     dates  = sorted({r["game_date"] for r in rows if r["game_date"]})
@@ -1823,6 +1873,7 @@ def _pitcher_hand_profile(rows: list, recent_starts: int = 3) -> dict:
             "games":  len({r["game_date"] for r in side_rows}),
             "all":    _pitcher_hand_split(side_rows),
             "recent": _pitcher_hand_split([r for r in side_rows if r["game_date"] in recent]),
+            "zone_grid": _pitcher_zone_grid(side_rows),
         }
     out["games_total"] = len(dates)
     out["recent_dates"] = sorted(recent)
