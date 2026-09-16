@@ -34,29 +34,101 @@ def form_bits(b):
     if s.get("brl_pct"): out.append(f'{s["brl_pct"]:.0f}% brl')
     return " · ".join(out)
 
+def _strength(edge):
+    """Plain words for how far a split sits from the hitter's own average."""
+    a = abs(edge)
+    if a >= 0.150:
+        return ("Crushes", "Struggles")
+    if a >= 0.090:
+        return ("Much better", "Much worse")
+    if a >= 0.060:
+        return ("Better", "Worse")
+    return (None, None)
+
+
 def ctx_line(b):
-    """This hitter's season line in the three conditions that apply tonight."""
+    """Tonight's conditions, written the way you would say them out loud."""
     sp = b.get("ctx_splits") or {}
     if not sp:
         return ""
-    throws_lhp = "hand" in sp and sp["hand"].get("code") == "vl"
-    names = {"hand": "vs LHP" if throws_lhp else "vs RHP",
-             "time": ("day" if b.get("ctx_daynight") == "day" else "night") + " games",
-             "site": "at home" if b.get("ctx_home") else "on the road"}
-    bits = []
+    lhp = (sp.get("hand") or {}).get("code") == "vl"
+    hand_word = "lefties" if lhp else "righties"
+    night = b.get("ctx_daynight") != "day"
+    home = b.get("ctx_home")
+
+    good, bad, neutral = [], [], []
     for key in ("hand", "time", "site"):
         v = sp.get(key)
         if not v:
             continue
-        cls = ""
-        if not v["thin"] and abs(v["edge"]) >= 0.060:
-            cls = ' class="ctx-up"' if v["edge"] > 0 else ' class="ctx-down"'
-        thin = ' <span class="dim">thin</span>' if v["thin"] else ""
-        bits.append(f'<span{cls}>{names[key]} <b>{v["ops"]:.3f}</b> OPS '
-                    f'<span class="dim">({v["edge"]:+.3f} · {v["pa"]} PA · {v["hr"]} HR)</span>{thin}</span>')
-    if not bits:
+        up, down = _strength(v["edge"])
+        where = {"hand": f"vs {hand_word}",
+                 "time": "at night" if night else "in day games",
+                 "site": "at home" if home else "on the road"}[key]
+        stat = f'<span class="dim">({v["ops"]:.3f} OPS, {v["edge"]:+.0f} pts over {v["pa"]} PA)</span>'.replace(
+            f'{v["edge"]:+.0f}', f'{v["edge"]*1000:+.0f}')
+        if v["thin"]:
+            neutral.append(f'{where} <span class="dim">{v["ops"]:.3f} OPS, only {v["pa"]} PA</span>')
+        elif up and v["edge"] > 0:
+            good.append(f'<span class="ctx-up">{up} {where}</span> {stat}')
+        elif down and v["edge"] < 0:
+            bad.append(f'<span class="ctx-down">{down} {where}</span> {stat}')
+        else:
+            neutral.append(f'{where} <span class="dim">{v["ops"]:.3f} OPS, near his average</span>')
+
+    parts = good + bad + neutral
+    if not parts:
         return ""
-    return f'<div class="bat-ctx"><span class="lbl">Tonight\'s context</span> {" · ".join(bits)}</div>'
+    return f'<div class="bat-ctx"><span class="lbl">Tonight</span> {" · ".join(parts)}</div>'
+
+
+def why_line(b, r):
+    """One sentence on what is actually driving this hitter's number."""
+    cp = b.get("cal_parts") or {}
+    sc = (b.get("statcast") or {}).get("L10") or {}
+    h2 = b.get("h2h") or {}
+    reasons, against = [], []
+
+    NAMES = {"park_fit": "his park fit here", "hr_fb_pct": "his fly balls leaving the yard",
+             "brl_bip": "his barrel rate", "ev10": "how hard he is hitting it lately",
+             "zone": "his fit against this pitcher's mix", "park": "the ballpark"}
+    for k, label in NAMES.items():
+        m = cp.get(k)
+        if m is None:
+            continue
+        if m >= 1.35:
+            reasons.append(label)
+        elif m <= 0.80:
+            against.append(label)
+
+    if h2.get("pa", 0) >= 8 and h2.get("hr", 0) >= 2:
+        reasons.insert(0, f"{h2['hr']} career home runs off {esc(r['pitcher_name'])} in {h2['pa']} plate appearances")
+    elif h2.get("pa", 0) >= 10 and (h2.get("avg") or 0) < 0.180:
+        against.insert(0, f"he is {h2.get('h',0)} for {h2.get('ab',0)} lifetime against this pitcher")
+    if (sc.get("hr") or 0) >= 3:
+        reasons.insert(0, f"{sc['hr']} home runs in his last 10 games")
+    if (sc.get("near_hr") or 0) >= 2:
+        reasons.append(f"{sc['near_hr']} balls that were nearly gone")
+    if b.get("order") and b["order"] <= 2:
+        reasons.append("an extra trip to the plate batting near the top")
+
+    if not reasons and not against:
+        return ""
+    s = ""
+    if reasons:
+        s += "Driven by " + _join(reasons[:3]) + "."
+    if against:
+        s += (" " if s else "") + "Working against him: " + _join(against[:2]) + "."
+    return f'<div class="bat-why">{s}</div>'
+
+
+def _join(items):
+    items = list(items)
+    if len(items) == 1:
+        return items[0]
+    if len(items) == 2:
+        return f"{items[0]} and {items[1]}"
+    return ", ".join(items[:-1]) + f", and {items[-1]}"
 
 
 def signal_tags(b):
@@ -103,8 +175,9 @@ def batter_rows(r):
     <span class="odds">{b["hr_prob"]:.1f}% <em>{esc(b.get("implied_odds",""))}</em></span>
   </div>
   <div class="bat-meta">zone {b["hr_zone_score"]:.0f} · park {b.get("park_hr_factor",1):.2f} · L10 {form_bits(b)} {h2s}</div>
-  <div class="bat-edge"><span class="lbl">Pitch edges</span> {esc(edges)}</div>
+  {why_line(b, r)}
   {ctx_line(b)}
+  <div class="bat-edge"><span class="lbl">Pitch edges</span> {esc(edges)}</div>
   <div class="tags">{signal_tags(b)}</div>
 </div>'''
     return out
@@ -351,8 +424,9 @@ tr.split-hot td {{ background:#fdf1ef; font-weight:600; }}
 .odds em {{ font-style:normal; color:#6b7381; font-weight:600; font-size:8.4pt; }}
 .bat-meta, .bat-edge {{ font-size:8.2pt; color:#41485a; }}
 .bat-edge .lbl {{ color:#6b7381; }}
-.bat-ctx {{ font-size:8pt; color:#41485a; }}
+.bat-ctx {{ font-size:8pt; color:#41485a; margin-top:1px; }}
 .bat-ctx .lbl {{ color:#6b7381; }}
+.bat-why {{ font-size:8.4pt; color:#14181f; margin-top:2px; line-height:1.4; }}
 .ctx-up {{ color:#1a7a4e; font-weight:600; }}
 .ctx-down {{ color:#b3261e; font-weight:600; }}
 .h2h-inline {{ background:#fdf3e2; border:1px solid #e8cf9f; border-radius:3px; padding:0 4px; font-weight:700; color:#95661a; }}
