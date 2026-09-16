@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Build HTML artifact for 2026-09-14 MLB slate."""
+"""Build HTML artifact for 2026-09-16 MLB slate."""
 import json, os, math
 
 SP = "/tmp/claude-0/-home-user-propstats/4a29f92c-2ab2-55a2-aa2c-327f896f1d05/scratchpad"
-DATE = "2026-09-14"
-DS = "20260914"
+DATE = "2026-09-16"
+DS = "20260916"
 OUT = f"{SP}/slate_{DS}.html"
 
 def load(name):
@@ -272,6 +272,14 @@ def build_board_tab():
                 "chalk": b.get("chalk_tier") or "", "badge": b.get("chalk_badge", ""),
                 "tags": [t for t in b.get("tags", []) if any(k in t for k in
                          ("FIRE", "HOT", "HARD LUCK", "EV SURGE", "DUE", "OWNS", "DOMINATED", "HEATING"))][:2],
+                "log": sc.get("game_log"),
+                "w5": sc.get("L5"), "w15": sc.get("L15"),
+                "ctx": b.get("ctx_splits"), "ctx_night": b.get("ctx_daynight"),
+                "ctx_home": b.get("ctx_home"), "bats": b.get("bats", ""),
+                "edges": [e["label"] for e in b.get("hr_edges", [])][:3],
+                "weak": [w["label"] for w in b.get("weak_spots", [])][:2],
+                "h2h": (lambda h: h if h.get("pa") else None)(b.get("h2h") or {}),
+                "sig": b.get("cal_signals", []),
             })
     rows.sort(key=lambda r: -(r["prob"] or 0))
 
@@ -298,12 +306,17 @@ def build_board_tab():
                       (f"{v:+.1f}" if c in ("dev",) else (f"{v:+.0f}%" if c == "dbrl" else
                       (f"{v:.0f}" if c in ("vuln", "match", "zone", "hr10", "near", "h2hhr") else f"{v:.1f}"))))
                 tds += f'<td data-v="{v}" style="{_heat(v, rng[0], rng[1])}">{fmt}</td>'
-        body += f'<tr data-chalk="{r["chalk"]}">{tds}</tr>'
+        detail = json.dumps({k: r.get(k) for k in
+                             ("batter", "bats", "game", "pitcher", "log", "w5", "w15",
+                              "ctx", "ctx_night", "ctx_home", "edges", "weak", "h2h", "sig",
+                              "prob", "odds", "order")}, separators=(",", ":"))
+        body += (f'<tr class="brow" data-chalk="{r["chalk"]}" data-detail=\'{esc_attr(detail)}\'>{tds}</tr>'
+                 f'<tr class="drow" hidden><td colspan="{len(BOARD_COLS)}"></td></tr>')
 
     return f'''<div class="board-wrap">
   <div class="board-bar">
     <span class="board-title">Full board — {len(rows)} hitters</span>
-    <span class="board-hint">Click any column to sort · hover a header for its definition</span>
+    <span class="board-hint">Click a column to sort · <b>click a player to open his last 5 games</b></span>
     <span class="board-filters">
       <button class="fbtn active" data-f="all">All</button>
       <button class="fbtn" data-f="LEVERAGE">💎 Leverage</button>
@@ -1167,7 +1180,7 @@ f5_html = build_f5_tab()
 fantasy_html = build_fantasy_tab()
 parlays_html = build_parlays_tab()
 
-page = f"""<title>PropStats Sep 14</title>
+page = f"""<title>PropStats Sep 16</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&family=IBM+Plex+Sans+Condensed:wght@300;400;500;600;700&display=swap">
 <style>
@@ -1369,6 +1382,21 @@ table.board-tbl td.dim{{color:var(--muted)}}
 .sort-ar{{display:inline-block;width:9px;color:var(--accent)}}
 .mini-tags{{display:flex;gap:3px;flex-wrap:wrap;margin-top:2px}}
 .mini-tag{{font-size:9px;font-family:'IBM Plex Sans Condensed',sans-serif;background:var(--badge-bg);border:1px solid var(--border);border-radius:3px;padding:0 4px;color:var(--muted)}}
+tr.brow{{cursor:pointer}}
+tr.brow.open td{{background:var(--surface2)!important;border-bottom-color:var(--accent)}}
+tr.brow.open td.sticky-col{{background:var(--surface2)!important;box-shadow:inset 2px 0 0 var(--accent)}}
+tr.drow > td{{padding:0;background:var(--surface2)}}
+.dwrap{{padding:12px 14px;border-bottom:2px solid var(--accent)}}
+.dhead{{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:13px;margin-bottom:8px}}
+.dprob{{margin-left:auto;font-family:'DM Mono',monospace;color:var(--accent);font-weight:500}}
+.dgrid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:14px}}
+.dgrid h5{{margin:0 0 4px;font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);font-weight:600}}
+table.dtbl{{width:100%;border-collapse:collapse;font-size:11px;font-family:'DM Mono',monospace;font-variant-numeric:tabular-nums}}
+table.dtbl th{{text-align:right;color:var(--muted);font-weight:600;padding:2px 5px;border-bottom:1px solid var(--border);font-size:10px}}
+table.dtbl th:first-child,table.dtbl td:first-child{{text-align:left}}
+table.dtbl td{{text-align:right;padding:2px 5px;border-bottom:1px solid var(--border)}}
+.dctx{{font-size:11px;color:var(--muted);margin-top:4px;line-height:1.6}}
+.dctx b{{color:var(--text)}}
 .lk-wrap{{display:flex;flex-direction:column;gap:12px}}
 .lk-search{{display:flex;align-items:center;gap:10px;flex-wrap:wrap}}
 #lk-input{{flex:1;min-width:260px;max-width:440px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'IBM Plex Sans Condensed',sans-serif;font-size:15px;padding:10px 14px}}
@@ -1467,7 +1495,7 @@ b{{color:var(--text)}}
 
 <div class="site-header">
   <div class="site-logo">PropStats</div>
-  <div class="site-date mono">Sep 14, 2026 · MLB Slate</div>
+  <div class="site-date mono">Sep 16, 2026 · MLB Slate</div>
   <div class="header-stats">
     <span>{len(k_board)} pitchers</span>
     <span>{len(nrfi_board)} games (NRFI)</span>
@@ -1847,9 +1875,80 @@ function showTab(id) {{
       btn.classList.add('active');
       const f = btn.dataset.f;
       Array.from(tbody.rows).forEach(r => {{
+        if (r.classList.contains('drow')) {{ r.hidden = true; return; }}
         r.hidden = !(f === 'all' || r.dataset.chalk === f);
+        r.classList.remove('open');
       }});
     }});
+  }});
+
+  // Click a player row to open his recent form underneath it
+  const f1 = (v, d) => (v === null || v === undefined) ? '·' : (+v).toFixed(d);
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}}[c]));
+
+  function detailHTML(p) {{
+    const log = p.log || [];
+    const logRows = log.length ? log.map(g =>
+      `<tr><td>${{g.date}}</td><td>${{g.h}}-for-${{g.ab}}</td><td>${{g.hr}}</td><td>${{g.tb}}</td>`
+      + `<td>${{g.bb}}</td><td>${{g.k}}</td><td>${{g.bbe}}</td><td>${{g.hard}}</td>`
+      + `<td>${{f1(g.avg_ev,1)}}</td><td>${{f1(g.max_ev,1)}}</td><td>${{g.best_dist ?? '·'}}</td></tr>`).join('')
+      : '<tr><td colspan="11" class="dim">No pitch-level games in the last 30 days.</td></tr>';
+
+    const win = ['w5','w10','w15'].map(k => p[k] || (k==='w10'? null : null)).filter(Boolean);
+    const wrows = [['L5',p.w5],['L15',p.w15]].filter(x => x[1]).map(([lab,w]) =>
+      `<tr><td>${{lab}}</td><td>${{w.games}}</td><td>${{w.pa}}</td><td>${{w.bbe}}</td><td>${{w.hr}}</td>`
+      + `<td>${{w.near_hr}}</td><td>${{f1(w.brl_pct,0)}}%</td><td>${{f1(w.hh_pct,0)}}%</td>`
+      + `<td>${{f1(w.avg_ev,1)}}</td><td>${{f1(w.max_ev,1)}}</td><td>${{f1(w.avg_dist,0)}}</td></tr>`).join('');
+
+    const names = {{hand: 'vs ' + ((p.ctx && p.ctx.hand && p.ctx.hand.code === 'vl') ? 'LHP' : 'RHP'),
+                   time: (p.ctx_night === 'day' ? 'day games' : 'night games'),
+                   site: p.ctx_home ? 'at home' : 'on the road'}};
+    const ctx = p.ctx ? Object.keys(names).filter(k => p.ctx[k]).map(k => {{
+      const v = p.ctx[k];
+      const cls = (!v.thin && Math.abs(v.edge) >= 0.060) ? (v.edge > 0 ? 'ctx-up' : 'ctx-down') : '';
+      return `<span class="${{cls}}">${{names[k]}} <b>${{f1(v.ops,3)}}</b> OPS `
+           + `<span class="dim">(${{v.edge > 0 ? '+' : ''}}${{Math.round(v.edge*1000)}} pts, ${{v.pa}} PA)</span></span>`;
+    }}).join(' · ') : '';
+
+    const h2 = p.h2h;
+    return `<div class="dwrap">
+      <div class="dhead"><b>${{esc(p.batter)}}</b> <span class="hand">${{p.bats}}</span>
+        ${{p.order ? '· batting #' + p.order : ''}} · ${{esc(p.game)}} vs ${{esc(p.pitcher)}}
+        <span class="dprob">${{f1(p.prob,1)}}% · ${{esc(p.odds||'')}}</span></div>
+      <div class="dgrid">
+        <div>
+          <h5>Last 5 games</h5>
+          <table class="dtbl"><thead><tr><th>Date</th><th>AB</th><th>HR</th><th>TB</th><th>BB</th><th>K</th>
+            <th>BBE</th><th>Hard</th><th>EV</th><th>Max</th><th>Best</th></tr></thead>
+            <tbody>${{logRows}}</tbody></table>
+        </div>
+        <div>
+          <h5>Rolling windows</h5>
+          <table class="dtbl"><thead><tr><th>Win</th><th>G</th><th>PA</th><th>BBE</th><th>HR</th><th>Near</th>
+            <th>Brl</th><th>HH</th><th>EV</th><th>Max</th><th>Dist</th></tr></thead>
+            <tbody>${{wrows || '<tr><td colspan="11" class="dim">·</td></tr>'}}</tbody></table>
+          ${{ctx ? `<h5 style="margin-top:8px">Tonight's context</h5><div class="dctx">${{ctx}}</div>` : ''}}
+          ${{(p.edges||[]).length ? `<div class="dctx"><b>Edges:</b> ${{p.edges.map(esc).join(', ')}}</div>` : ''}}
+          ${{(p.weak||[]).length ? `<div class="dctx"><b>Weak:</b> ${{p.weak.map(esc).join(', ')}}</div>` : ''}}
+          ${{h2 ? `<div class="dctx"><b>vs this pitcher:</b> ${{h2.h}}-for-${{h2.ab}}, ${{h2.hr}} HR, ${{h2.bb}} BB, ${{h2.k}} K in ${{h2.pa}} PA (${{f1(h2.ops,3)}} OPS)</div>` : ''}}
+          ${{(p.sig||[]).length ? `<div class="dctx"><b>Signals:</b> ${{p.sig.map(esc).join(' · ')}}</div>` : ''}}
+        </div>
+      </div></div>`;
+  }}
+
+  tbody.addEventListener('click', ev => {{
+    const row = ev.target.closest('tr.brow');
+    if (!row) return;
+    const det = row.nextElementSibling;
+    if (!det || !det.classList.contains('drow')) return;
+    const open = !det.hidden;
+    if (open) {{ det.hidden = true; row.classList.remove('open'); return; }}
+    if (!det.dataset.built) {{
+      det.firstElementChild.innerHTML = detailHTML(JSON.parse(row.dataset.detail));
+      det.dataset.built = '1';
+    }}
+    det.hidden = false;
+    row.classList.add('open');
   }});
 
   paint();

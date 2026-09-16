@@ -1607,6 +1607,38 @@ def _zone_grid(events: list) -> list:
     return out
 
 
+_HIT_EVENTS = {"single", "double", "triple", "home_run"}
+_TB_VALUE = {"single": 1, "double": 2, "triple": 3, "home_run": 4}
+
+
+def _game_log(events: list, n_games: int = 5) -> list:
+    """Per-game batting line for the last n games, derived from pitch-level rows."""
+    dates = sorted({e["game_date"] for e in events if e["game_date"]})
+    out = []
+    for d in dates[-n_games:]:
+        rows = [e for e in events if e["game_date"] == d]
+        pa = [e for e in rows if e["is_pa"]]
+        bbe = [e for e in rows if e["in_play"] and e["launch_speed"] > 0]
+        hits = [e for e in pa if e["events"] in _HIT_EVENTS]
+        dist = [e["hit_distance"] for e in bbe if e["hit_distance"] > 0]
+        out.append({
+            "date": d[5:],
+            "pa": len(pa),
+            "ab": sum(1 for e in pa if e["events"] not in _NON_AB),
+            "h": len(hits),
+            "hr": sum(1 for e in pa if e["events"] == "home_run"),
+            "tb": sum(_TB_VALUE.get(e["events"], 0) for e in pa),
+            "bb": sum(1 for e in pa if e["events"] in ("walk", "intent_walk")),
+            "k": sum(1 for e in pa if e["events"] in ("strikeout", "strikeout_double_play")),
+            "bbe": len(bbe),
+            "avg_ev": round(sum(e["launch_speed"] for e in bbe) / len(bbe), 1) if bbe else None,
+            "max_ev": round(max((e["launch_speed"] for e in bbe), default=0), 1) or None,
+            "best_dist": int(max(dist)) if dist else None,
+            "hard": sum(1 for e in bbe if e["launch_speed"] >= 95.0),
+        })
+    return out
+
+
 def enrich_statcast_recent(results: list, game_date: str, top_n: int = 120,
                            lookback_days: int = 30) -> list:
     """
@@ -1653,6 +1685,7 @@ def enrich_statcast_recent(results: list, game_date: str, top_n: int = 120,
             "L5": w5, "L10": w10, "L15": w15,
             "zone_grid": _zone_grid(events),
             "zone_window_days": lookback_days,
+            "game_log": _game_log(events, 5),
             "hard_luck_hits": [{
                 "date": e["game_date"][5:], "ev": e["launch_speed"],
                 "la": e["launch_angle"], "dist": int(e["hit_distance"]),
