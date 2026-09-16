@@ -233,7 +233,27 @@ BOARD_COLS = [
     ("hr10",    "HR",      "num",  (0, 5),        "Home runs, last 10 games"),
     ("near",    "Near",    "num",  (0, 4),        "Near-misses: 98+ mph, 20-35 deg, 360+ ft, not a HR"),
     ("h2hhr",   "H2H",     "num",  (0, 4),        "Career home runs off tonight's starter"),
+    ("sigs",    "Signals", "txt",  None,          "Measured lifts: OWNS 2.9x · FIRE 1.9x · HARD LUCK 1.6x · DUE 1.5x · SURGE 1.2x · DOMINATED 0.8x"),
 ]
+
+# Short codes with their graded lift, so a signal reads as a number not a mood
+SIGNAL_CHIPS = [
+    ("OWNS PITCHER", "OWNS", "sg-owns", "2.9x"),
+    ("🔥 FIRE",      "FIRE", "sg-fire", "1.9x"),
+    ("HARD LUCK",    "LUCK", "sg-luck", "1.6x"),
+    ("HEATING",      "HEAT", "sg-heat", ""),
+    ("DUE",          "DUE",  "sg-due",  "1.5x"),
+    ("EV SURGE",     "SURGE","sg-surge","1.2x"),
+    ("🔥 HOT",       "HOT",  "sg-hot",  "1.2x"),
+    ("DOMINATED",    "DOM",  "sg-dom",  "0.8x"),
+]
+
+def signal_chips(tags):
+    out = ""
+    for needle, code, cls, lift in SIGNAL_CHIPS:
+        if any(needle in t for t in tags):
+            out += f'<span class="sg {cls}" title="{code} — graded lift {lift or "n/a"}">{code}</span>'
+    return out
 
 FASTBALLS = {"FF", "SI", "FC"}
 BREAKING  = {"SL", "CU", "ST", "KC", "SV"}
@@ -340,6 +360,12 @@ def build_board_tab():
                 "chalk": b.get("chalk_tier") or "", "badge": b.get("chalk_badge", ""),
                 "tags": [t for t in b.get("tags", []) if any(k in t for k in
                          ("FIRE", "HOT", "HARD LUCK", "EV SURGE", "DUE", "OWNS", "DOMINATED", "HEATING"))][:2],
+                "all_tags": b.get("tags", []),
+                "sig_rank": round((b.get("cal_sig_mult") or 1.0) * 100),
+                "pgrid": (g.get("hand_profile") or {}).get(
+                    b.get("hand_usage_applied") or (b.get("bats") if b.get("bats") in ("L", "R") else "R"),
+                    {}).get("zone_grid"),
+                "bgrid": sc.get("zone_grid"),
                 "log": sc.get("game_log"),
                 "w5": sc.get("L5"), "w15": sc.get("L15"),
                 "ctx": b.get("ctx_splits"), "ctx_night": b.get("ctx_daynight"),
@@ -367,9 +393,11 @@ def build_board_tab():
             v = r.get(c)
             if c == "batter":
                 slot = f'<span class="slot-badge slot-in">#{r["order"]}</span>' if r.get("order") else ""
-                tg = "".join(f'<span class="mini-tag">{t}</span>' for t in r["tags"])
                 tds += (f'<td class="sticky-col" data-v="{r["batter"]}">{slot}<b>{r["batter"]}</b>'
-                        f'<span class="hand">{r["bats"]}</span> {r["badge"]}<div class="mini-tags">{tg}</div></td>')
+                        f'<span class="hand">{r["bats"]}</span> {r["badge"]}</td>')
+            elif c == "sigs":
+                chips = signal_chips(r.get("all_tags") or [])
+                tds += f'<td class="sig-cell" data-v="{r.get("sig_rank", 0)}">{chips}</td>'
             elif typ == "txt":
                 tds += f'<td data-v="{v or ""}">{v or ""}</td>'
             elif v is None:
@@ -383,7 +411,8 @@ def build_board_tab():
                              ("batter", "bats", "game", "pitcher", "log", "w5", "w15",
                               "ctx", "ctx_night", "ctx_home", "edges", "weak", "h2h", "sig",
                               "prob", "odds", "order", "arch_p", "arch_b", "fams", "side",
-                              "brl", "hh", "iso", "zone")}, separators=(",", ":"))
+                              "brl", "hh", "iso", "zone", "bgrid", "pgrid", "all_tags")},
+                             separators=(",", ":"))
         body += (f'<tr class="brow" data-chalk="{r["chalk"]}" data-detail=\'{esc_attr(detail)}\'>{tds}</tr>'
                  f'<tr class="drow" hidden><td colspan="{len(BOARD_COLS)}"></td></tr>')
 
@@ -1256,47 +1285,62 @@ parlays_html = build_parlays_tab()
 
 page = f"""<title>PropStats Sep 16</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&family=IBM+Plex+Sans+Condensed:wght@300;400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Sans+Condensed:wght@400;500;600;700&display=swap">
 <style>
-/* ── tokens ── */
+/* ── tokens · trading desk ────────────────────────────────────────────
+   Near-black ground, square corners, gold as the only accent. Semantic
+   green/red stay separate from that accent so state reads on its own. */
 :root {{
-  --bg: #0d0f14;
-  --surface: #161a22;
-  --surface2: #1e242f;
-  --border: #2a3040;
-  --text: #e4e8f0;
-  --muted: #7a8499;
-  --accent: #4a9eff;
-  --green: #3ecf6e;
-  --red: #f05252;
-  --yellow: #f5c542;
-  --orange: #f5803c;
-  --badge-bg: #1e242f;
+  --bg: #08090b;
+  --surface: #0d0f13;
+  --surface2: #12151a;
+  --border: #1e2228;
+  --line: #14171c;
+  --text: #e6e8eb;
+  --muted: #6b7480;
+  --accent: #e0a83d;
+  --green: #35c08a;
+  --red: #e0564b;
+  --yellow: #e0a83d;
+  --orange: #d98548;
+  --badge-bg: #12151a;
 }}
 @media (prefers-color-scheme: light) {{
   :root:not([data-theme="dark"]) {{
-    --bg: #f0f2f5;
-    --surface: #ffffff;
-    --surface2: #f7f9fc;
-    --border: #d4dae4;
-    --text: #1a1f2e;
-    --muted: #5a6478;
-    --badge-bg: #e8ecf4;
+    --bg: #f4f2ee;
+    --surface: #fffefb;
+    --surface2: #eceae4;
+    --border: #d6d2c8;
+    --line: #e4e1d9;
+    --text: #17181a;
+    --muted: #6d6a63;
+    --accent: #9a6b12;
+    --green: #1d7a55;
+    --red: #b03a2e;
+    --yellow: #9a6b12;
+    --orange: #a35f27;
+    --badge-bg: #eceae4;
   }}
 }}
 :root[data-theme="light"] {{
-  --bg: #f0f2f5;
-  --surface: #ffffff;
-  --surface2: #f7f9fc;
-  --border: #d4dae4;
-  --text: #1a1f2e;
-  --muted: #5a6478;
-  --badge-bg: #e8ecf4;
+  --bg: #f4f2ee;
+  --surface: #fffefb;
+  --surface2: #eceae4;
+  --border: #d6d2c8;
+  --line: #e4e1d9;
+  --text: #17181a;
+  --muted: #6d6a63;
+  --accent: #9a6b12;
+  --green: #1d7a55;
+  --red: #b03a2e;
+  --yellow: #9a6b12;
+  --orange: #a35f27;
+  --badge-bg: #eceae4;
 }}
 
 *{{box-sizing:border-box;margin:0;padding:0}}
-body{{font-family:'IBM Plex Sans Condensed',system-ui,sans-serif;background:var(--bg);color:var(--text);font-size:14px;line-height:1.5}}
-code,pre,.mono{{font-family:'DM Mono',monospace}}
+body{{font-family:'IBM Plex Sans','IBM Plex Sans Condensed',system-ui,sans-serif;background:var(--bg);color:var(--text);font-size:13.5px;line-height:1.5}}
+code,pre,.mono{{font-family:'IBM Plex Mono','DM Mono',ui-monospace,monospace}}
 
 /* ── header ── */
 .site-header{{background:var(--surface);border-bottom:1px solid var(--border);padding:14px 20px;display:flex;align-items:center;gap:16px}}
@@ -1315,7 +1359,7 @@ code,pre,.mono{{font-family:'DM Mono',monospace}}
 /* ── cards / grids ── */
 .board-grid{{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:12px}}
 .games-grid{{display:grid;grid-template-columns:repeat(auto-fill,minmax(380px,1fr));gap:12px}}
-.board-card{{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px;display:flex;flex-direction:column;gap:8px}}
+.board-card{{background:var(--surface);border:1px solid var(--border);border-radius:2px;padding:14px;display:flex;flex-direction:column;gap:8px}}
 
 /* ── card header ── */
 .card-header{{display:flex;align-items:center;flex-wrap:wrap;gap:6px}}
@@ -1327,10 +1371,10 @@ code,pre,.mono{{font-family:'DM Mono',monospace}}
 .batter-nm{{font-weight:600}}
 .bats-lbl{{font-size:11px;color:var(--muted)}}
 .pos-lbl{{font-size:11px;background:var(--badge-bg);padding:1px 5px;border-radius:3px;color:var(--muted)}}
-.lam-badge{{font-family:'DM Mono',monospace;font-size:11px;background:var(--surface2);border:1px solid var(--border);padding:2px 6px;border-radius:4px;margin-left:auto}}
+.lam-badge{{font-family:'DM Mono',monospace;font-size:11px;background:var(--surface2);border:1px solid var(--border);padding:2px 6px;border-radius:2px;margin-left:auto}}
 
 /* ── badges ── */
-.badge{{font-size:10px;font-weight:600;padding:2px 7px;border-radius:4px;font-family:'DM Mono',monospace;letter-spacing:0.3px;white-space:nowrap}}
+.badge{{font-size:10px;font-weight:600;padding:2px 7px;border-radius:2px;font-family:'DM Mono',monospace;letter-spacing:0.3px;white-space:nowrap}}
 .badge-elite{{background:#1a3a4a;color:#4ab8ff;border:1px solid #4ab8ff30}}
 .badge-threat{{background:#1a3a2a;color:#3ecf6e;border:1px solid #3ecf6e30}}
 .badge-manage{{background:#2a2a1a;color:#c8b82a;border:1px solid #c8b82a30}}
@@ -1368,16 +1412,16 @@ details.pitch-drop[open] summary::before{{content:"▾ "}}
 .cold-row{{background:#2a1a1a}}
 
 /* ── flags ── */
-.flag-row{{font-size:11px;padding:3px 6px;border-radius:4px;font-family:'DM Mono',monospace}}
+.flag-row{{font-size:11px;padding:3px 6px;border-radius:2px;font-family:'DM Mono',monospace}}
 .fade-flags{{background:#2a1a1a;color:#f05252}}
 .trust-flags{{background:#1a2a1a;color:#3ecf6e}}
 
 /* ── start logs ── */
 .start-logs{{display:flex;flex-wrap:wrap;gap:4px;margin-top:2px}}
-.start-log{{font-size:10px;font-family:'DM Mono',monospace;background:var(--surface2);border:1px solid var(--border);padding:2px 6px;border-radius:4px;color:var(--muted)}}
+.start-log{{font-size:10px;font-family:'DM Mono',monospace;background:var(--surface2);border:1px solid var(--border);padding:2px 6px;border-radius:2px;color:var(--muted)}}
 
 /* ── game card ── */
-.game-card{{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px;display:flex;flex-direction:column;gap:6px}}
+.game-card{{background:var(--surface);border:1px solid var(--border);border-radius:2px;padding:14px;display:flex;flex-direction:column;gap:6px}}
 .game-row{{display:flex;align-items:center;gap:8px;padding:3px 0}}
 .row-label{{font-size:11px;color:var(--muted);min-width:52px;font-family:'DM Mono',monospace}}
 .score-val{{font-size:11px;color:var(--muted);font-family:'DM Mono',monospace}}
@@ -1392,7 +1436,7 @@ details.pitch-drop[open] summary::before{{content:"▾ "}}
 
 .hr-targets-label{{font-size:11px;color:var(--muted);font-weight:600;border-top:1px solid var(--border);padding-top:6px;margin-top:2px}}
 .hr-target-row{{display:flex;align-items:center;gap:6px;font-size:12px}}
-.hr-score-badge{{font-family:'DM Mono',monospace;font-size:11px;border:1px solid var(--accent);border-radius:4px;padding:1px 5px;color:var(--accent)}}
+.hr-score-badge{{font-family:'DM Mono',monospace;font-size:11px;border:1px solid var(--accent);border-radius:2px;padding:1px 5px;color:var(--accent)}}
 .vuln-lbl{{font-size:10px;color:var(--muted);margin-left:auto}}
 .hr-tag-row{{font-size:10px;color:var(--muted);padding-left:32px}}
 
@@ -1415,31 +1459,31 @@ details.pitch-drop[open] summary::before{{content:"▾ "}}
 .hl-date{{color:var(--muted);margin-right:4px}}
 .hl-res{{color:var(--muted)}}
 .due-strip{{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:12px;margin-bottom:14px}}
-.due-col{{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 12px}}
+.due-col{{background:var(--surface);border:1px solid var(--border);border-radius:2px;padding:10px 12px}}
 .due-title{{font-size:12px;font-weight:700;margin-bottom:6px}}
 .due-row{{display:flex;align-items:center;gap:6px;font-size:12px;padding:3px 0;border-top:1px solid var(--border)}}
 .due-meta{{color:var(--muted);font-size:10px}}
 .due-num{{margin-left:auto;font-family:'DM Mono',monospace;font-size:11px;color:#f0a030}}
 .chip-row{{display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin-top:4px}}
 .chip-lbl{{font-size:10px;color:var(--muted);font-family:'DM Mono',monospace;margin-right:2px}}
-.chip{{font-size:10px;font-family:'DM Mono',monospace;background:var(--badge-bg);border:1px solid var(--border);border-radius:10px;padding:1px 7px}}
+.chip{{font-size:10px;font-family:'DM Mono',monospace;background:var(--badge-bg);border:1px solid var(--border);border-radius:2px;padding:1px 7px}}
 .mix-note{{font-size:10px;color:#f0a030;font-family:'DM Mono',monospace;margin-top:3px}}
 .tbl-scroll{{overflow-x:auto}}
 .fav-b{{color:#3ecf6e}}
 .fav-p{{color:#f05252}}
 .legend{{font-size:10px;color:var(--muted);margin-top:4px}}
-.ck{{font-size:9px;font-family:'DM Mono',monospace;padding:1px 6px;border-radius:10px;letter-spacing:0.3px;white-space:nowrap;border:1px solid}}
+.ck{{font-size:9px;font-family:'DM Mono',monospace;padding:1px 6px;border-radius:2px;letter-spacing:0.3px;white-space:nowrap;border:1px solid}}
 .ck-heavy{{background:#3a1a1a;color:#f07070;border-color:#f0707040}}
 .ck-chalky{{background:#3a2e1a;color:#e0a83a;border-color:#e0a83a40}}
 .ck-bal{{background:var(--badge-bg);color:var(--muted);border-color:var(--border)}}
 .ck-lev{{background:#12332a;color:#3ecf9e;border-color:#3ecf9e40}}
 .ck-note{{font-size:10px;color:var(--muted);margin-bottom:4px}}
-.board-wrap{{background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.06)}}
+.board-wrap{{background:var(--surface);border:1px solid var(--border);border-radius:2px;overflow:hidden;box-shadow:none}}
 .board-bar{{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:11px 14px;border-bottom:1px solid var(--border);background:var(--surface2)}}
 .board-title{{font-weight:700;font-size:14.5px;letter-spacing:-.2px}}
 .board-hint{{font-size:11px;color:var(--muted)}}
 .board-filters{{margin-left:auto;display:flex;gap:4px}}
-.fbtn{{font-size:11px;font-family:'DM Mono',monospace;background:var(--surface2);color:var(--muted);border:1px solid var(--border);border-radius:12px;padding:3px 10px;cursor:pointer}}
+.fbtn{{font-size:11px;font-family:'DM Mono',monospace;background:var(--surface2);color:var(--muted);border:1px solid var(--border);border-radius:2px;padding:3px 10px;cursor:pointer}}
 .fbtn:hover{{color:var(--text)}}
 .fbtn.active{{background:var(--accent);color:#fff;border-color:var(--accent)}}
 .board-scroll{{overflow:auto;max-height:78vh}}
@@ -1455,7 +1499,25 @@ table.board-tbl tr.brow:hover td.sticky-col{{background:var(--surface2);box-shad
 table.board-tbl td.dim{{color:var(--muted)}}
 .sort-ar{{display:inline-block;width:9px;color:var(--accent)}}
 .mini-tags{{display:flex;gap:3px;flex-wrap:wrap;margin-top:2px}}
-.mini-tag{{font-size:9px;font-family:'IBM Plex Sans Condensed',sans-serif;background:var(--badge-bg);border:1px solid var(--border);border-radius:3px;padding:0 4px;color:var(--muted)}}
+.mini-tag{{font-size:9px;font-family:'IBM Plex Sans Condensed',sans-serif;background:var(--badge-bg);border:1px solid var(--border);border-radius:2px;padding:0 4px;color:var(--muted)}}
+.sig-cell{{text-align:left!important;white-space:nowrap}}
+.sg{{display:inline-block;font-family:'IBM Plex Mono',monospace;font-size:8.5px;font-weight:600;letter-spacing:.5px;
+  padding:1px 4px;margin-right:3px;border:1px solid;border-radius:1px;line-height:1.35}}
+.sg-owns{{color:var(--accent);border-color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,transparent)}}
+.sg-fire{{color:var(--red);border-color:var(--red);background:color-mix(in srgb,var(--red) 12%,transparent)}}
+.sg-luck{{color:var(--orange);border-color:var(--orange);background:color-mix(in srgb,var(--orange) 12%,transparent)}}
+.sg-heat{{color:var(--green);border-color:var(--green);background:color-mix(in srgb,var(--green) 12%,transparent)}}
+.sg-due,.sg-surge,.sg-hot{{color:var(--muted);border-color:var(--border)}}
+.sg-dom{{color:var(--muted);border-color:var(--border);text-decoration:line-through}}
+.zrow{{display:grid;grid-template-columns:repeat(auto-fit,minmax(168px,1fr));gap:13px;margin-top:10px}}
+.zbox h6{{margin:0 0 5px;font-size:9px;letter-spacing:1.2px;text-transform:uppercase;color:var(--muted);font-weight:600}}
+.zgrid{{display:grid;grid-template-columns:repeat(5,1fr);gap:2px;max-width:190px}}
+.zcell{{aspect-ratio:1.18;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  font-family:'IBM Plex Mono',monospace;line-height:1.05;border-radius:1px}}
+.zcell b{{font-size:9.5px;font-weight:600}}
+.zcell i{{font-style:normal;font-size:7px;opacity:.6}}
+.zcell.inz{{outline:1.5px solid var(--text);outline-offset:-1.5px}}
+.zcap{{font-size:10px;color:var(--muted);margin-top:5px;line-height:1.45;max-width:200px}}
 tr.brow{{cursor:pointer}}
 tr.brow.open td{{background:var(--surface2)!important;border-bottom-color:var(--accent)}}
 tr.brow.open td.sticky-col{{background:var(--surface2)!important;box-shadow:inset 2px 0 0 var(--accent)}}
@@ -1474,12 +1536,12 @@ table.dtbl td{{text-align:right;padding:2px 5px;border-bottom:1px solid var(--bo
 .dname{{font-size:15px;font-weight:700;letter-spacing:-.2px}}
 .dodds{{margin-left:6px;font-size:11px;color:var(--muted)}}
 .pill-row{{display:flex;flex-wrap:wrap;gap:5px;margin:-2px 0 10px}}
-.pill-ctx{{font-size:10.5px;font-family:'DM Mono',monospace;background:var(--surface);border:1px solid var(--border);border-radius:11px;padding:2px 9px}}
+.pill-ctx{{font-size:10.5px;font-family:'DM Mono',monospace;background:var(--surface);border:1px solid var(--border);border-radius:2px;padding:2px 9px}}
 .pill-ctx.ctx-up{{border-color:#3ecf6e55;background:#3ecf6e12;color:#3ecf6e}}
 .pill-ctx.ctx-down{{border-color:#f0525255;background:#f0525212;color:#f05252}}
 .pill-ctx b{{color:inherit}}
 .charts{{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:12px;margin-bottom:12px}}
-.chart{{background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:8px 10px 6px}}
+.chart{{background:var(--surface);border:1px solid var(--border);border-radius:2px;padding:8px 10px 6px}}
 .chead{{display:flex;justify-content:space-between;align-items:baseline;font-size:10.5px;margin-bottom:6px}}
 .chead span:first-child{{font-weight:700;color:var(--text)}}
 .chits{{color:var(--muted);font-family:'DM Mono',monospace;font-size:9.5px}}
@@ -1497,15 +1559,15 @@ table.dtbl td{{text-align:right;padding:2px 5px;border-bottom:1px solid var(--bo
 .cdate{{font-size:8.5px;color:var(--muted);margin-top:3px;font-family:'DM Mono',monospace}}
 .lk-wrap{{display:flex;flex-direction:column;gap:12px}}
 .lk-search{{display:flex;align-items:center;gap:10px;flex-wrap:wrap}}
-#lk-input{{flex:1;min-width:260px;max-width:440px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'IBM Plex Sans Condensed',sans-serif;font-size:15px;padding:10px 14px}}
+#lk-input{{flex:1;min-width:260px;max-width:440px;background:var(--surface);border:1px solid var(--border);border-radius:2px;color:var(--text);font-family:'IBM Plex Sans Condensed',sans-serif;font-size:15px;padding:10px 14px}}
 #lk-input:focus{{outline:none;border-color:var(--accent)}}
 .lk-count{{font-size:11px;color:var(--muted);font-family:'DM Mono',monospace}}
 .lk-card{{min-height:120px}}
-.lk-empty{{color:var(--muted);font-size:13px;background:var(--surface);border:1px dashed var(--border);border-radius:8px;padding:26px;text-align:center;max-width:620px}}
+.lk-empty{{color:var(--muted);font-size:13px;background:var(--surface);border:1px dashed var(--border);border-radius:2px;padding:26px;text-align:center;max-width:620px}}
 .lk-grid{{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:12px;align-items:start}}
-.lk-panel{{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px 14px}}
+.lk-panel{{background:var(--surface);border:1px solid var(--border);border-radius:2px;padding:12px 14px}}
 .lk-panel h4{{margin:0 0 8px;font-size:12px;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);font-weight:600}}
-.lk-hero{{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px 16px;margin-bottom:12px}}
+.lk-hero{{background:var(--surface);border:1px solid var(--border);border-radius:2px;padding:14px 16px;margin-bottom:12px}}
 .lk-name{{font-size:24px;font-weight:700;letter-spacing:-.4px}}
 .lk-sub{{font-size:13px;color:var(--muted);margin-top:2px}}
 .lk-headrow{{display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap}}
@@ -1521,7 +1583,7 @@ table.dtbl td{{text-align:right;padding:2px 5px;border-bottom:1px solid var(--bo
 .zcell.empty{{background:var(--surface2);color:var(--muted)}}
 .zone-legend{{font-size:10px;color:var(--muted);max-width:190px;line-height:1.5}}
 .zone-modes{{display:flex;gap:4px;margin-bottom:6px;flex-wrap:wrap}}
-.zmode{{font-size:10px;font-family:'DM Mono',monospace;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:2px 9px;cursor:pointer;color:var(--muted)}}
+.zmode{{font-size:10px;font-family:'DM Mono',monospace;background:var(--surface2);border:1px solid var(--border);border-radius:2px;padding:2px 9px;cursor:pointer;color:var(--muted)}}
 .zmode.active{{background:var(--accent);color:#fff;border-color:var(--accent)}}
 table.lk-tbl{{width:100%;border-collapse:collapse;font-size:11.5px;font-family:'DM Mono',monospace;font-variant-numeric:tabular-nums}}
 table.lk-tbl th{{text-align:right;color:var(--muted);font-weight:600;padding:3px 5px;border-bottom:1px solid var(--border);font-size:10px}}
@@ -1535,10 +1597,10 @@ table.lk-tbl td{{text-align:right;padding:3px 5px;border-bottom:1px solid var(--
 .mm-bar{{display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;margin-bottom:4px}}
 .mm-field{{display:flex;flex-direction:column;gap:3px}}
 .mm-field label{{font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);font-weight:600}}
-.mm-field input{{min-width:240px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'IBM Plex Sans Condensed',sans-serif;font-size:14px;padding:9px 12px}}
+.mm-field input{{min-width:240px;background:var(--surface);border:1px solid var(--border);border-radius:2px;color:var(--text);font-family:'IBM Plex Sans Condensed',sans-serif;font-size:14px;padding:9px 12px}}
 .mm-field input:focus{{outline:none;border-color:var(--accent)}}
 .mm-vs{{font-family:'DM Mono',monospace;color:var(--muted);padding-bottom:10px}}
-#mm-go{{padding:9px 18px;font-size:13px;border-radius:8px}}
+#mm-go{{padding:9px 18px;font-size:13px;border-radius:2px}}
 
 /* ── outs card ── */
 .outs-stats{{font-size:12px;color:var(--muted)}}
@@ -1550,7 +1612,7 @@ table.lk-tbl td{{text-align:right;padding:3px 5px;border-bottom:1px solid var(--
 .sp-label{{font-size:10px;color:var(--orange)}}
 .rest-lbl{{font-size:10px;color:var(--muted)}}
 .nrfi-comps{{display:flex;flex-wrap:wrap;gap:4px}}
-.comp-chip{{font-size:10px;font-family:'DM Mono',monospace;background:var(--surface2);border:1px solid var(--border);padding:2px 5px;border-radius:4px;color:var(--muted)}}
+.comp-chip{{font-size:10px;font-family:'DM Mono',monospace;background:var(--surface2);border:1px solid var(--border);padding:2px 5px;border-radius:2px;color:var(--muted)}}
 .yrfi-card{{border-color:#f0525220}}
 .nrfi-card{{border-color:#3ecf6e20}}
 .neut-card{{}}
@@ -1571,19 +1633,19 @@ table.lk-tbl td{{text-align:right;padding:3px 5px;border-bottom:1px solid var(--
 .fan-card{{}}
 .fan-score{{font-family:'DM Mono',monospace;font-size:18px;font-weight:500;color:var(--accent);margin-left:auto}}
 .fan-stats{{font-size:12px;color:var(--muted)}}
-.hot-form{{background:#1a3a2a;color:#3ecf6e;font-size:10px;padding:2px 6px;border-radius:4px;font-weight:700}}
-.cold-form{{background:#2a1a1a;color:#f05252;font-size:10px;padding:2px 6px;border-radius:4px;font-weight:700}}
+.hot-form{{background:#1a3a2a;color:#3ecf6e;font-size:10px;padding:2px 6px;border-radius:2px;font-weight:700}}
+.cold-form{{background:#2a1a1a;color:#f05252;font-size:10px;padding:2px 6px;border-radius:2px;font-weight:700}}
 .form-badge{{}}
 
 /* ── Parlays ── */
 .parlay-grid{{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:12px}}
-.parlay-card{{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px}}
+.parlay-card{{background:var(--surface);border:1px solid var(--border);border-radius:2px;padding:14px}}
 .parlay-header{{display:flex;align-items:center;gap:8px;margin-bottom:10px}}
 .parlay-num{{font-family:'DM Mono',monospace;font-size:20px;font-weight:500;color:var(--accent);min-width:32px}}
 .parlay-title{{font-weight:700;font-size:13px}}
-.leg-type{{font-size:10px;color:var(--muted);margin-left:auto;background:var(--surface2);padding:2px 6px;border-radius:4px}}
+.leg-type{{font-size:10px;color:var(--muted);margin-left:auto;background:var(--surface2);padding:2px 6px;border-radius:2px}}
 .parlay-legs{{list-style:none;display:flex;flex-direction:column;gap:5px}}
-.parlay-legs li{{font-size:12px;color:var(--muted);padding:5px 10px;background:var(--surface2);border-radius:4px;border-left:2px solid var(--accent)}}
+.parlay-legs li{{font-size:12px;color:var(--muted);padding:5px 10px;background:var(--surface2);border-radius:2px;border-left:2px solid var(--accent)}}
 
 /* ── number coloring ── */
 .pos-num{{color:var(--green)}}
@@ -2025,6 +2087,39 @@ function showTab(id) {{
     </div>`;
   }}
 
+  // Plate grids: his damage, the pitcher's location, and where the two collide
+  function zgrid(mode, bg, pg) {{
+    let out = '';
+    for (let i = 0; i < 25; i++) {{
+      const b = (bg || [])[i] || {{}}, q = (pg || [])[i] || {{}};
+      const r = Math.floor(i / 5), c = i % 5;
+      const inz = (r >= 1 && r <= 3 && c >= 1 && c <= 3) ? ' inz' : '';
+      let t = null, lab = '—', sub = '';
+      if (mode === 'bat') {{
+        const v = b.xwoba;
+        if (v != null) {{ t = Math.max(0, Math.min(1, (v - 0.200) / 0.400));
+          lab = v.toFixed(3).slice(1); sub = b.n ? String(b.n) : ''; }}
+      }} else if (mode === 'loc') {{
+        const v = q.loc_pct || 0;
+        if (v) {{ t = Math.max(0, Math.min(1, v / 9)); lab = v.toFixed(1); }}
+      }} else {{
+        const lv = q.loc_pct || 0, bv = b.xwoba;
+        const s = (bv == null) ? 0 : lv * Math.max(0, bv - 0.320);
+        if (s > 0) {{ t = Math.max(0, Math.min(1, s / 1.6)); lab = s.toFixed(2);
+          sub = b.hr ? b.hr + 'HR' : ''; }}
+      }}
+      const hot = mode === 'risk' ? 'var(--green)' : (mode === 'loc' ? 'var(--accent)' : 'var(--red)');
+      let style = 'background:var(--surface2)';
+      if (t != null) {{
+        style = t >= 0.5
+          ? `background:color-mix(in srgb,${{hot}} ${{Math.round(t*88)}}%,var(--surface2))`
+          : `background:color-mix(in srgb,#2f6fa8 ${{Math.round((0.5-t)*2*50)}}%,var(--surface2))`;
+      }}
+      out += `<div class="zcell${{inz}}" style="${{style}}"><b>${{lab}}</b><i>${{sub}}</i></div>`;
+    }}
+    return out;
+  }}
+
   function detailHTML(p) {{
     const log = p.log || [];
     const names = {{hand: 'vs ' + ((p.ctx && p.ctx.hand && p.ctx.hand.code === 'vl') ? 'LHP' : 'RHP'),
@@ -2071,6 +2166,15 @@ function showTab(id) {{
         <span class="dprob">${{f1(p.prob,1)}}%<span class="dodds">${{esc(p.odds||'')}}</span></span>
       </div>
       ${{ctx ? `<div class="pill-row">${{ctx}}</div>` : ''}}
+
+      ${{(p.bgrid || p.pgrid) ? `<div class="zrow">
+        <div class="zbox"><h6>Where he does damage</h6><div class="zgrid">${{zgrid('bat', p.bgrid, p.pgrid)}}</div>
+          <div class="zcap">xwOBA on contact, last 30 days. Small figure is batted balls in that cell.</div></div>
+        <div class="zbox"><h6>Where ${{esc(p.pitcher)}} lives</h6><div class="zgrid">${{zgrid('loc', p.bgrid, p.pgrid)}}</div>
+          <div class="zcap">Share of his pitches to ${{p.side}}HB landing in each cell.</div></div>
+        <div class="zbox"><h6>Overlap · the danger</h6><div class="zgrid">${{zgrid('risk', p.bgrid, p.pgrid)}}</div>
+          <div class="zcap">Location share multiplied by the damage he does there — bright cells are pitches thrown into his power.</div></div>
+      </div>` : ''}}
 
       <div class="charts">
         ${{chart(log,'tb','Total bases',1.5)}}
