@@ -235,6 +235,74 @@ BOARD_COLS = [
     ("h2hhr",   "H2H",     "num",  (0, 4),        "Career home runs off tonight's starter"),
 ]
 
+FASTBALLS = {"FF", "SI", "FC"}
+BREAKING  = {"SL", "CU", "ST", "KC", "SV"}
+OFFSPEED  = {"CH", "FS", "FO"}
+
+def pitcher_archetype(g, side):
+    """Describe the arm in words, from the mix he actually throws to this side."""
+    hp = (g.get("hand_profile") or {}).get(side, {}).get("all", {})
+    usage = hp.get("usage") or {}
+    if not usage:
+        return None
+    fam = {"fastball": 0.0, "breaking": 0.0, "offspeed": 0.0}
+    for pt, u in usage.items():
+        if pt in FASTBALLS:   fam["fastball"] += u["usage"]
+        elif pt in BREAKING:  fam["breaking"] += u["usage"]
+        elif pt in OFFSPEED:  fam["offspeed"] += u["usage"]
+    top = max(fam, key=fam.get)
+    lead = max(usage.items(), key=lambda kv: kv[1]["usage"])
+    b0 = g["top_batters"][0] if g["top_batters"] else {}
+    velo, arm = b0.get("ff_velo") or 0, b0.get("arm_slot") or ""
+    bits = []
+    if fam["fastball"] >= 55:   bits.append("fastball-heavy")
+    elif fam["breaking"] >= 45: bits.append("breaking-ball-heavy")
+    elif fam["offspeed"] >= 30: bits.append("offspeed-heavy")
+    else:                        bits.append("mixed-arsenal")
+    if velo >= 96:   bits.append("premium velocity")
+    elif velo >= 94: bits.append("above-average velocity")
+    elif 0 < velo < 92: bits.append("soft-tossing")
+    if arm in ("Submarine", "Sidearm"): bits.append(arm.lower())
+    k = hp.get("k_pct") or 0
+    if k >= 28:   bits.append("high strikeout")
+    elif 0 < k <= 16: bits.append("pitch-to-contact")
+    return {"label": ", ".join(bits), "fam": fam, "lead": lead[0],
+            "lead_usage": round(lead[1]["usage"], 0), "velo": velo, "arm": arm,
+            "k": hp.get("k_pct"), "bb": hp.get("bb_pct"), "brl": hp.get("brl_pct"),
+            "woba": hp.get("woba"), "slg": hp.get("slg"), "hr": hp.get("hr"), "pa": hp.get("pa")}
+
+def hitter_archetype(b):
+    """Describe the bat in words, from his season batted-ball profile."""
+    brl, hh = b.get("brl_bip") or 0, b.get("hh_pct") or 0
+    la, pull = b.get("la_avg") or 0, b.get("pull_pct") or 0
+    k = b.get("swstr_pct") or 0
+    bits = []
+    if brl >= 13 and hh >= 48:  bits.append("elite power")
+    elif brl >= 10:             bits.append("real power")
+    elif brl < 7:               bits.append("contact-first")
+    if la >= 18:                bits.append("uppercut")
+    elif 0 < la < 10:           bits.append("flat swing")
+    if pull >= 44:              bits.append("heavy pull")
+    elif 0 < pull <= 32:        bits.append("uses the whole field")
+    if k >= 30:                 bits.append("swing-and-miss")
+    elif 0 < k <= 18:           bits.append("rarely whiffs")
+    return ", ".join(bits) or "balanced profile"
+
+def batter_vs_families(b):
+    """How this hitter does against each pitch family, weighted by what he'll see."""
+    fam = {"fastball": [0.0, 0.0], "breaking": [0.0, 0.0], "offspeed": [0.0, 0.0]}
+    for row in (b.get("pitch_table") or []):
+        pt, u, xw = row.get("pitch_type"), row.get("usage") or 0, row.get("b_xwoba")
+        if not u or xw is None:
+            continue
+        key = "fastball" if pt in FASTBALLS else ("breaking" if pt in BREAKING else
+              ("offspeed" if pt in OFFSPEED else None))
+        if key:
+            fam[key][0] += u * xw
+            fam[key][1] += u
+    return {k: {"xwoba": round(v[0] / v[1], 3), "usage": round(v[1], 0)}
+            for k, v in fam.items() if v[1] >= 5}
+
 def _heat(val, lo, hi):
     if val is None:
         return ""
@@ -280,6 +348,11 @@ def build_board_tab():
                 "weak": [w["label"] for w in b.get("weak_spots", [])][:2],
                 "h2h": (lambda h: h if h.get("pa") else None)(b.get("h2h") or {}),
                 "sig": b.get("cal_signals", []),
+                "arch_p": pitcher_archetype(g, b.get("hand_usage_applied") or
+                                            (b.get("bats") if b.get("bats") in ("L", "R") else "R")),
+                "arch_b": hitter_archetype(b),
+                "fams": batter_vs_families(b),
+                "side": b.get("hand_usage_applied") or b.get("bats", "R"),
             })
     rows.sort(key=lambda r: -(r["prob"] or 0))
 
@@ -309,7 +382,8 @@ def build_board_tab():
         detail = json.dumps({k: r.get(k) for k in
                              ("batter", "bats", "game", "pitcher", "log", "w5", "w15",
                               "ctx", "ctx_night", "ctx_home", "edges", "weak", "h2h", "sig",
-                              "prob", "odds", "order")}, separators=(",", ":"))
+                              "prob", "odds", "order", "arch_p", "arch_b", "fams", "side",
+                              "brl", "hh", "iso", "zone")}, separators=(",", ":"))
         body += (f'<tr class="brow" data-chalk="{r["chalk"]}" data-detail=\'{esc_attr(detail)}\'>{tds}</tr>'
                  f'<tr class="drow" hidden><td colspan="{len(BOARD_COLS)}"></td></tr>')
 
@@ -1360,9 +1434,9 @@ details.pitch-drop[open] summary::before{{content:"▾ "}}
 .ck-bal{{background:var(--badge-bg);color:var(--muted);border-color:var(--border)}}
 .ck-lev{{background:#12332a;color:#3ecf9e;border-color:#3ecf9e40}}
 .ck-note{{font-size:10px;color:var(--muted);margin-bottom:4px}}
-.board-wrap{{background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden}}
-.board-bar{{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:10px 12px;border-bottom:1px solid var(--border)}}
-.board-title{{font-weight:700;font-size:14px}}
+.board-wrap{{background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.06)}}
+.board-bar{{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:11px 14px;border-bottom:1px solid var(--border);background:var(--surface2)}}
+.board-title{{font-weight:700;font-size:14.5px;letter-spacing:-.2px}}
 .board-hint{{font-size:11px;color:var(--muted)}}
 .board-filters{{margin-left:auto;display:flex;gap:4px}}
 .fbtn{{font-size:11px;font-family:'DM Mono',monospace;background:var(--surface2);color:var(--muted);border:1px solid var(--border);border-radius:12px;padding:3px 10px;cursor:pointer}}
@@ -1374,10 +1448,10 @@ table.board-tbl th{{position:sticky;top:0;z-index:3;background:var(--surface2);c
 table.board-tbl th:hover{{color:var(--text)}}
 table.board-tbl th[data-col="batter"],table.board-tbl th[data-col="game"],table.board-tbl th[data-col="pitcher"]{{text-align:left}}
 table.board-tbl th[data-col="batter"]{{left:0;z-index:4}}
-table.board-tbl td{{padding:5px 8px;border-bottom:1px solid var(--border);text-align:right;white-space:nowrap}}
-table.board-tbl td.sticky-col{{position:sticky;left:0;z-index:2;background:var(--surface);text-align:left;min-width:210px}}
-table.board-tbl tr:hover td{{background:var(--surface2)}}
-table.board-tbl tr:hover td.sticky-col{{background:var(--surface2)}}
+table.board-tbl td{{padding:6px 8px;border-bottom:1px solid var(--border);text-align:right;white-space:nowrap}}
+table.board-tbl td.sticky-col{{position:sticky;left:0;z-index:2;background:var(--surface);text-align:left;min-width:215px;border-right:1px solid var(--border)}}
+table.board-tbl tr.brow:hover td{{background:var(--surface2)}}
+table.board-tbl tr.brow:hover td.sticky-col{{background:var(--surface2);box-shadow:inset 2px 0 0 var(--border)}}
 table.board-tbl td.dim{{color:var(--muted)}}
 .sort-ar{{display:inline-block;width:9px;color:var(--accent)}}
 .mini-tags{{display:flex;gap:3px;flex-wrap:wrap;margin-top:2px}}
@@ -1397,6 +1471,30 @@ table.dtbl th:first-child,table.dtbl td:first-child{{text-align:left}}
 table.dtbl td{{text-align:right;padding:2px 5px;border-bottom:1px solid var(--border)}}
 .dctx{{font-size:11px;color:var(--muted);margin-top:4px;line-height:1.6}}
 .dctx b{{color:var(--text)}}
+.dname{{font-size:15px;font-weight:700;letter-spacing:-.2px}}
+.dodds{{margin-left:6px;font-size:11px;color:var(--muted)}}
+.pill-row{{display:flex;flex-wrap:wrap;gap:5px;margin:-2px 0 10px}}
+.pill-ctx{{font-size:10.5px;font-family:'DM Mono',monospace;background:var(--surface);border:1px solid var(--border);border-radius:11px;padding:2px 9px}}
+.pill-ctx.ctx-up{{border-color:#3ecf6e55;background:#3ecf6e12;color:#3ecf6e}}
+.pill-ctx.ctx-down{{border-color:#f0525255;background:#f0525212;color:#f05252}}
+.pill-ctx b{{color:inherit}}
+.charts{{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:12px;margin-bottom:12px}}
+.chart{{background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:8px 10px 6px}}
+.chead{{display:flex;justify-content:space-between;align-items:baseline;font-size:10.5px;margin-bottom:6px}}
+.chead span:first-child{{font-weight:700;color:var(--text)}}
+.chits{{color:var(--muted);font-family:'DM Mono',monospace;font-size:9.5px}}
+.cbody{{position:relative;display:flex;align-items:flex-end;gap:5px;height:92px;padding-bottom:14px}}
+.cline{{position:absolute;left:0;right:0;height:0;border-top:1px dashed var(--accent);opacity:.8;z-index:2;margin-bottom:14px}}
+.cline span{{position:absolute;right:0;top:-12px;font-size:8.5px;font-family:'DM Mono',monospace;color:var(--accent);background:var(--surface);padding:0 3px}}
+.cbar{{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;position:relative}}
+.cval{{font-size:9.5px;font-family:'DM Mono',monospace;color:var(--muted);margin-bottom:2px;line-height:1}}
+.cval.over{{color:#3ecf6e;font-weight:600}}
+.ctrack{{width:100%;flex:1;display:flex;align-items:flex-end;min-height:0}}
+.cfill{{width:100%;border-radius:3px 3px 0 0}}
+.cdate{{position:absolute;bottom:-14px}}
+.cfill.over{{background:linear-gradient(180deg,#3ecf6e,#2a9d55)}}
+.cfill.under{{background:var(--border)}}
+.cdate{{font-size:8.5px;color:var(--muted);margin-top:3px;font-family:'DM Mono',monospace}}
 .lk-wrap{{display:flex;flex-direction:column;gap:12px}}
 .lk-search{{display:flex;align-items:center;gap:10px;flex-wrap:wrap}}
 #lk-input{{flex:1;min-width:260px;max-width:440px;background:var(--surface);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:'IBM Plex Sans Condensed',sans-serif;font-size:15px;padding:10px 14px}}
@@ -1899,52 +1997,111 @@ function showTab(id) {{
   const f1 = (v, d) => (v === null || v === undefined) ? '·' : (+v).toFixed(d);
   const esc = s => String(s).replace(/[&<>"]/g, c => ({{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}}[c]));
 
+  // PrizePicks-style column chart: one bar per game, dashed line at the threshold.
+  // `floor` lifts the baseline for rate stats — an exit-velo chart drawn from zero
+  // makes 108 and 112 look identical, so those start just under the line instead.
+  function chart(log, key, label, line, fmt, floor) {{
+    if (!log || !log.length) return '';
+    const vals = log.map(g => g[key] ?? 0);
+    const base = floor !== undefined ? floor : 0;
+    const top = Math.max(line * 1.25, ...vals) * 1.08;
+    const span = Math.max(top - base, 0.001);
+    const pct = v => Math.max(4, Math.min(100, (v - base) / span * 100));
+    const bars = log.map((g, i) => {{
+      const v = vals[i], over = v > line;
+      return `<div class="cbar" title="${{g.date}} — ${{fmt ? fmt(v) : v}}">
+        <div class="cval ${{over ? 'over' : ''}}">${{v ? (fmt ? fmt(v) : v) : '–'}}</div>
+        <div class="ctrack"><div class="cfill ${{over ? 'over' : 'under'}}" style="height:${{v ? pct(v) : 2}}%"></div></div>
+        <div class="cdate">${{g.date}}</div></div>`;
+    }}).join('');
+    const hits = vals.filter(v => v > line).length;
+    return `<div class="chart">
+      <div class="chead"><span>${{label}}</span>
+        <span class="chits">${{hits}}/${{log.length}} over ${{fmt ? fmt(line) : line}}</span></div>
+      <div class="cbody">
+        <div class="cline" style="bottom:${{pct(line)}}%"><span>${{fmt ? fmt(line) : line}}</span></div>
+        ${{bars}}
+      </div>
+    </div>`;
+  }}
+
   function detailHTML(p) {{
     const log = p.log || [];
-    const logRows = log.length ? log.map(g =>
-      `<tr><td>${{g.date}}</td><td>${{g.h}}-for-${{g.ab}}</td><td>${{g.hr}}</td><td>${{g.tb}}</td>`
-      + `<td>${{g.bb}}</td><td>${{g.k}}</td><td>${{g.bbe}}</td><td>${{g.hard}}</td>`
-      + `<td>${{f1(g.avg_ev,1)}}</td><td>${{f1(g.max_ev,1)}}</td><td>${{g.best_dist ?? '·'}}</td></tr>`).join('')
-      : '<tr><td colspan="11" class="dim">No pitch-level games in the last 30 days.</td></tr>';
-
-    const win = ['w5','w10','w15'].map(k => p[k] || (k==='w10'? null : null)).filter(Boolean);
-    const wrows = [['L5',p.w5],['L15',p.w15]].filter(x => x[1]).map(([lab,w]) =>
-      `<tr><td>${{lab}}</td><td>${{w.games}}</td><td>${{w.pa}}</td><td>${{w.bbe}}</td><td>${{w.hr}}</td>`
-      + `<td>${{w.near_hr}}</td><td>${{f1(w.brl_pct,0)}}%</td><td>${{f1(w.hh_pct,0)}}%</td>`
-      + `<td>${{f1(w.avg_ev,1)}}</td><td>${{f1(w.max_ev,1)}}</td><td>${{f1(w.avg_dist,0)}}</td></tr>`).join('');
-
     const names = {{hand: 'vs ' + ((p.ctx && p.ctx.hand && p.ctx.hand.code === 'vl') ? 'LHP' : 'RHP'),
                    time: (p.ctx_night === 'day' ? 'day games' : 'night games'),
                    site: p.ctx_home ? 'at home' : 'on the road'}};
     const ctx = p.ctx ? Object.keys(names).filter(k => p.ctx[k]).map(k => {{
       const v = p.ctx[k];
       const cls = (!v.thin && Math.abs(v.edge) >= 0.060) ? (v.edge > 0 ? 'ctx-up' : 'ctx-down') : '';
-      return `<span class="${{cls}}">${{names[k]}} <b>${{f1(v.ops,3)}}</b> OPS `
-           + `<span class="dim">(${{v.edge > 0 ? '+' : ''}}${{Math.round(v.edge*1000)}} pts, ${{v.pa}} PA)</span></span>`;
-    }}).join(' · ') : '';
+      return `<span class="pill-ctx ${{cls}}">${{names[k]}} <b>${{f1(v.ops,3)}}</b>`
+           + `<span class="dim"> ${{v.edge > 0 ? '+' : ''}}${{Math.round(v.edge*1000)}}</span></span>`;
+    }}).join('') : '';
+
+    // Matchup archetypes — what kind of arm, what kind of bat, and the fit
+    const ap = p.arch_p, fams = p.fams || {{}};
+    let fit = '';
+    if (ap && Object.keys(fams).length) {{
+      const order = ['fastball','breaking','offspeed'];
+      fit = order.filter(k => fams[k] && ap.fam[k] >= 8).map(k => {{
+        const share = ap.fam[k], xw = fams[k].xwoba;
+        const good = xw >= 0.380, bad = xw <= 0.280;
+        return `<tr><td>${{k}}</td><td>${{f1(share,0)}}%</td>
+          <td class="${{good ? 'ctx-up' : (bad ? 'ctx-down' : '')}}">${{f1(xw,3)}}</td>
+          <td class="dim">${{good ? 'he hurts it' : (bad ? 'it beats him' : 'neutral')}}</td></tr>`;
+      }}).join('');
+    }}
 
     const h2 = p.h2h;
+    const wrows = [['L5',p.w5],['L15',p.w15]].filter(x => x[1]).map(([lab,w]) =>
+      `<tr><td>${{lab}}</td><td>${{w.games}}</td><td>${{w.pa}}</td><td>${{w.hr}}</td>`
+      + `<td>${{w.near_hr}}</td><td>${{f1(w.brl_pct,0)}}%</td><td>${{f1(w.hh_pct,0)}}%</td>`
+      + `<td>${{f1(w.avg_ev,1)}}</td><td>${{f1(w.max_ev,1)}}</td></tr>`).join('');
+
+    const logRows = log.length ? log.map(g =>
+      `<tr><td>${{g.date}}</td><td>${{g.h}}-for-${{g.ab}}</td><td>${{g.hr}}</td><td>${{g.tb}}</td>`
+      + `<td>${{g.bb}}</td><td>${{g.k}}</td><td>${{g.hard}}/${{g.bbe}}</td>`
+      + `<td>${{f1(g.avg_ev,1)}}</td><td>${{f1(g.max_ev,1)}}</td><td>${{g.best_dist ?? '·'}}</td></tr>`).join('')
+      : '<tr><td colspan="10" class="dim">No pitch-level games in the last 30 days.</td></tr>';
+
     return `<div class="dwrap">
-      <div class="dhead"><b>${{esc(p.batter)}}</b> <span class="hand">${{p.bats}}</span>
-        ${{p.order ? '· batting #' + p.order : ''}} · ${{esc(p.game)}} vs ${{esc(p.pitcher)}}
-        <span class="dprob">${{f1(p.prob,1)}}% · ${{esc(p.odds||'')}}</span></div>
+      <div class="dhead">
+        <span class="dname">${{esc(p.batter)}}</span><span class="hand">${{p.bats}}</span>
+        ${{p.order ? `<span class="slot-badge slot-in">#${{p.order}}</span>` : ''}}
+        <span class="dim">${{esc(p.game)}} · facing ${{esc(p.pitcher)}}</span>
+        <span class="dprob">${{f1(p.prob,1)}}%<span class="dodds">${{esc(p.odds||'')}}</span></span>
+      </div>
+      ${{ctx ? `<div class="pill-row">${{ctx}}</div>` : ''}}
+
+      <div class="charts">
+        ${{chart(log,'tb','Total bases',1.5)}}
+        ${{chart(log,'hard','Hard-hit balls (95+)',0.5)}}
+        ${{chart(log,'max_ev','Max exit velo',104, v => v ? v.toFixed(0) : '–', 88)}}
+      </div>
+
       <div class="dgrid">
+        <div>
+          <h5>Matchup type</h5>
+          <div class="dctx"><b>The arm:</b> ${{ap ? esc(ap.label) : 'not enough recent data'}}
+            ${{ap && ap.lead ? `<span class="dim">— leads with ${{ap.lead}} at ${{f1(ap.lead_usage,0)}}% to ${{p.side}}HB</span>` : ''}}</div>
+          <div class="dctx"><b>The bat:</b> ${{esc(p.arch_b || '')}}</div>
+          ${{ap && ap.pa ? `<div class="dctx"><b>vs ${{p.side}}HB this window:</b> ${{ap.pa}} PA ·
+            ${{f1(ap.woba,3)}} wOBA · ${{f1(ap.slg,3)}} SLG · ${{ap.hr}} HR · ${{f1(ap.k,0)}}% K · ${{f1(ap.brl,1)}}% barrel</div>` : ''}}
+          ${{fit ? `<table class="dtbl" style="margin-top:6px"><thead><tr><th>Pitch family</th><th>He throws</th>
+            <th>Hitter xwOBA</th><th></th></tr></thead><tbody>${{fit}}</tbody></table>` : ''}}
+          ${{h2 ? `<div class="dctx" style="margin-top:6px"><b>Head to head:</b> ${{h2.h}}-for-${{h2.ab}},
+            ${{h2.hr}} HR, ${{h2.bb}} BB, ${{h2.k}} K in ${{h2.pa}} PA <span class="dim">(${{f1(h2.ops,3)}} OPS)</span></div>` : ''}}
+        </div>
         <div>
           <h5>Last 5 games</h5>
           <table class="dtbl"><thead><tr><th>Date</th><th>AB</th><th>HR</th><th>TB</th><th>BB</th><th>K</th>
-            <th>BBE</th><th>Hard</th><th>EV</th><th>Max</th><th>Best</th></tr></thead>
-            <tbody>${{logRows}}</tbody></table>
-        </div>
-        <div>
-          <h5>Rolling windows</h5>
-          <table class="dtbl"><thead><tr><th>Win</th><th>G</th><th>PA</th><th>BBE</th><th>HR</th><th>Near</th>
-            <th>Brl</th><th>HH</th><th>EV</th><th>Max</th><th>Dist</th></tr></thead>
-            <tbody>${{wrows || '<tr><td colspan="11" class="dim">·</td></tr>'}}</tbody></table>
-          ${{ctx ? `<h5 style="margin-top:8px">Tonight's context</h5><div class="dctx">${{ctx}}</div>` : ''}}
+            <th>Hard</th><th>EV</th><th>Max</th><th>Best</th></tr></thead><tbody>${{logRows}}</tbody></table>
+          <h5 style="margin-top:8px">Rolling windows</h5>
+          <table class="dtbl"><thead><tr><th>Win</th><th>G</th><th>PA</th><th>HR</th><th>Near</th>
+            <th>Brl</th><th>HH</th><th>EV</th><th>Max</th></tr></thead>
+            <tbody>${{wrows || '<tr><td colspan="9" class="dim">·</td></tr>'}}</tbody></table>
           ${{(p.edges||[]).length ? `<div class="dctx"><b>Edges:</b> ${{p.edges.map(esc).join(', ')}}</div>` : ''}}
-          ${{(p.weak||[]).length ? `<div class="dctx"><b>Weak:</b> ${{p.weak.map(esc).join(', ')}}</div>` : ''}}
-          ${{h2 ? `<div class="dctx"><b>vs this pitcher:</b> ${{h2.h}}-for-${{h2.ab}}, ${{h2.hr}} HR, ${{h2.bb}} BB, ${{h2.k}} K in ${{h2.pa}} PA (${{f1(h2.ops,3)}} OPS)</div>` : ''}}
-          ${{(p.sig||[]).length ? `<div class="dctx"><b>Signals:</b> ${{p.sig.map(esc).join(' · ')}}</div>` : ''}}
+          ${{(p.weak||[]).length ? `<div class="dctx"><b>Weak spots:</b> ${{p.weak.map(esc).join(', ')}}</div>` : ''}}
+          ${{(p.sig||[]).length ? `<div class="dctx"><b>Signals firing:</b> ${{p.sig.map(esc).join(' · ')}}</div>` : ''}}
         </div>
       </div></div>`;
   }}
