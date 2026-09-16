@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Print-ready HR + H2H report for the 2026-09-13 slate."""
+"""Print-ready HR + H2H report for the 2026-09-15 slate."""
 import json, html
 
 SP   = "/tmp/claude-0/-home-user-propstats/4a29f92c-2ab2-55a2-aa2c-327f896f1d05/scratchpad"
-DATE = "2026-09-13"
-DS   = "20260913"
+DATE = "2026-09-15"
+DS   = "20260915"
 OUT  = f"{SP}/hr_report_{DS}.html"
 
 hr = json.load(open(f"{SP}/hr_board_{DS}.json"))
@@ -110,6 +110,98 @@ for i, (nhr, rate, b, r, h) in enumerate(h2h_rows, 1):
 n_h2h_any = sum(1 for r in hr for b in r["top_batters"] if (b.get("h2h") or {}).get("pa", 0) > 0)
 attackable = [r for r in hr if r["vuln"]["tier"] == "Attackable"]
 
+# ── Leaderboards + master table ───────────────────────────────────────────────
+# A printed page cannot be re-sorted, so every sort worth having is pre-rendered:
+# one leaderboard per metric, then one master table carrying every column.
+pool, _seen = [], set()
+for r in hr:
+    for b in r["top_batters"]:
+        if b.get("in_lineup") is False or b["batter_id"] in _seen:
+            continue
+        _seen.add(b["batter_id"])
+        sc = b.get("statcast") or {}
+        w10, w5 = sc.get("L10") or {}, sc.get("L5") or {}
+        fd = b.get("form_delta") or {}
+        h2 = b.get("h2h") or {}
+        pool.append({
+            "nm": b["batter_name"], "bats": b.get("bats", ""), "order": b.get("order"),
+            "game": r["game"], "pit": r["pitcher_name"], "vuln": r["vuln"]["score"],
+            "prob": b.get("hr_prob") or 0, "odds": b.get("implied_odds", ""),
+            "tier": b.get("chalk_tier") or "", "zone": b.get("hr_zone_score") or 0,
+            "parkfit": b.get("park_fit") or 0, "park": b.get("park_hr_factor") or 1,
+            "brl": b.get("brl_bip") or 0, "hh": b.get("hh_pct") or 0,
+            "iso": b.get("xiso") or 0, "xwoba": b.get("xwoba") or 0,
+            "hrfb": b.get("hr_fb_pct") or 0, "la": b.get("la_avg") or 0,
+            "ev": b.get("exit_velo") or 0,
+            "ev10": w10.get("avg_ev") or 0, "maxev": w5.get("max_ev") or 0,
+            "brl10": w10.get("brl_pct") or 0, "hr10": w10.get("hr"), "near": w10.get("near_hr"),
+            "dev": fd.get("ev"), "dbrl": fd.get("brl_pct_rel"),
+            "h2hpa": h2.get("pa") or 0, "h2hhr": h2.get("hr") or 0, "h2hops": h2.get("ops") or 0,
+        })
+
+LEADERBOARDS = [
+    ("prob",    "Calibrated HR probability", "{:.1f}%", "the model's bottom line"),
+    ("zone",    "Zone fit",                  "{:.0f}",  "how well he hits this pitcher's actual mix"),
+    ("brl",     "Barrel rate, season",       "{:.1f}%", "fitted peak is the 11-14% band"),
+    ("parkfit", "Park fit",                  "{:.0f}",  "strongest single feature in the model"),
+    ("hrfb",    "HR per fly ball",           "{:.1f}%", "under 10% grades at 0.56x"),
+    ("maxev",   "Max exit velo, last 5",     "{:.1f}",  "top-end power right now"),
+    ("ev10",    "Average exit velo, last 10","{:.1f}",  "92+ grades at 1.61x"),
+    ("near",    "Near-misses, last 10",      "{:.0f}",  "98+ mph, 20-35 deg, 360+ ft, not a HR"),
+    ("hr10",    "Home runs, last 10",        "{:.0f}",  "current form"),
+    ("dev",     "Exit velo vs own baseline", "{:+.1f}", "who is heating up"),
+    ("iso",     "Expected ISO, season",      "{:.3f}",  "raw power"),
+    ("h2hops",  "OPS vs tonight's starter",  "{:.3f}",  "8+ plate appearances only"),
+]
+
+def _lb(key, title, fmt, note, n=12):
+    rows = [x for x in pool if x.get(key) is not None]
+    if key == "h2hops":
+        rows = [x for x in rows if x["h2hpa"] >= 8]
+    rows = sorted(rows, key=lambda x: -(x[key] or 0))[:n]
+    if not rows:
+        return ""
+    body = "".join(
+        f'<tr><td class="num dim">{i}</td><td>{esc(x["nm"])}<span class="hand">{x["bats"]}</span></td>'
+        f'<td class="dim">{esc(x["game"])}</td><td class="num strong">{fmt.format(x[key])}</td>'
+        f'<td class="num">{x["prob"]:.1f}%</td></tr>'
+        for i, x in enumerate(rows, 1))
+    return (f'<div class="lb"><div class="lb-h">{title}</div><div class="lb-n">{note}</div>'
+            f'<table class="lbt"><tbody>{body}</tbody></table></div>')
+
+lb_html = "".join(_lb(k, t, f, n) for k, t, f, n in LEADERBOARDS)
+
+MASTER = [("nm","Batter"),("bats","B"),("order","#"),("game","Game"),("pit","Pitcher"),
+          ("prob","HR%"),("odds","Fair"),("zone","Zone"),("parkfit","PkFit"),("park","Park"),
+          ("brl","Brl%"),("hh","HH%"),("iso","xISO"),("hrfb","HR/FB"),("la","LA"),
+          ("ev10","EV10"),("maxev","MaxEV"),("dev","dEV"),("hr10","HR"),("near","Near"),
+          ("h2hhr","H2H")]
+def _cell(x, k):
+    v = x.get(k)
+    if v is None or v == "":
+        return '<td class="num dim">·</td>'
+    if k == "nm":
+        return f'<td><b>{esc(v)}</b></td>'
+    if k in ("bats", "game", "pit", "odds"):
+        return f'<td>{esc(v)}</td>'
+    if k == "order":
+        return f'<td class="num">{v}</td>'
+    if k in ("iso",):
+        return f'<td class="num">{v:.3f}</td>'
+    if k in ("park",):
+        return f'<td class="num">{v:.2f}</td>'
+    if k in ("prob", "brl", "hh", "hrfb", "la", "ev10", "maxev"):
+        return f'<td class="num">{v:.1f}</td>'
+    if k == "dev":
+        cls = "up" if v > 0 else ("down" if v < 0 else "")
+        return f'<td class="num {cls}">{v:+.1f}</td>'
+    return f'<td class="num">{v:.0f}</td>' if isinstance(v, float) else f'<td class="num">{v}</td>'
+
+master_rows = "".join(
+    "<tr>" + "".join(_cell(x, k) for k, _ in MASTER) + "</tr>"
+    for x in sorted(pool, key=lambda y: -y["prob"]))
+master_head = "".join(f"<th>{h}</th>" for _, h in MASTER)
+
 game_html = ""
 for game in sorted(games):
     game_html += f'<section class="game"><h3>{esc(game)}</h3>'
@@ -130,7 +222,7 @@ for game in sorted(games):
 
 doc = f'''<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
-<title>Home Run Report — September 13, 2026</title>
+<title>Home Run Report — September 15, 2026</title>
 <style>
 @page {{ size: Letter; margin: 14mm 12mm; }}
 * {{ box-sizing: border-box; }}
@@ -211,6 +303,22 @@ table.h2h td.strong {{ font-weight:800; }}
 tr.h2h-top td {{ background:#fbfcfd; }}
 tr.h2h-top td.strong {{ color:#b3261e; }}
 .pagebreak {{ break-before:page; }}
+.lb-grid {{ display:grid; grid-template-columns:repeat(3,1fr); gap:8px 12px; }}
+.lb {{ break-inside:avoid; border:1px solid #e3e6eb; border-radius:4px; padding:6px 8px; }}
+.lb-h {{ font-weight:800; font-size:9pt; letter-spacing:-.1px; }}
+.lb-n {{ font-size:7.4pt; color:#6b7381; margin-bottom:3px; }}
+table.lbt {{ width:100%; border-collapse:collapse; font-size:7.8pt; }}
+table.lbt td {{ padding:1.5px 3px; border-bottom:1px solid #f2f4f7; }}
+table.lbt td.num {{ text-align:right; }}
+table.lbt td.strong {{ font-weight:800; }}
+.tbl-wide {{ overflow-x:auto; }}
+table.master {{ width:100%; border-collapse:collapse; font-size:7.2pt; }}
+table.master th {{ background:#14181f; color:#fff; font-weight:700; padding:3px 3px; text-align:right;
+  font-size:6.8pt; letter-spacing:.2px; position:sticky; top:0; }}
+table.master th:nth-child(-n+5) {{ text-align:left; }}
+table.master td {{ padding:2px 3px; border-bottom:1px solid #eef0f4; text-align:right; white-space:nowrap; }}
+table.master td:nth-child(-n+5) {{ text-align:left; }}
+table.master tr:nth-child(even) td {{ background:#fafbfc; }}
 footer {{ margin-top:14px; padding-top:7px; border-top:1px solid #dfe3e9; font-size:7.6pt; color:#6b7381; }}
 </style></head><body>
 
@@ -220,7 +328,7 @@ footer {{ margin-top:14px; padding-top:7px; border-top:1px solid #dfe3e9; font-s
     <h1>Home Run Report</h1>
   </div>
   <div class="sub">
-    <b>Sunday, September 13, 2026</b><br>
+    <b>Tuesday, September 15, 2026</b><br>
     {len(games)} games · {len(hr)} starters · {sum(len(r["top_batters"]) for r in hr)} batters scored<br>
     Lineups not yet posted — roster-based
   </div>
@@ -250,6 +358,18 @@ footer {{ margin-top:14px; padding-top:7px; border-top:1px solid #dfe3e9; font-s
 <table class="h2h">
 <thead><tr><th></th><th>Batter</th><th>vs Starter</th><th>Game</th><th style="text-align:right">HR</th><th style="text-align:right">PA</th><th style="text-align:right">HR/PA</th><th style="text-align:right">AVG</th><th style="text-align:right">SLG</th><th style="text-align:right">OPS</th><th style="text-align:right">K%</th><th style="text-align:right">Model</th><th style="text-align:right">Odds</th><th>Tier</th></tr></thead>
 <tbody>{h2h_html}</tbody></table>
+
+<h2 class="pagebreak">Leaderboards — the same board sorted every way that matters</h2>
+<p class="small dim">Each list is the top 12 on one metric, with the model's probability alongside so you can see where a
+category leader actually lands. A name that tops several of these is a genuine fit; one that tops a single list is a
+one-dimensional case. Lineup-confirmed hitters only.</p>
+<div class="lb-grid">{lb_html}</div>
+
+<h2 class="pagebreak">Master table — every hitter, every column</h2>
+<p class="small dim">Sorted by calibrated probability. Scan any column to re-rank by eye:
+Zone is fit against this pitcher's mix, PkFit is park fit, dEV is exit velocity against the hitter's own season
+baseline, Near is 98+ mph balls at 20-35 degrees that stayed in, H2H is career home runs off tonight's starter.</p>
+<div class="tbl-wide"><table class="master"><thead><tr>{master_head}</tr></thead><tbody>{master_rows}</tbody></table></div>
 
 <h2 class="pagebreak">Game by game — top 3 hitters per team</h2>
 <p class="small dim">Ranked by matchup score, which blends the batter's power profile, his fit against this pitcher's actual mix, and the pitcher's vulnerability. Probabilities are Poisson-derived; odds shown are the model's fair price, not a book's.</p>
