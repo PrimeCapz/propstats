@@ -1857,14 +1857,27 @@ function showTab(id) {{
       if (sortCol === col) {{ sortDesc = !sortDesc; }}
       else {{ sortCol = col; sortDesc = th.dataset.type === 'num'; }}
       const num = th.dataset.type === 'num';
-      const rows = Array.from(tbody.rows);
-      rows.sort((a, b) => {{
+      // Sort the player rows only, carrying each detail row along with its parent.
+      const pairs = Array.from(tbody.querySelectorAll('tr.brow')).map(r => {{
+        const d = r.nextElementSibling;
+        return [r, (d && d.classList.contains('drow')) ? d : null];
+      }});
+      pairs.sort(([a], [b]) => {{
         const av = a.cells[idx].dataset.v, bv = b.cells[idx].dataset.v;
-        const r = num ? (parseFloat(av) - parseFloat(bv))
-                      : String(av).localeCompare(String(bv));
+        let r;
+        if (num) {{
+          const x = parseFloat(av), y = parseFloat(bv);
+          const xn = Number.isNaN(x), yn = Number.isNaN(y);
+          if (xn && yn) r = 0;            // keep missing values together at the bottom
+          else if (xn) return 1;
+          else if (yn) return -1;
+          else r = x - y;
+        }} else {{
+          r = String(av || '').localeCompare(String(bv || ''));
+        }}
         return sortDesc ? -r : r;
       }});
-      rows.forEach(r => tbody.appendChild(r));
+      pairs.forEach(([r, d]) => {{ tbody.appendChild(r); if (d) tbody.appendChild(d); }});
       paint();
     }});
   }});
