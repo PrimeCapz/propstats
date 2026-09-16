@@ -2122,6 +2122,125 @@ def tag_chalk_levels(results: list) -> list:
     return results
 
 
+CTX_CODES = "vl,vr,d,n,h,a"
+CTX_MIN_PA = 40          # below this a split is noise
+CTX_EDGE_OPS = 0.060     # OPS gap that counts as a real lean either way
+
+
+def _fetch_batter_context_splits(batter_id: int, season: int) -> dict:
+    """Season splits by pitcher hand, day/night, and home/away — one API call."""
+    data = _get(f"{MLB_API}/people/{batter_id}/stats", {
+        "stats": "statSplits", "group": "hitting", "season": season,
+        "sportId": 1, "sitCodes": CTX_CODES,
+    })
+    out = {}
+    for s in (data or {}).get("stats", [{}])[0].get("splits", []):
+        code = s.get("split", {}).get("code", "")
+        st = s.get("stat", {})
+        pa = st.get("plateAppearances", 0) or 0
+        if not code or pa == 0:
+            continue
+        try:
+            out[code] = {
+                "pa": pa,
+                "ba": float(st.get("avg") or 0),
+                "obp": float(st.get("obp") or 0),
+                "slg": float(st.get("slg") or 0),
+                "ops": float(st.get("ops") or 0),
+                "hr": st.get("homeRuns", 0) or 0,
+                "hr_pa": round((st.get("homeRuns", 0) or 0) / pa * 100, 1),
+            }
+        except (TypeError, ValueError):
+            continue
+    return out
+
+
+def enrich_context_splits(results: list, game_date: str, top_n: int = 150) -> list:
+    """
+    Attach the season splits that actually apply to tonight's game.
+
+    A hitter's overall line hides which version of him shows up: some wake up
+    against left-handers, some only hit in daylight, some are different players
+    on the road. This pulls vs-LHP / vs-RHP, day / night and home / away, then
+    keeps the three that match this particular game — the starter's hand, the
+    first-pitch time, and which dugout he is in — so the context reads as one
+    sentence rather than a table of everything.
+
+    Splits under 40 plate appearances are carried but marked thin, and a gap of
+    60 OPS points against the hitter's own overall line is flagged as an edge.
+    """
+    season = int(game_date[:4])
+    games = {g["game_pk"]: g for g in get_today_games(game_date)}
+    daynight, home_team = {}, {}
+    try:
+        sched = _get(f"{MLB_API}/schedule", {"sportId": 1, "date": game_date}) or {}
+        for d in sched.get("dates", []):
+            for g in d.get("games", []):
+                daynight[g.get("gamePk")] = (g.get("dayNight") or "night").lower()
+    except Exception:
+        pass
+
+    ranked = sorted(
+        ((b, r) for r in results for b in r["top_batters"]
+         if b.get("in_lineup") is not False),
+        key=lambda x: -(x[0].get("matchup_score") or 0))
+    seen, order = set(), []
+    for b, r in ranked:
+        if b["batter_id"] not in seen and len(order) < top_n:
+            seen.add(b["batter_id"])
+            order.append(b["batter_id"])
+    want = set(order)
+
+    cache = {}
+    for bid in order:
+        try:
+            cache[bid] = _fetch_batter_context_splits(bid, season)
+        except Exception:
+            cache[bid] = {}
+        time.sleep(0.08)
+
+    for r in results:
+        dn = daynight.get(r.get("game_pk"), "night")
+        # the batting side is whichever team the pitcher is not on
+        bats_home = r.get("pitcher_side") == "away"
+        throws = r.get("pitcher_throws", "R")
+        for b in r["top_batters"]:
+            sp = cache.get(b["batter_id"])
+            if not sp:
+                continue
+            overall_ops = max((v["ops"] for v in sp.values() if v["pa"] >= CTX_MIN_PA), default=0)
+            base = (sp.get("vr", {}).get("ops", 0) * sp.get("vr", {}).get("pa", 0)
+                    + sp.get("vl", {}).get("ops", 0) * sp.get("vl", {}).get("pa", 0))
+            tot_pa = sp.get("vr", {}).get("pa", 0) + sp.get("vl", {}).get("pa", 0)
+            season_ops = round(base / tot_pa, 3) if tot_pa else overall_ops
+
+            picked = {}
+            for label, code in (("hand", "vl" if throws == "L" else "vr"),
+                                ("time", "d" if dn == "day" else "n"),
+                                ("site", "h" if bats_home else "a")):
+                v = sp.get(code)
+                if not v:
+                    continue
+                picked[label] = dict(v, code=code,
+                                     thin=v["pa"] < CTX_MIN_PA,
+                                     edge=round(v["ops"] - season_ops, 3))
+
+            b["ctx_splits"] = picked
+            b["ctx_season_ops"] = season_ops
+            b["ctx_daynight"] = dn
+            b["ctx_home"] = bats_home
+
+            notes = []
+            for label, v in picked.items():
+                if v["thin"] or abs(v["edge"]) < CTX_EDGE_OPS:
+                    continue
+                name = {"hand": f"vs {'LHP' if throws == 'L' else 'RHP'}",
+                        "time": f"{dn} games", "site": "at home" if bats_home else "on the road"}[label]
+                notes.append(f"{name} {v['ops']:.3f} OPS ({v['edge']:+.3f}, {v['pa']} PA)")
+            b["ctx_notes"] = notes
+    return results
+
+
 def enrich_lineups(results: list, game_date: str) -> list:
     """
     Post-build: attach confirmed batting order, rescale HR prob by expected PA

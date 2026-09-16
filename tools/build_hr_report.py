@@ -34,6 +34,31 @@ def form_bits(b):
     if s.get("brl_pct"): out.append(f'{s["brl_pct"]:.0f}% brl')
     return " · ".join(out)
 
+def ctx_line(b):
+    """This hitter's season line in the three conditions that apply tonight."""
+    sp = b.get("ctx_splits") or {}
+    if not sp:
+        return ""
+    throws_lhp = "hand" in sp and sp["hand"].get("code") == "vl"
+    names = {"hand": "vs LHP" if throws_lhp else "vs RHP",
+             "time": ("day" if b.get("ctx_daynight") == "day" else "night") + " games",
+             "site": "at home" if b.get("ctx_home") else "on the road"}
+    bits = []
+    for key in ("hand", "time", "site"):
+        v = sp.get(key)
+        if not v:
+            continue
+        cls = ""
+        if not v["thin"] and abs(v["edge"]) >= 0.060:
+            cls = ' class="ctx-up"' if v["edge"] > 0 else ' class="ctx-down"'
+        thin = ' <span class="dim">thin</span>' if v["thin"] else ""
+        bits.append(f'<span{cls}>{names[key]} <b>{v["ops"]:.3f}</b> OPS '
+                    f'<span class="dim">({v["edge"]:+.3f} · {v["pa"]} PA · {v["hr"]} HR)</span>{thin}</span>')
+    if not bits:
+        return ""
+    return f'<div class="bat-ctx"><span class="lbl">Tonight\'s context</span> {" · ".join(bits)}</div>'
+
+
 def signal_tags(b):
     keep = [t for t in b.get("tags", [])
             if any(k in t for k in ("FIRE", "HOT", "HARD LUCK", "EV SURGE", "DUE", "OWNS", "DOMINATED"))]
@@ -79,6 +104,7 @@ def batter_rows(r):
   </div>
   <div class="bat-meta">zone {b["hr_zone_score"]:.0f} · park {b.get("park_hr_factor",1):.2f} · L10 {form_bits(b)} {h2s}</div>
   <div class="bat-edge"><span class="lbl">Pitch edges</span> {esc(edges)}</div>
+  {ctx_line(b)}
   <div class="tags">{signal_tags(b)}</div>
 </div>'''
     return out
@@ -170,6 +196,41 @@ def _lb(key, title, fmt, note, n=12):
             f'<table class="lbt"><tbody>{body}</tbody></table></div>')
 
 lb_html = "".join(_lb(k, t, f, n) for k, t, f, n in LEADERBOARDS)
+
+# Context splits: who tonight's conditions help, and who they hurt
+ctx_pool = []
+for r in hr:
+    for b in r["top_batters"]:
+        if b.get("in_lineup") is False:
+            continue
+        for key, v in (b.get("ctx_splits") or {}).items():
+            if v["thin"] or abs(v["edge"]) < 0.060:
+                continue
+            throws_lhp = (b.get("ctx_splits", {}).get("hand", {}) or {}).get("code") == "vl"
+            label = {"hand": "vs LHP" if throws_lhp else "vs RHP",
+                     "time": ("day" if b.get("ctx_daynight") == "day" else "night"),
+                     "site": "home" if b.get("ctx_home") else "road"}[key]
+            ctx_pool.append({"nm": b["batter_name"], "game": r["game"], "label": label,
+                             "ops": v["ops"], "edge": v["edge"], "pa": v["pa"],
+                             "prob": b.get("hr_prob") or 0})
+
+def _ctx_tbl(rows, title, note):
+    if not rows:
+        return ""
+    body = "".join(
+        f'<tr><td class="num dim">{i}</td><td>{esc(x["nm"])}</td><td class="dim">{esc(x["game"])}</td>'
+        f'<td class="dim">{esc(x["label"])}</td><td class="num strong">{x["ops"]:.3f}</td>'
+        f'<td class="num">{x["edge"]:+.3f}</td><td class="num">{x["prob"]:.1f}%</td></tr>'
+        for i, x in enumerate(rows[:14], 1))
+    return (f'<div class="lb" style="grid-column:span 3"><div class="lb-h">{title}</div>'
+            f'<div class="lb-n">{note}</div><table class="lbt"><tbody>{body}</tbody></table></div>')
+
+ctx_html = (_ctx_tbl(sorted(ctx_pool, key=lambda x: -x["edge"]),
+                     "Conditions in his favour tonight",
+                     "season OPS in this exact context, against his own overall line — 40+ PA only")
+            + _ctx_tbl(sorted(ctx_pool, key=lambda x: x["edge"]),
+                       "Conditions against him tonight",
+                       "same measure, the other direction — a reason to downgrade an otherwise good spot"))
 
 MASTER = [("nm","Batter"),("bats","B"),("order","#"),("game","Game"),("pit","Pitcher"),
           ("prob","HR%"),("odds","Fair"),("zone","Zone"),("parkfit","PkFit"),("park","Park"),
@@ -290,6 +351,10 @@ tr.split-hot td {{ background:#fdf1ef; font-weight:600; }}
 .odds em {{ font-style:normal; color:#6b7381; font-weight:600; font-size:8.4pt; }}
 .bat-meta, .bat-edge {{ font-size:8.2pt; color:#41485a; }}
 .bat-edge .lbl {{ color:#6b7381; }}
+.bat-ctx {{ font-size:8pt; color:#41485a; }}
+.bat-ctx .lbl {{ color:#6b7381; }}
+.ctx-up {{ color:#1a7a4e; font-weight:600; }}
+.ctx-down {{ color:#b3261e; font-weight:600; }}
 .h2h-inline {{ background:#fdf3e2; border:1px solid #e8cf9f; border-radius:3px; padding:0 4px; font-weight:700; color:#95661a; }}
 .tags {{ margin-top:2px; }}
 .tag {{ display:inline-block; font-size:7.4pt; background:#f3f4f6; border:1px solid #dfe3e9; border-radius:3px; padding:0 4px; margin-right:3px; color:#41485a; }}
@@ -364,6 +429,13 @@ footer {{ margin-top:14px; padding-top:7px; border-top:1px solid #dfe3e9; font-s
 category leader actually lands. A name that tops several of these is a genuine fit; one that tops a single list is a
 one-dimensional case. Lineup-confirmed hitters only.</p>
 <div class="lb-grid">{lb_html}</div>
+
+<h2>Tonight's conditions — who they help and who they hurt</h2>
+<p class="small dim">Every hitter carries three season splits that apply to this specific game: how he hits the
+starter's handedness, how he hits in day or night games, and how he hits at home or on the road. Shown against his own
+overall line, so <b>+0.090</b> means this version of him is 90 OPS points better than his season average. Splits under
+40 plate appearances are excluded — they move around too much to mean anything.</p>
+<div class="lb-grid">{ctx_html}</div>
 
 <h2 class="pagebreak">Master table — every hitter, every column</h2>
 <p class="small dim">Sorted by calibrated probability. Scan any column to re-rank by eye:
