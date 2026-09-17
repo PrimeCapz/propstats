@@ -1,11 +1,23 @@
 #!/usr/bin/env python3
-"""Print-ready HR + H2H report for the 2026-09-15 slate."""
-import json, html
+"""Print-ready HR + H2H report built from the board JSON run_slate.py writes.
 
-SP   = "/tmp/claude-0/-home-user-propstats/4a29f92c-2ab2-55a2-aa2c-327f896f1d05/scratchpad"
-DATE = "2026-09-15"
-DS   = "20260915"
-OUT  = f"{SP}/hr_report_{DS}.html"
+Usage:
+  python3 build_hr_report.py [YYYY-MM-DD] [--dir BOARD_DIR] [--out FILE]
+"""
+import argparse, json, html, os
+from datetime import datetime
+
+_ap = argparse.ArgumentParser()
+_ap.add_argument("date", nargs="?", default=datetime.now().strftime("%Y-%m-%d"))
+_ap.add_argument("--dir", default=os.environ.get("PROPSTATS_BOARD_DIR", "."),
+                 help="directory holding the board JSON files")
+_ap.add_argument("--out", default=None)
+_args = _ap.parse_args()
+
+SP   = _args.dir
+DATE = _args.date
+DS   = DATE.replace("-", "")
+OUT  = _args.out or os.path.join(SP, f"hr_report_{DS}.html")
 
 hr = json.load(open(f"{SP}/hr_board_{DS}.json"))
 
