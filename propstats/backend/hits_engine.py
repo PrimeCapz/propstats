@@ -25,6 +25,11 @@ from datetime import datetime
 
 sys.path.insert(0, os.path.dirname(__file__))
 from baseball_engine import (
+    shrink_rate,
+    expected_pa,
+    pa_split,
+    PEN_BA_MULT,
+    LEAGUE_AB_RATE,
     _get, MLB_API,
     get_today_games,
     get_team_roster_ids,
@@ -193,7 +198,7 @@ def _batter_hit_score(batter_id: int, xstats: dict, batter_hr_data: dict,
 def _proj_hits(batter_id: int, pitcher_id: int, xstats: dict, batter_hr_data: dict,
                savant_batting: dict, pitcher_k_data: dict, pitcher_h_profile: dict,
                venue_name: str, bats: str = "R", p_throws: str = "R",
-               season: int = None) -> dict:
+               season: int = None, order=None) -> dict:
     """Project hit count and compute Poisson P(≥1), P(≥2).
     p_throws: pitcher handedness ('L'/'R') used for batter vs-hand splits.
     """
@@ -201,15 +206,20 @@ def _proj_hits(batter_id: int, pitcher_id: int, xstats: dict, batter_hr_data: di
     ppid = str(pitcher_id)
 
     xs = xstats.get(pid, {})
-    ba = _safe(xs.get("xba")) or _safe(xs.get("ba")) or LEAGUE_BA
+    xs_pa = int(xs.get("pa") or 0)
+    # Regress by sample size: a 40-PA hitter's xBA is mostly noise.
+    ba = shrink_rate(_safe(xs.get("xba")) or _safe(xs.get("ba")), xs_pa, LEAGUE_BA)
 
-    # Per-batter expected AB vs SP (a batter sees the SP ~3 PA per game)
+    # Full-game opportunity. The hit prop settles on the whole game, so the
+    # batter's PA against the bullpen count too — modelling only the ~3 PA vs
+    # the starter was costing roughly a third of the expected AB.
     pk = pitcher_k_data.get(ppid, {})
     pitcher_bb_pct = _safe(pk.get("bb_pct")) or 8.5
 
-    # Expected AB = ~3 PA × (1 - pitcher BB%) per batter per game
-    exp_ab = round(3.0 * (1.0 - pitcher_bb_pct / 100.0), 2)
-    exp_ab = max(2.0, exp_ab)
+    pa_sp, pa_pen = pa_split(order)
+    ab_sp  = pa_sp * (1.0 - pitcher_bb_pct / 100.0)
+    ab_pen = pa_pen * LEAGUE_AB_RATE
+    exp_ab = max(2.0, round(ab_sp + ab_pen, 2))
 
     # Park hit factor
     park_hit = 1.0
@@ -240,7 +250,9 @@ def _proj_hits(batter_id: int, pitcher_id: int, xstats: dict, batter_hr_data: di
             elif hand_adj <= 0.88:
                 hand_label = f"COLD vs {p_throws}HP BA:{split_ba:.3f}"
 
-    lam = blended_ba * exp_ab * park_hit * hand_adj
+    # Matchup adjustments (pitcher H/9, handedness) apply only to the AB against
+    # the starter; bullpen AB carry the batter's own rate at the league pen mult.
+    lam = (blended_ba * ab_sp * hand_adj + ba * ab_pen * PEN_BA_MULT) * park_hit
     lam = max(0.1, lam)
 
     p1 = _poisson_at_least(lam, 1)   # P(≥1 hit)
@@ -266,6 +278,10 @@ def _proj_hits(batter_id: int, pitcher_id: int, xstats: dict, batter_hr_data: di
         "p_2plus":    p2,
         "p_3plus":    p3,
         "exp_ab":     round(exp_ab, 1),
+        "xstat_pa":   xs_pa,
+        "thin_sample": xs_pa < 120,
+        "ab_vs_sp":   round(ab_sp, 2),
+        "ab_vs_pen":  round(ab_pen, 2),
         "blended_ba": round(blended_ba, 3),
         "park_hit":   round(park_hit, 2),
         "hand_adj":   round(hand_adj, 3),

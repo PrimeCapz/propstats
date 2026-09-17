@@ -52,6 +52,76 @@ VENUE_COORDS = {
     2529: ("Sutter Health Park", 38.5800, -121.4994),   # Sacramento, CA — ATH temp home
 }
 
+# ---------------------------------------------------------------------------
+# Full-game plate-appearance model
+# ---------------------------------------------------------------------------
+# Batter props settle on the WHOLE GAME, but the prop engines were modelling
+# only the plate appearances a hitter takes against the starting pitcher (a
+# hardcoded 3.0 PA). Measured over 720 confirmed starters across three Sep-2026
+# slates, a starter actually gets 4.09 PA / 3.63 AB per game — roughly 3.0 vs
+# the SP and 1.1 vs the bullpen. That ~36% shortfall in opportunity is why the
+# hits, total-bases and batter-K boards all projected systematically low.
+LEAGUE_PA_GAME  = 4.09   # mean PA per confirmed starter, full game
+LEAGUE_PA_VS_SP = 3.00   # of those, mean PA against the starting pitcher
+LEAGUE_AB_RATE  = 0.888  # AB / PA (3.63 / 4.09)
+
+# Mean PA by lineup slot, same sample, smoothed with pool-adjacent-violators so
+# the curve is monotone (slot 3 cannot out-bat slot 2 over a full season; the
+# raw #3/#4 inversion was noise at n=80 per slot).
+PA_BY_ORDER = {
+    1: 4.56, 2: 4.44, 3: 4.30, 4: 4.30, 5: 4.26,
+    6: 4.01, 7: 3.85, 8: 3.61, 9: 3.49,
+}
+
+# League bullpen rates relative to starters, computed from 2026 season totals
+# (SP 96,275 BF vs RP 76,735 BF). Relievers are only marginally different from
+# starters in this run environment, so PAs against the pen are modelled as the
+# batter's own rate nudged by these, not as a separate league-average blob.
+PEN_K_MULT   = 1.018
+PEN_BA_MULT  = 0.996
+PEN_SLG_MULT = 0.980
+PEN_HR_MULT  = 0.918
+
+
+def expected_pa(order=None) -> float:
+    """Full-game plate appearances for a confirmed starter in a lineup slot.
+
+    Falls back to the league mean when the lineup is not posted yet.
+    """
+    try:
+        return PA_BY_ORDER[int(order)]
+    except (TypeError, ValueError, KeyError):
+        return LEAGUE_PA_GAME
+
+
+def pa_split(order=None) -> tuple:
+    """Split a batter's full-game PA into (vs starter, vs bullpen).
+
+    The share facing the starter is held at the league ratio rather than scaled
+    per slot: a leadoff hitter gets more PA overall, and those extra trips come
+    late, against the pen.
+    """
+    total = expected_pa(order)
+    vs_sp = min(LEAGUE_PA_VS_SP, total)
+    return round(vs_sp, 3), round(total - vs_sp, 3)
+
+
+def blended_rate(rate_vs_sp: float, pen_mult: float, order=None,
+                 base_rate: float = None) -> float:
+    """Opportunity-weighted rate over a full game.
+
+    rate_vs_sp is the per-PA rate the matchup model produced against the
+    starter; base_rate (default: the batter's own unadjusted rate) is what
+    carries into the bullpen PAs, scaled by pen_mult.
+    """
+    vs_sp, vs_pen = pa_split(order)
+    total = vs_sp + vs_pen
+    if total <= 0:
+        return rate_vs_sp
+    pen_rate = (base_rate if base_rate is not None else rate_vs_sp) * pen_mult
+    return (rate_vs_sp * vs_sp + pen_rate * vs_pen) / total
+
+
 PARK_FACTORS = {
     "Coors Field": {"run": 1.20, "hr": 1.27, "hit": 1.12, "description": "Extreme hitter's park (altitude)"},
     "Great American Ball Park": {"run": 1.13, "hr": 1.22, "hit": 1.05, "description": "Hitter-friendly"},
@@ -1449,7 +1519,13 @@ SAVANT_PITCHER_K_URL = (
     "&csv=true"
 )
 # Custom leaderboard: batter K% and whiff% (not in statcast leaderboard CSV)
-SAVANT_BATTER_K_URL  = "https://baseballsavant.mlb.com/leaderboard/custom?year={year}&type=batter&filter=&sort=4&sortDir=desc&min=20&selections=k_percent,bb_percent,whiff_percent&csv=true"
+SAVANT_BATTER_K_URL  = (
+    "https://baseballsavant.mlb.com/leaderboard/custom?year={year}&type=batter"
+    "&filter=&sort=4&sortDir=desc&min=20"
+    "&selections=k_percent,bb_percent,whiff_percent,oz_swing_percent,"
+    "z_contact_percent,oz_contact_percent,swing_percent"
+    "&csv=true"
+)
 
 # Pitch arsenal leaderboards — per pitch-type stats for pitchers and batters
 # pitcher view: how effective each pitch type is (whiff%, wOBA against, run value)
@@ -1469,7 +1545,7 @@ SAVANT_BATTER_HR_URL = (
 SAVANT_PITCHER_HR_URL = (
     "https://baseballsavant.mlb.com/leaderboard/custom?year={year}&type=pitcher"
     "&filter=&sort=4&sortDir=desc&min=1"
-    "&selections=barrel_batted_rate,brl_pa,flyballs_percent,groundballs_percent,"
+    "&selections=pa,barrel_batted_rate,brl_pa,flyballs_percent,groundballs_percent,"
     "launch_angle_avg,xwoba,xslg,era"
     "&csv=true"
 )
@@ -1477,14 +1553,14 @@ SAVANT_PITCHER_HR_URL = (
 SAVANT_PITCHER_HR_VS_LHB_URL = (
     "https://baseballsavant.mlb.com/leaderboard/custom?year={year}&type=pitcher"
     "&filter=hfBBL%3DL%7C&sort=4&sortDir=desc&min=1"
-    "&selections=barrel_batted_rate,brl_pa,flyballs_percent,groundballs_percent,"
+    "&selections=pa,barrel_batted_rate,brl_pa,flyballs_percent,groundballs_percent,"
     "launch_angle_avg,xwoba,xslg,era"
     "&csv=true"
 )
 SAVANT_PITCHER_HR_VS_RHB_URL = (
     "https://baseballsavant.mlb.com/leaderboard/custom?year={year}&type=pitcher"
     "&filter=hfBBL%3DR%7C&sort=4&sortDir=desc&min=1"
-    "&selections=barrel_batted_rate,brl_pa,flyballs_percent,groundballs_percent,"
+    "&selections=pa,barrel_batted_rate,brl_pa,flyballs_percent,groundballs_percent,"
     "launch_angle_avg,xwoba,xslg,era"
     "&csv=true"
 )
@@ -1674,14 +1750,51 @@ def load_savant_batter_k(season: int = None) -> dict:
     for row in rows:
         pid = row.get("player_id", "").strip()
         if pid:
+            whiff = _safe_float(row.get("whiff_percent"))
+            z_con = _safe_float(row.get("z_contact_percent"))
+            # Savant leaves z_contact blank for some hitters; whiff% is per swing,
+            # so (100 - whiff%) is overall contact rate and a sound stand-in.
+            contact = z_con if z_con > 0 else (100.0 - whiff if whiff > 0 else 0.0)
             result[pid] = {
-                "k_pct":     _safe_float(row.get("k_percent")),
-                "bb_pct":    _safe_float(row.get("bb_percent")),
-                "swstr_pct": _safe_float(row.get("whiff_percent")),  # whiff% per swing
+                "k_pct":       _safe_float(row.get("k_percent")),
+                "bb_pct":      _safe_float(row.get("bb_percent")),
+                "swstr_pct":   whiff,  # whiff% per swing
+                "chase_pct":   _safe_float(row.get("oz_swing_percent")),
+                "contact_pct": round(contact, 1),
+                "oz_contact":  _safe_float(row.get("oz_contact_percent")),
+                "swing_pct":   _safe_float(row.get("swing_percent")),
             }
     if result:
         _savant_batter_k[season] = result
     return result
+
+
+
+# ---------------------------------------------------------------------------
+# Small-sample shrinkage
+# ---------------------------------------------------------------------------
+# 264 of 659 hitters on the 2026 expected-stats leaderboard have under 150 PA.
+# A September call-up with 40 PA and a .380 xBA is not a .380 hitter, but the
+# rate boards read him as one — which is how bats like DaShawn Keirsey Jr. and
+# Emmanuel Rodriguez kept topping the fantasy and total-bases boards.
+# Shrinking toward the league mean with a regression constant fixes that
+# without needing a hard cutoff that would drop genuinely hot rookies entirely.
+XSTAT_REGRESSION_PA = 200   # PA at which a rate gets half its own weight
+
+
+def shrink_rate(rate: float, pa: int, league_mean: float,
+                regression_pa: int = XSTAT_REGRESSION_PA) -> float:
+    """Regress a rate toward the league mean based on sample size.
+
+    weight = pa / (pa + regression_pa), so 200 PA lands halfway, 600 PA keeps
+    75% of the observed rate, and 40 PA keeps only 17%.
+    """
+    if not rate or rate <= 0:
+        return league_mean
+    if not pa or pa <= 0:
+        return league_mean
+    w = pa / (pa + regression_pa)
+    return rate * w + league_mean * (1.0 - w)
 
 
 def load_savant_xstats(season: int = None) -> dict:
@@ -1702,6 +1815,8 @@ def load_savant_xstats(season: int = None) -> dict:
                 "ba":     _safe_float(row.get("ba")),
                 "slg":    _safe_float(row.get("slg")),
                 "woba":   _safe_float(row.get("woba")),
+                "pa":     int(_safe_float(row.get("pa"))),
+                "bip":    int(_safe_float(row.get("bip"))),
             }
     if result:
         _savant_xstats[season] = result
@@ -1991,6 +2106,7 @@ def load_savant_pitcher_hr(season: int = None) -> dict:
         if not pid:
             continue
         result[pid] = {
+            "pa":              int(_safe_float(row.get("pa"))),
             "barrel_allowed":  _safe_float(row.get("barrel_batted_rate")),
             "fb_pct_allowed":  _safe_float(row.get("flyballs_percent")),
             "gb_pct_allowed":  _safe_float(row.get("groundballs_percent")),
@@ -2039,6 +2155,7 @@ def load_savant_pitcher_hr_vs_hand(season: int = None, side: str = "L") -> dict:
         if not pid:
             continue
         result[pid] = {
+            "pa":              int(_safe_float(row.get("pa"))),
             "barrel_allowed":  _safe_float(row.get("barrel_batted_rate")),
             "fb_pct_allowed":  _safe_float(row.get("flyballs_percent")),
             "la_avg_allowed":  _safe_float(row.get("launch_angle_avg")),

@@ -24,6 +24,10 @@ from datetime import datetime
 
 sys.path.insert(0, os.path.dirname(__file__))
 from baseball_engine import (
+    shrink_rate,
+    pa_split,
+    PEN_SLG_MULT,
+    LEAGUE_AB_RATE,
     _get, MLB_API,
     get_today_games,
     get_team_roster_ids,
@@ -38,6 +42,7 @@ from baseball_engine import (
 )
 
 LEAGUE_XSLG   = 0.400   # MLB avg xSLG
+LEAGUE_BA     = 0.244   # MLB avg BA (2026 season, 153,666 AB)
 LEAGUE_ISO    = 0.152   # MLB avg ISO
 LEAGUE_BRL    = 7.0     # MLB avg barrel%
 LEAGUE_TB9    = 14.5    # MLB avg TB/9 allowed by SP
@@ -156,7 +161,9 @@ def _batter_tb_score(
     hr = batter_hr_data.get(str(batter_id), {})
     sb = savant_batting.get(str(batter_id), {})
 
-    xslg      = _safe(xs.get("xslg") or xs.get("est_slg"))
+    xs_pa     = int(xs.get("pa") or 0)
+    # Regress by sample size so 40-PA call-ups stop topping the board.
+    xslg      = shrink_rate(_safe(xs.get("xslg") or xs.get("est_slg")), xs_pa, LEAGUE_XSLG)
     iso       = _safe(hr.get("iso"))
     brl_pct   = _safe(hr.get("brl_percent") or sb.get("barrel_batted_rate"))
     pull_pct  = _safe(hr.get("pull_percent") or sb.get("pull_percent"))
@@ -189,6 +196,8 @@ def _batter_tb_score(
     return {
         "score": round(score, 1),
         "tier":  tier,
+        "xstat_pa": xs_pa,
+        "thin_sample": xs_pa < 120,
         "xslg":  round(xslg, 3),
         "iso":   round(iso, 3),
         "brl_pct": round(brl_pct, 1),
@@ -201,6 +210,85 @@ def _batter_tb_score(
 # TB projection
 # ---------------------------------------------------------------------------
 
+
+# ---------------------------------------------------------------------------
+# Total-bases distribution
+# ---------------------------------------------------------------------------
+# Total bases are NOT Poisson. Measured over 720 confirmed starters (three
+# Sep-2026 slates, mean 1.50 TB), the real distribution is zero-inflated with a
+# fat spike at 4:
+#     TB      0      1      2      3      4      5      6+
+#   actual 36.9%  27.2%  13.6%   5.0%   9.4%   4.0%   3.8%
+#   Poisson 22.3% 33.5%  25.1%  12.5%   4.7%   1.4%   0.4%
+# Poisson understates P(0 TB) by 15 points and misses the home-run spike
+# entirely, so P(2+) came out badly wrong in both directions depending on lambda.
+# Modelling each AB as a categorical outcome and convolving is exact and cheap.
+
+# League hit mix, 2026 season totals (153,666 AB / 37,501 H, 1.642 bases per hit)
+LEAGUE_HIT_MIX = {1: 0.6544, 2: 0.1890, 3: 0.0165, 4: 0.1401}
+
+
+def _hit_mix(ba: float, slg: float) -> dict:
+    """Split a batter's hits into 1B/2B/3B/HR shares matching their SLG/BA.
+
+    Starts from the league mix and moves weight between singles and home runs
+    until the mean bases per hit equals slg/ba, holding doubles and triples at
+    league rates (they vary far less between hitters than power does).
+    """
+    if ba <= 0:
+        return dict(LEAGUE_HIT_MIX)
+    target = max(1.05, min(2.60, slg / ba))
+    s2, s3 = LEAGUE_HIT_MIX[2], LEAGUE_HIT_MIX[3]
+    # remaining share splits between 1B (1 base) and HR (4 bases):
+    #   s1 + s4 = R  and  s1 + 4*s4 = target - 2*s2 - 3*s3
+    R = 1.0 - s2 - s3
+    need = target - 2 * s2 - 3 * s3
+    s4 = (need - R) / 3.0
+    s4 = max(0.0, min(R, s4))
+    return {1: R - s4, 2: s2, 3: s3, 4: s4}
+
+
+def _tb_distribution(ba: float, slg: float, exp_ab: float, max_tb: int = 12) -> list:
+    """Exact P(total bases = k) for a batter over exp_ab at-bats.
+
+    Each AB is categorical over {0,1,2,3,4} bases; the per-AB distribution is
+    convolved exp_ab times. Fractional AB are handled by mixing the two
+    neighbouring integer AB counts.
+    """
+    ba = max(0.0, min(0.6, ba))
+    mix = _hit_mix(ba, slg)
+    per_ab = [0.0] * 5
+    per_ab[0] = 1.0 - ba
+    for bases, share in mix.items():
+        per_ab[bases] += ba * share
+
+    def convolve(n: int) -> list:
+        dist = [1.0] + [0.0] * max_tb
+        for _ in range(n):
+            nxt = [0.0] * (max_tb + 1)
+            for k, pk in enumerate(dist):
+                if pk <= 0:
+                    continue
+                for b, pb in enumerate(per_ab):
+                    if pb <= 0:
+                        continue
+                    nxt[min(k + b, max_tb)] += pk * pb
+            dist = nxt
+        return dist
+
+    lo = max(1, int(exp_ab))
+    frac = exp_ab - lo
+    d_lo = convolve(lo)
+    if frac <= 0.001:
+        return d_lo
+    d_hi = convolve(lo + 1)
+    return [d_lo[i] * (1 - frac) + d_hi[i] * frac for i in range(max_tb + 1)]
+
+
+def _tb_at_least(dist: list, k: int) -> float:
+    return sum(dist[k:]) if k < len(dist) else 0.0
+
+
 def _proj_tb(
     batter_score: float,
     batter_bats: str,
@@ -211,6 +299,7 @@ def _proj_tb(
     xslg: float,
     iso: float,
     tb_profile: dict,
+    order=None,
 ) -> dict:
     """
     Project TB λ and Poisson probabilities for 0.5 / 1.5 / 2.5 / 3.5 lines.
@@ -218,9 +307,13 @@ def _proj_tb(
     λ = blended_slg × exp_ab × park_hr × pitcher_vuln
     TB is derived from SLG (TB per AB by definition).
     """
-    # Expected AB vs SP per batter (not full lineup): ~3 PA × (1 - BB%)
+    # Full-game opportunity: the TB prop settles on the whole game, so AB against
+    # the bullpen count as well as the ~3 PA against the starter.
     score_factor = 0.85 + (batter_score / 100.0) * 0.30   # 0.85–1.15 quality tilt
-    exp_ab = round(3.0 * score_factor * 0.915, 2)          # 0.915 = (1 - league BB%)
+    pa_sp, pa_pen = pa_split(order)
+    ab_sp  = pa_sp * score_factor * 0.915                  # 0.915 = (1 - league BB%)
+    ab_pen = pa_pen * LEAGUE_AB_RATE
+    exp_ab = round(ab_sp + ab_pen, 2)
 
     # Blended SLG
     ph = pitcher_hr_data.get(str(pitcher_id), {})
@@ -234,12 +327,21 @@ def _proj_tb(
     # Pitcher TB vulnerability
     tb_vuln = tb_profile.get("tb_vuln", 1.0)
 
-    lam = blended_slg * exp_ab * park_hr * tb_vuln
+    # Pitcher-specific SLG blend and vulnerability apply to the AB against the
+    # starter only; bullpen AB use the batter's own xSLG at the league pen mult.
+    base_slg = xslg if xslg > 0 else LEAGUE_XSLG
+    lam = (blended_slg * ab_sp * tb_vuln + base_slg * ab_pen * PEN_SLG_MULT) * park_hr
 
-    p1 = round(_poisson_at_least(lam, 1) * 100, 1)  # P(TB ≥ 1)  → O0.5
-    p2 = round(_poisson_at_least(lam, 2) * 100, 1)  # P(TB ≥ 2)  → O1.5
-    p3 = round(_poisson_at_least(lam, 3) * 100, 1)  # P(TB ≥ 3)  → O2.5
-    p4 = round(_poisson_at_least(lam, 4) * 100, 1)  # P(TB ≥ 4)  → O3.5
+    # Convert the projected SLG back to a per-AB hit rate, then take the exact
+    # compound distribution rather than a Poisson on lambda.
+    eff_slg = lam / exp_ab if exp_ab > 0 else LEAGUE_XSLG
+    eff_ba  = eff_slg / max(1.05, LEAGUE_XSLG / max(0.001, LEAGUE_BA))
+    tb_dist = _tb_distribution(eff_ba, eff_slg, exp_ab)
+
+    p1 = round(_tb_at_least(tb_dist, 1) * 100, 1)  # P(TB ≥ 1)  → O0.5
+    p2 = round(_tb_at_least(tb_dist, 2) * 100, 1)  # P(TB ≥ 2)  → O1.5
+    p3 = round(_tb_at_least(tb_dist, 3) * 100, 1)  # P(TB ≥ 3)  → O2.5
+    p4 = round(_tb_at_least(tb_dist, 4) * 100, 1)  # P(TB ≥ 4)  → O3.5
 
     if p3 >= 55:
         conf = "STRONG O2.5"
@@ -262,6 +364,8 @@ def _proj_tb(
         "p4":   p4,
         "conf": conf,
         "exp_ab": exp_ab,
+        "ab_vs_sp": round(ab_sp, 2),
+        "ab_vs_pen": round(ab_pen, 2),
     }
 
 
@@ -346,6 +450,8 @@ def build_tb_board(game_date: str = None) -> list:
                     "tb_score":      score_data["score"],
                     "tier":          score_data["tier"],
                     "xslg":          score_data["xslg"],
+                    "xstat_pa":      score_data.get("xstat_pa", 0),
+                    "thin_sample":   score_data.get("thin_sample", False),
                     "iso":           score_data["iso"],
                     "brl_pct":       score_data["brl_pct"],
                     "pull_pct":      score_data["pull_pct"],

@@ -28,6 +28,7 @@ import sys, os
 sys.path.insert(0, os.path.dirname(__file__))
 
 from baseball_engine import (
+    shrink_rate,
     get_today_games,
     get_team_roster_ids,
     get_game_lineups,
@@ -367,9 +368,13 @@ def _proj_stats(batter_id: str, bats: str, pitcher_matchup: dict,
     park_hit = _safe(pf.get("hit"), 1.0)
     park_hr  = _safe(pf.get("hr"),  1.0)
 
-    xba   = _safe(xs.get("xba"))  or 0.255
-    xslg  = _safe(xs.get("xslg")) or 0.385
-    xwoba = _safe(xs.get("xwoba")) or 0.310
+    # Regress rate stats toward league mean by sample size. Without this, a
+    # September call-up with 40 PA and a hot xBA outranks established hitters
+    # on every rate board.
+    xs_pa = int(xs.get("pa") or 0)
+    xba   = shrink_rate(_safe(xs.get("xba")),   xs_pa, 0.244) or 0.255
+    xslg  = shrink_rate(_safe(xs.get("xslg")),  xs_pa, 0.401) or 0.385
+    xwoba = shrink_rate(_safe(xs.get("xwoba")), xs_pa, 0.318) or 0.310
     k_pct = _safe(bk.get("k_pct")) or 22.0
     bb_pct = _safe(bk.get("bb_pct")) or 8.0
 
@@ -454,6 +459,8 @@ def _proj_stats(batter_id: str, bats: str, pitcher_matchup: dict,
         "proj_dk":    round(dk_pts,    1),
         "proj_pp":    round(pp_pts,    1),
         "xba":        round(xba,  3),
+        "xstat_pa":   xs_pa,
+        "thin_sample": xs_pa < 120,
         "xslg":       round(xslg, 3),
         "xwoba":      round(xwoba, 3),
         "k_pct":      round(k_pct, 1),

@@ -20,11 +20,14 @@ from datetime import datetime
 sys.path.insert(0, os.path.dirname(__file__))
 from baseball_engine import (
     _get, MLB_API,
+    pa_split,
+    PEN_K_MULT,
     get_today_games,
     get_team_roster_ids,
     get_pitcher_throws,
     load_savant_xstats,
     load_savant_batting,
+    load_savant_batter_k,
     load_savant_pitcher_k,
     load_savant_pitcher_velo,
     PARK_FACTORS,
@@ -131,18 +134,23 @@ def _pitcher_k_profile(pitcher_id: int, season: int, pitcher_k_data: dict, pitch
 # Batter K score
 # ---------------------------------------------------------------------------
 
-def _batter_k_score(batter_id: int, savant_batting: dict, xstats: dict) -> dict:
+def _batter_k_score(batter_id: int, batter_k_data: dict, xstats: dict) -> dict:
     """
     Score a batter 0-100 for K risk.
     K% (35%) + Chase/O-Swing% (28%) + SwStr% (22%) + Contact% inverse (15%)
+
+    Reads the Savant *custom* leaderboard (load_savant_batter_k), which is the
+    only feed carrying plate-discipline columns. The statcast batted-ball
+    leaderboard has none of them, so sourcing this from load_savant_batting
+    left every batter on the no-data default.
     """
-    sb = savant_batting.get(str(batter_id), {})
+    sb = batter_k_data.get(str(batter_id), {})
     xs = xstats.get(str(batter_id), {})
 
-    k_pct   = _safe(sb.get("k_percent") or sb.get("strikeout_percent"))
-    chase   = _safe(sb.get("oz_swing_percent") or sb.get("chase_percent"))
-    swstr   = _safe(sb.get("whiff_percent") or sb.get("swinging_strike_percent"))
-    contact = _safe(sb.get("z_contact_percent") or sb.get("contact_percent"))
+    k_pct   = _safe(sb.get("k_pct"))
+    chase   = _safe(sb.get("chase_pct"))
+    swstr   = _safe(sb.get("swstr_pct"))
+    contact = _safe(sb.get("contact_pct"))
 
     # s_contact: LOW contact = HIGH K risk → invert
     s_k       = _scale(k_pct,    12.0, LEAGUE_K_PCT,   36.0)
@@ -161,6 +169,13 @@ def _batter_k_score(batter_id: int, savant_batting: dict, xstats: dict) -> dict:
     else:
         score = 50.0  # no data
 
+    has_data = k_pct > 0
+    if not has_data:
+        return {
+            "score": 50.0, "tier": "NO DATA", "k_pct": 0.0,
+            "chase": 0.0, "swstr": 0.0, "contact": 0.0, "has_data": False,
+        }
+
     if score >= 72:
         tier = "K MACHINE"
     elif score >= 55:
@@ -177,6 +192,7 @@ def _batter_k_score(batter_id: int, savant_batting: dict, xstats: dict) -> dict:
         "chase":   round(chase, 1),
         "swstr":   round(swstr, 1),
         "contact": round(contact, 1),
+        "has_data": True,
     }
 
 
@@ -188,23 +204,29 @@ def _proj_batter_k(
     batter_score: float,
     k_pct: float,
     p_profile: dict,
-    pa_estimate: float = LEAGUE_PA_SP,
+    order=None,
 ) -> dict:
     """
-    Project expected K count λ = batter_k_rate × pitcher_k_mult × PA_estimate.
+    Project expected K count over a FULL GAME, splitting the batter's PA
+    between the starter and the bullpen.
     Poisson for P(K ≥ 1) → O0.5, P(K ≥ 2) → O1.5.
     """
-    # Batter K rate (use individual stat if available, else back-calculate from score)
+    # Batter K rate (use individual stat if available, else league average).
+    # A batter with no Savant row is unknown, not a 25% K hitter — anchoring the
+    # fallback to LEAGUE_K_PCT keeps no-data bats from floating to the top of
+    # the board on a made-up rate.
     if k_pct > 0:
         batter_k_rate = k_pct / 100.0
     else:
-        # Map score 0-100 → K rate 0.08 – 0.42
-        batter_k_rate = 0.08 + (batter_score / 100.0) * 0.34
+        batter_k_rate = LEAGUE_K_PCT / 100.0
 
-    # Pitcher K multiplier
+    # Pitcher K multiplier applies only to the PA against the starter. The rest
+    # of the batter's full-game PA come against the bullpen, which strikes hitters
+    # out at 1.018x the starter rate league-wide.
     k_mult = p_profile.get("k_mult", 1.0)
 
-    lam = batter_k_rate * k_mult * pa_estimate
+    pa_sp, pa_pen = pa_split(order)
+    lam = batter_k_rate * (k_mult * pa_sp + PEN_K_MULT * pa_pen)
 
     p1 = round(_poisson_at_least(lam, 1) * 100, 1)   # O0.5
     p2 = round(_poisson_at_least(lam, 2) * 100, 1)   # O1.5
@@ -242,6 +264,7 @@ def build_batter_k_board(game_date: str = None) -> list:
         return []
 
     savant_batting = load_savant_batting(season)
+    batter_k_data  = load_savant_batter_k(season)
     xstats         = load_savant_xstats(season)
     pitcher_k_data = load_savant_pitcher_k(season)
     pitcher_velo   = load_savant_pitcher_velo(season)
@@ -280,7 +303,7 @@ def build_batter_k_board(game_date: str = None) -> list:
                 if not batter_id:
                     continue
 
-                score_data = _batter_k_score(batter_id, savant_batting, xstats)
+                score_data = _batter_k_score(batter_id, batter_k_data, xstats)
                 proj       = _proj_batter_k(
                     batter_score=score_data["score"],
                     k_pct=score_data["k_pct"],
@@ -303,6 +326,7 @@ def build_batter_k_board(game_date: str = None) -> list:
                     "chase":        score_data["chase"],
                     "swstr":        score_data["swstr"],
                     "contact":      score_data["contact"],
+                    "has_data":     score_data.get("has_data", False),
                     "p_k_pct":      p_profile["p_k_pct"],
                     "p_label":      p_profile["label"],
                     "lam":          proj["lam"],
@@ -311,7 +335,9 @@ def build_batter_k_board(game_date: str = None) -> list:
                     "conf":         proj["conf"],
                 })
 
-    rows.sort(key=lambda r: r["p2"], reverse=True)
+    # Unknown bats sort last regardless of their placeholder projection, so the
+    # top of the board is always batters we actually have discipline data for.
+    rows.sort(key=lambda r: (r["has_data"], r["p2"]), reverse=True)
     return rows
 
 

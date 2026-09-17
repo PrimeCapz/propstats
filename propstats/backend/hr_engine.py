@@ -295,6 +295,20 @@ def _velo_tier(ff_velo: float) -> str:
 
 # ── Pitcher vulnerability ────────────────────────────────────────────────────
 
+# Minimum plate appearances before a handedness split is treated as evidence
+# rather than noise. 150 of 802 pitchers on the 2026 vs-LHB board are under it.
+HAND_SPLIT_MIN_PA = 40
+
+
+def _vuln_tier(score: float) -> str:
+    """Bucket a vulnerability score into its tier label."""
+    if score > 63:
+        return "Attackable"
+    if score > 45:
+        return "Neutral Lean"
+    return "Avoid"
+
+
 def _vuln_from_data(d: dict, era_fallback: float = 4.50) -> tuple:
     """Compute (score, tier) from a pitcher HR-vuln data dict."""
     barrel = _safe(d.get("barrel_allowed"))
@@ -322,13 +336,7 @@ def _vuln_from_data(d: dict, era_fallback: float = 4.50) -> tuple:
         gb_penalty = min(18.0, (gb_pct - 38.0) * 1.5)
         score = max(0.0, score - gb_penalty)
 
-    if score > 63:
-        tier = "Attackable"
-    elif score > 45:
-        tier = "Neutral Lean"
-    else:
-        tier = "Avoid"
-    return round(score, 1), tier
+    return round(score, 1), _vuln_tier(score)
 
 
 def _pitcher_vuln_score(pitcher_id: int, pitcher_hr_data: dict,
@@ -351,17 +359,37 @@ def _pitcher_vuln_score(pitcher_id: int, pitcher_hr_data: dict,
 
     score, tier = _vuln_from_data(d, era)
 
-    # Handedness splits
+    # Handedness splits.
+    #
+    # A split is only evidence if the pitcher has actually faced that side. 150
+    # of 802 pitchers on the 2026 vs-LHB leaderboard have under 40 PA, and the
+    # engine could not tell "suppresses lefties" from "has barely faced lefties"
+    # — a reliever with 4 PA vs LHB scored as an elite left-handed suppressor.
+    # Below the floor the split is marked insufficient and blended toward the
+    # pitcher's overall vulnerability in proportion to the sample we do have.
     lhb_score, lhb_tier = (None, None)
     rhb_score, rhb_tier = (None, None)
+    lhb_pa = rhb_pa = 0
+    lhb_thin = rhb_thin = False
+
+    def _blend_split(split_data):
+        """(score, tier, pa, thin) for one handedness split."""
+        if not split_data:
+            return None, None, 0, False
+        raw_score, raw_tier = _vuln_from_data(split_data, era)
+        spa = int(split_data.get("pa") or 0)
+        if spa >= HAND_SPLIT_MIN_PA:
+            return raw_score, raw_tier, spa, False
+        # Weight the split by how much of the floor it reached; the rest of the
+        # weight falls back to the pitcher's full-sample score.
+        w = spa / HAND_SPLIT_MIN_PA if spa > 0 else 0.0
+        blended = raw_score * w + score * (1.0 - w)
+        return round(blended, 1), _vuln_tier(blended), spa, True
+
     if pitcher_hr_lhb:
-        dl = pitcher_hr_lhb.get(pid, {})
-        if dl:
-            lhb_score, lhb_tier = _vuln_from_data(dl, era)
+        lhb_score, lhb_tier, lhb_pa, lhb_thin = _blend_split(pitcher_hr_lhb.get(pid, {}))
     if pitcher_hr_rhb:
-        dr = pitcher_hr_rhb.get(pid, {})
-        if dr:
-            rhb_score, rhb_tier = _vuln_from_data(dr, era)
+        rhb_score, rhb_tier, rhb_pa, rhb_thin = _blend_split(pitcher_hr_rhb.get(pid, {}))
 
     s_xwoba  = _scale(xwoba,  0.260, 0.320, 0.420)
     s_barrel = _scale(barrel, 3.0,   7.0,   14.0)
@@ -376,8 +404,12 @@ def _pitcher_vuln_score(pitcher_id: int, pitcher_hr_data: dict,
         "tier":           tier,
         "lhb_score":      lhb_score,
         "lhb_tier":       lhb_tier,
+        "lhb_pa":         lhb_pa,
+        "lhb_thin":       lhb_thin,
         "rhb_score":      rhb_score,
         "rhb_tier":       rhb_tier,
+        "rhb_pa":         rhb_pa,
+        "rhb_thin":       rhb_thin,
         "barrel_allowed": round(barrel, 1),
         "xwoba_allowed":  round(xwoba, 3) if xwoba else None,
         "xslg_allowed":   round(xslg, 3) if xslg else None,
@@ -2780,3 +2812,153 @@ def format_park_fit_board(results: list, game_date: str, min_park_fit: float = 4
     lines.append("  Pulled Air% = % fly balls pulled (Statcast); Pulled Brl% = barrel rate × pull% proxy")
     lines.append("=" * W)
     return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# Stale probable-pitcher detection
+# ---------------------------------------------------------------------------
+# Boards are built hours before first pitch and then used at game time. When a
+# team changes its starter in between, the board keeps scoring every hitter
+# against a pitcher who is not pitching, and says nothing about it.
+#
+# This cost a real read on 2026-09-16: the BAL@NYM board carried Robert Stock
+# for New York, but the actual starter was Xzavion Curry — a reliever with 8
+# appearances and 0 starts, who then gave up four home runs to exactly the
+# Baltimore hitters the board had ranked. The matchup data was wrong; the bats
+# were right. The correct handling is to flag the game and widen the estimate,
+# not to leave stale numbers sitting there looking authoritative.
+
+from baseball_engine import PEN_HR_MULT
+
+BULLPEN_GS_RATIO = 0.25   # < this share of appearances started ⇒ treat as a pen arm
+BULLPEN_MIN_APPEARANCES = 4
+
+
+def _pitcher_role(pitcher_id: int, season: int) -> dict:
+    """Classify a pitcher as a starter or a bullpen/opener arm."""
+    try:
+        data = _get(f"{MLB_API}/people/{pitcher_id}", {
+            "hydrate": f"stats(group=[pitching],type=[season],season={season})",
+        }) or {}
+        people = data.get("people") or []
+        for grp in (people[0].get("stats") or []) if people else []:
+            for sp in grp.get("splits", []):
+                st = sp.get("stat", {})
+                g  = st.get("gamesPlayed") or 0
+                gs = st.get("gamesStarted") or 0
+                if not g:
+                    continue
+                ratio = gs / g
+                return {
+                    "games": g, "starts": gs, "gs_ratio": round(ratio, 3),
+                    "ip": st.get("inningsPitched"),
+                    "is_bullpen": ratio < BULLPEN_GS_RATIO and g >= BULLPEN_MIN_APPEARANCES,
+                }
+    except Exception:
+        pass
+    return {"games": 0, "starts": 0, "gs_ratio": None, "ip": None, "is_bullpen": False}
+
+
+def enrich_probable_check(results: list, game_date: str) -> list:
+    """Re-check every board entry against the live probable pitcher.
+
+    Sets on each entry:
+      probable_stale   — the starter changed since the board was built
+      probable_live    — {id, name} actually announced
+      bullpen_game     — the listed starter is a pen arm / opener
+      probable_note    — one line explaining what to do about it
+
+    A stale or bullpen start widens hr_prob toward the batter's own
+    park-and-form baseline instead of trusting the dead matchup terms: the
+    matchup multiplier is pulled halfway back to neutral, which keeps strong
+    bats ranked while removing the false precision of the wrong arm.
+    """
+    season = int(game_date[:4])
+    try:
+        live = _get(f"{MLB_API}/schedule", {
+            "sportId": 1, "date": game_date, "hydrate": "probablePitcher",
+        }) or {}
+    except Exception:
+        return results
+
+    probables = {}
+    for d in live.get("dates", []):
+        for g in d.get("games", []):
+            pk = g.get("gamePk")
+            for side in ("away", "home"):
+                pp = (g.get("teams", {}).get(side, {}) or {}).get("probablePitcher") or {}
+                if pp.get("id"):
+                    probables[(pk, side)] = {"id": pp["id"], "name": pp.get("fullName", "")}
+
+    for r in results:
+        key = (r.get("game_pk"), r.get("pitcher_side"))
+        cur = probables.get(key)
+        r["probable_stale"] = False
+        r["bullpen_game"]   = False
+        r["probable_note"]  = ""
+        if not cur:
+            continue
+
+        r["probable_live"] = cur
+        stale = cur["id"] != r.get("pitcher_id")
+        role  = _pitcher_role(cur["id"], season)
+        r["bullpen_game"] = bool(role.get("is_bullpen"))
+        r["probable_role"] = role
+
+        if not stale and not r["bullpen_game"]:
+            continue
+
+        r["probable_stale"] = stale
+        if stale and r["bullpen_game"]:
+            r["probable_note"] = (
+                f"STARTER CHANGED to {cur['name']} — bullpen game "
+                f"({role['starts']}/{role['games']} GS). Matchup terms below are for "
+                f"{r.get('pitcher_name')} and no longer apply; lean on the bats."
+            )
+        elif stale:
+            r["probable_note"] = (
+                f"STARTER CHANGED: {r.get('pitcher_name')} → {cur['name']}. "
+                f"Matchup terms are stale."
+            )
+        else:
+            r["probable_note"] = (
+                f"BULLPEN GAME: {cur['name']} has {role['starts']} starts in "
+                f"{role['games']} appearances. Expect multiple arms."
+            )
+
+        # Neutralize the terms that belong to the pitcher who is not pitching.
+        # cal_parts splits cleanly: park_fit / hr_fb_pct / brl_bip / ev10 / park
+        # are properties of the batter and the venue and stay valid, while zone
+        # (batter's fit against THIS arm's locations) and vuln (THIS arm's
+        # HR-vulnerability) are now meaningless. Reset those two to 1.0 and
+        # recompute the geometric mean rather than guessing at a haircut.
+        pen_mult = PEN_HR_MULT if r["bullpen_game"] else 1.0
+        for b in r["top_batters"]:
+            prob = b.get("hr_prob") or 0.0
+            parts = b.get("cal_parts") or {}
+            if prob <= 0:
+                continue
+            b["hr_prob_prestale"] = prob
+
+            if parts:
+                dead = [k for k in ("zone", "vuln") if k in parts]
+                if dead:
+                    neutral_parts = dict(parts)
+                    for k in dead:
+                        neutral_parts[k] = 1.0
+                    old_feat = math.exp(sum(math.log(max(v, 1e-6)) for v in parts.values()) / len(parts))
+                    new_feat = math.exp(sum(math.log(max(v, 1e-6)) for v in neutral_parts.values()) / len(neutral_parts))
+                    lam = (b.get("hr_lam") or 0.0) * (new_feat / old_feat) * pen_mult
+                    if lam > 0:
+                        p_new = 1.0 - math.exp(-lam)
+                        if p_new > CAL_SHRINK_KNEE:
+                            p_new = CAL_SHRINK_KNEE + (p_new - CAL_SHRINK_KNEE) * CAL_SHRINK_RATE
+                        b["hr_lam"] = round(lam, 4)
+                        b["hr_prob"] = round(p_new * 100, 1)
+                        b["cal_parts"] = {k: round(v, 3) for k, v in neutral_parts.items()}
+            else:
+                b["hr_prob"] = round(prob * pen_mult, 1)
+
+            b["implied_odds"] = _prob_to_odds(b["hr_prob"])
+            b.setdefault("tags", []).insert(0, "⚠️ PITCHER TBD" if stale else "⚠️ BULLPEN GAME")
+    return results
