@@ -1,11 +1,27 @@
 #!/usr/bin/env python3
-"""Build HTML artifact for 2026-09-16 MLB slate."""
-import json, os, math
+"""Build the HTML slate artifact from the board JSON that run_slate.py writes.
 
-SP = "/tmp/claude-0/-home-user-propstats/4a29f92c-2ab2-55a2-aa2c-327f896f1d05/scratchpad"
-DATE = "2026-09-16"
-DS = "20260916"
-OUT = f"{SP}/slate_{DS}.html"
+Usage:
+  python3 build_slate.py [YYYY-MM-DD] [--dir BOARD_DIR] [--out FILE]
+
+The date and board directory used to be hardcoded at the top of this file and
+edited by hand every morning, which is the same failure mode that let
+enrichments silently go missing from the daily run.
+"""
+import argparse, json, os, math
+from datetime import datetime
+
+_ap = argparse.ArgumentParser()
+_ap.add_argument("date", nargs="?", default=datetime.now().strftime("%Y-%m-%d"))
+_ap.add_argument("--dir", default=os.environ.get("PROPSTATS_BOARD_DIR", "."),
+                 help="directory holding the board JSON files")
+_ap.add_argument("--out", default=None)
+_args = _ap.parse_args()
+
+SP = _args.dir
+DATE = _args.date
+DS = DATE.replace("-", "")
+OUT = _args.out or os.path.join(SP, f"slate_{DS}.html")
 
 def load(name):
     p = f"{SP}/{name}_{DS}.json"
