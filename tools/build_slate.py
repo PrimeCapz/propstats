@@ -1045,6 +1045,8 @@ def build_hr_tab():
         html += f'<span class="badge {vuln_cls}">{v["tier"]} ({vuln_score:.0f})</span>'
         html += '</div>'
 
+        if g.get("probable_stale") or g.get("bullpen_game"):
+            html += f'<div class="warn-note">⚠️ {g.get("probable_note","")}</div>'
         if g.get("lineup_confirmed"):
             html += '<div class="lineup-note">✓ lineup confirmed · prob scaled to slot</div>'
         html += pitch_dropdown(g.get("arsenal", []), "Pitcher Arsenal (season)")
@@ -1572,6 +1574,8 @@ details.pitch-drop[open] summary::before{{content:"▾ "}}
 .prob-lbl{{margin-left:auto;font-family:'DM Mono',monospace;font-size:12px;font-weight:500}}
 .odds-lbl{{color:var(--muted);font-size:10px}}
 .lineup-note{{font-size:10px;color:var(--muted);font-family:'DM Mono',monospace}}
+.warn-note{{font-size:11px;font-weight:600;padding:5px 8px;margin:6px 0;border-radius:5px;background:rgba(220,120,20,.14);color:#c2600c;border-left:3px solid #c2600c;line-height:1.35}}
+:root:not([data-theme="light"]) .warn-note{{background:rgba(240,150,60,.15);color:#f0a44b;border-left-color:#f0a44b}}
 .sc-line{{font-size:11px;color:var(--muted);font-family:'DM Mono',monospace}}
 .sc-line b{{color:var(--text)}}
 .hl-hot{{color:#f0a030;font-weight:600}}
