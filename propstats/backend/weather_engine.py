@@ -38,6 +38,9 @@ STADIUM_DATA = {
     "Kauffman Stadium":           {"lat": 39.0516, "lon": -94.4803, "cf_bearing":  85, "dome": False, "retractable": False},
     # AL West
     "Minute Maid Park":           {"lat": 29.7573, "lon": -95.3557, "cf_bearing":  50, "dome": False, "retractable": True},
+    # Houston renamed Minute Maid Park to Daikin Park; the API reports the new
+    # name, so without this alias every Astros home game silently got no weather.
+    "Daikin Park":                {"lat": 29.7573, "lon": -95.3557, "cf_bearing":  50, "dome": False, "retractable": True},
     "Globe Life Field":           {"lat": 32.7473, "lon": -97.0819, "cf_bearing":  25, "dome": True,  "retractable": False},
     "Angel Stadium":              {"lat": 33.8003, "lon": -117.8827,"cf_bearing": 100, "dome": False, "retractable": False},
     "T-Mobile Park":              {"lat": 47.5914, "lon": -122.3326,"cf_bearing":  25, "dome": False, "retractable": True},
@@ -89,7 +92,8 @@ def _fetch_open_meteo(lat: float, lon: float) -> dict | None:
     url = (
         "https://api.open-meteo.com/v1/forecast"
         f"?latitude={lat}&longitude={lon}"
-        "&hourly=wind_speed_10m,wind_direction_10m,temperature_2m"
+        "&hourly=wind_speed_10m,wind_direction_10m,temperature_2m,"
+        "surface_pressure,relative_humidity_2m"
         "&wind_speed_unit=mph&temperature_unit=fahrenheit"
         "&timezone=UTC&forecast_days=2"
     )
@@ -101,6 +105,58 @@ def _fetch_open_meteo(lat: float, lon: float) -> dict | None:
         return data
     except Exception:
         return None
+
+
+
+# ---------------------------------------------------------------------------
+# Air density and ball carry
+# ---------------------------------------------------------------------------
+# Batted-ball carry is governed by air density, which depends on temperature,
+# barometric pressure and humidity — not temperature alone. The model below is
+# standard psychrometrics, and it reproduces the known anchor: Coors Field at
+# ~840 hPa comes out at 80% of sea-level density, implying a 1.41x home-run
+# multiplier against a published Coors factor of ~1.28-1.35 (the gap is the
+# humidor, which the physics does not know about).
+#
+# MEASURED BUT NOT USED IN PROBABILITIES. Backtested over 102 outdoor games
+# across eight Sep-2026 slates, the carry index did not predict home runs:
+#     absolute carry vs game HR        r = +0.087
+#     park-relative carry vs game HR   r = -0.118
+#     thickest 25% / middle / thinnest  3.10 / 2.12 / 2.76 HR per game
+# The quartile pattern is non-monotone, i.e. noise. That sample is also far too
+# small to settle the question — at 2.58 HR/game with sd 1.39, resolving a 5%
+# effect needs roughly 770 games — so the index is computed and logged on every
+# game to accumulate a sample, and deliberately left out of the HR probability
+# until the data earns its way in. Do not wire it into scoring on the strength
+# of the physics alone.
+_R_DRY, _R_VAPOR = 287.058, 461.495
+RHO_STD = 1.2211          # kg/m3 at 59F, 1013.25 hPa, 50% RH
+CARRY_EXPONENT = 1.56     # calibrated so the Coors density ratio reproduces its park factor
+
+
+def _saturation_vapor_pressure_hpa(temp_c: float) -> float:
+    """Tetens approximation."""
+    return 6.1078 * 10 ** (7.5 * temp_c / (237.3 + temp_c))
+
+
+def air_density(temp_f: float, pressure_hpa: float, humidity_pct: float) -> float:
+    """Density of moist air in kg/m3."""
+    temp_c = (temp_f - 32.0) * 5.0 / 9.0
+    temp_k = temp_c + 273.15
+    p_vapor = _saturation_vapor_pressure_hpa(temp_c) * (humidity_pct / 100.0) * 100.0
+    p_dry = pressure_hpa * 100.0 - p_vapor
+    return p_dry / (_R_DRY * temp_k) + p_vapor / (_R_VAPOR * temp_k)
+
+
+def carry_index(temp_f: float, pressure_hpa: float, humidity_pct: float) -> float:
+    """Ball-carry multiplier relative to standard sea-level air.
+
+    Above 1.0 means thinner air than standard and more carry.
+    """
+    rho = air_density(temp_f, pressure_hpa, humidity_pct)
+    if rho <= 0:
+        return 1.0
+    return (RHO_STD / rho) ** CARRY_EXPONENT
 
 
 def _find_hour_index(times: list, game_time_utc: str) -> int:
@@ -194,11 +250,15 @@ def get_weather_for_game(venue_name: str, game_time_utc: str) -> dict:
     speeds = hourly.get("wind_speed_10m", [])
     dirs   = hourly.get("wind_direction_10m", [])
     temps  = hourly.get("temperature_2m", [])
+    press  = hourly.get("surface_pressure", [])
+    humid  = hourly.get("relative_humidity_2m", [])
 
     idx       = _find_hour_index(times, game_time_utc)
     wind_mph  = float(speeds[idx]) if idx < len(speeds) else 0.0
     wind_deg  = float(dirs[idx])   if idx < len(dirs)   else 0.0
     temp_f    = float(temps[idx])  if idx < len(temps)  else 72.0
+    pressure  = float(press[idx])  if idx < len(press) and press[idx] is not None else 1013.25
+    humidity  = float(humid[idx])  if idx < len(humid) and humid[idx] is not None else 50.0
 
     component  = compute_wind_component(wind_deg, cf_bearing, wind_mph)
     bonus      = wind_bonus_from_component(component)
@@ -219,6 +279,11 @@ def get_weather_for_game(venue_name: str, game_time_utc: str) -> dict:
         "wind_component_cf": component,
         "wind_bonus":        bonus,
         "temp_f":            round(temp_f, 1),
+        "pressure_hpa":      round(pressure, 1),
+        "humidity_pct":      round(humidity, 0),
+        "air_density":       round(air_density(temp_f, pressure, humidity), 4),
+        # Diagnostic only — see the note on carry_index. Not used in scoring.
+        "carry_index":       round(carry_index(temp_f, pressure, humidity), 3),
         "dome":              False,
         "retractable":       retractable,
         "tag":               tag,
@@ -227,16 +292,66 @@ def get_weather_for_game(venue_name: str, game_time_utc: str) -> dict:
     }
 
 
+def prefetch_weather(venues: list) -> int:
+    """Warm the weather cache for many venues in a single Open-Meteo request.
+
+    Open-Meteo accepts comma-separated coordinate lists and returns one block
+    per location, so a 15-game slate costs one call instead of fifteen. Firing
+    them individually reliably trips the free tier's rate limit, and a 429 is
+    silent — the venue just falls back to the 72F default and every downstream
+    wind and carry number for that park is fabricated.
+
+    Returns the number of venues cached. Falls back to per-venue fetching by
+    simply doing nothing, since get_weather_for_game still works on its own.
+    """
+    coords, seen = [], set()
+    for v in venues:
+        st = _find_stadium(v)
+        if not st:
+            continue
+        key = (round(st["lat"], 3), round(st["lon"], 3))
+        if key in seen or key in _weather_cache:
+            continue
+        seen.add(key)
+        coords.append(key)
+    if not coords:
+        return 0
+
+    url = (
+        "https://api.open-meteo.com/v1/forecast"
+        f"?latitude={','.join(str(c[0]) for c in coords)}"
+        f"&longitude={','.join(str(c[1]) for c in coords)}"
+        "&hourly=wind_speed_10m,wind_direction_10m,temperature_2m,"
+        "surface_pressure,relative_humidity_2m"
+        "&wind_speed_unit=mph&temperature_unit=fahrenheit"
+        "&timezone=UTC&forecast_days=2"
+    )
+    try:
+        r = requests.get(url, timeout=_REQUEST_TIMEOUT * 3)
+        r.raise_for_status()
+        data = r.json()
+    except Exception:
+        return 0
+
+    blocks = data if isinstance(data, list) else [data]
+    if len(blocks) != len(coords):
+        return 0
+    for key, blk in zip(coords, blocks):
+        _weather_cache[key] = blk
+    return len(coords)
+
+
 def get_weather_for_all_games(games: list) -> dict:
     """
     Fetch weather for all games, deduplicating by venue.
     Returns {venue_name: weather_dict}.
     """
+    prefetch_weather([g.get("venue_name", "") for g in games])
+
     venue_weather: dict = {}
     for g in games:
         venue     = g.get("venue_name", "Unknown")
         game_time = g.get("game_time", "")
         if venue not in venue_weather:
             venue_weather[venue] = get_weather_for_game(venue, game_time)
-            time.sleep(0.05)
     return venue_weather
