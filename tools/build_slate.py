@@ -20,6 +20,9 @@ _args = _ap.parse_args()
 
 SP = _args.dir
 DATE = _args.date
+_D = datetime.strptime(DATE, "%Y-%m-%d")
+DATE_SHORT = _D.strftime("%b %-d")          # "Sep 17"
+DATE_LONG = _D.strftime("%b %-d, %Y")       # "Sep 17, 2026"
 DS = DATE.replace("-", "")
 OUT = _args.out or os.path.join(SP, f"slate_{DS}.html")
 
@@ -1422,7 +1425,7 @@ f5_html = build_f5_tab()
 fantasy_html = build_fantasy_tab()
 parlays_html = build_parlays_tab()
 
-page = f"""<title>PropStats Sep 16</title>
+page = f"""<title>PropStats {DATE_SHORT}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Sans+Condensed:wght@400;500;600;700&display=swap">
 <style>
@@ -1810,7 +1813,7 @@ b{{color:var(--text)}}
 
 <div class="site-header">
   <div class="site-logo">PropStats</div>
-  <div class="site-date mono">Sep 16, 2026 · MLB Slate</div>
+  <div class="site-date mono">{DATE_LONG} · MLB Slate</div>
   <div class="header-stats">
     <span>{len(k_board)} pitchers</span>
     <span>{len(nrfi_board)} games (NRFI)</span>
