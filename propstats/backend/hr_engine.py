@@ -30,6 +30,7 @@ except Exception:
     _WEATHER_AVAILABLE = False
 
 from baseball_engine import (
+    shrink_rate,
     _get, MLB_API,
     get_today_games,
     get_batter_season_stats,
@@ -1016,14 +1017,21 @@ def _quick_batter_entry(batter_id: int, batter_name: str, bats: str,
     ev   = savant_batting.get(pid, {})
     bt   = bat_track.get(pid, {})
 
-    brl_bip      = _safe(d.get("brl_per_bip"))
+    # Regress the contact-quality rates by sample size. Without this a hitter
+    # with 20 PA and four barrels in fourteen batted balls posts a 28.6% barrel
+    # rate and .386 xISO and tops the board — which is exactly what Emmanuel
+    # Rodriguez did on 2026-09-18 at 29.8%, with a zone fit of 0.0. The
+    # shrinkage added to the hits, TB and fantasy boards reads Savant's
+    # expected-stats feed, which this engine does not use, so it needed its own.
+    bhr_pa = int(d.get("pa") or 0)
+    brl_bip      = shrink_rate(_safe(d.get("brl_per_bip")), bhr_pa, 7.8)
     pull_pct     = _safe(d.get("pull_pct"))
     fb_pct       = _safe(d.get("fb_pct"))
     la_avg       = _safe(d.get("la_avg"))
     sweet        = _safe(d.get("sweet_spot_pct"))
-    xiso         = _safe(d.get("xiso"))
+    xiso         = shrink_rate(_safe(d.get("xiso")), bhr_pa, 0.156)
     iso          = _safe(d.get("iso"))
-    xwoba        = _safe(d.get("xwoba"))
+    xwoba        = shrink_rate(_safe(d.get("xwoba")), bhr_pa, 0.318)
     hr_fb_pct    = _safe(d.get("hr_fb_pct"))
     hh_pct       = _safe(ev.get("hard_hit_pct"))
     exit_velo    = _safe(ev.get("exit_velo"))
@@ -1231,6 +1239,8 @@ def _quick_batter_entry(batter_id: int, batter_name: str, bats: str,
         "xwoba_con":      xwoba_con,
         "swstr_pct":      swstr_pct,
         "hr_fb_pct":      hr_fb_pct,
+        "bhr_pa":         bhr_pa,
+        "thin_sample":    bhr_pa < 120,
         "pulled_brl":     pulled_brl,
         "hr_edges":       hr_edges,
         "weak_spots":     weak_spots,

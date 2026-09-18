@@ -1537,7 +1537,7 @@ SAVANT_BATTER_PITCH_SPLIT_URL = "https://baseballsavant.mlb.com/leaderboard/pitc
 SAVANT_BATTER_HR_URL = (
     "https://baseballsavant.mlb.com/leaderboard/custom?year={year}&type=batter"
     "&filter=&sort=4&sortDir=desc&min=20"
-    "&selections=barrel_batted_rate,brl_pa,pull_percent,flyballs_percent,"
+    "&selections=pa,barrel_batted_rate,brl_pa,pull_percent,flyballs_percent,"
     "launch_angle_avg,sweet_spot_percent,iso,xiso,xwoba,xwobacon,xslg,avg_distance,hr_fbpercent,"
     "pull_flyballs_percent"
     "&csv=true"
@@ -2099,6 +2099,7 @@ def load_savant_batter_hr(season: int = None) -> dict:
         if not pid:
             continue
         result[pid] = {
+            "pa":            int(_safe_float(row.get("pa"))),
             "brl_per_bip":   _safe_float(row.get("barrel_batted_rate")),
             "brl_per_pa":    _safe_float(row.get("brl_pa")),
             "pull_pct":      _safe_float(row.get("pull_percent")),
