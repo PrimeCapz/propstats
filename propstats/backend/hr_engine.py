@@ -2039,6 +2039,27 @@ SIGNAL_MULTS = [
     ("🔥 HOT",       1.06),
     ("DOMINATED",    0.65),
 ]
+# ---------------------------------------------------------------------------
+# On the slate-level HR environment (tested, not modelled)
+# ---------------------------------------------------------------------------
+# Board hit rate tracks league HR/game at r = 0.865, so the day's run
+# environment is the single largest unexplained term in this model. Two
+# candidate fixes have now been tested and both failed:
+#
+#   1. Air density / ball carry (see weather_engine.carry_index). Over 102
+#      outdoor games: absolute r = +0.087, park-relative r = -0.118, and the
+#      thickest-air quartile produced MORE home runs than the thinnest.
+#   2. A trailing league HR/game window, i.e. "the league is cold this week".
+#      Over 29 slates (Aug 20 - Sep 17, mean 2.237 HR/game, sd 0.404) the
+#      trailing mean ANTI-correlates with the next slate at every window:
+#      3-slate r = -0.109, 5-slate -0.072, 7-slate -0.181, 10-slate -0.317.
+#      Out-of-sample MAE never beats an expanding season constant by more than
+#      noise (best: 5-slate 0.327 vs 0.344).
+#
+# The practical consequence is that a run of low-HR days is mean reversion, not
+# a trend to extrapolate, and the base rate should stay a season constant.
+# Do not add a "league is cold" multiplier without out-of-sample evidence.
+
 CAL_SHRINK_KNEE = 0.15   # probabilities above this are pulled toward the knee
 CAL_SHRINK_RATE = 0.55   # observed 20-25% band ran ~6 pts hot, 25%+ ran far hotter
 CAL_MAX_SIGNAL  = 2.10   # cap stacked signals so one bat cannot run away

@@ -29,6 +29,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 from baseball_engine import (
     shrink_rate,
+    hr_rate_per_pa,
     get_today_games,
     get_team_roster_ids,
     get_game_lineups,
@@ -354,6 +355,97 @@ def _lineup_pa(batting_order: int) -> float:
 # ── Stat projections (per game) ────────────────────────────────────────────────
 # Uses xBA, xSLG, BB%, K% adjusted for pitcher matchup and park factor
 
+
+# ---------------------------------------------------------------------------
+# PrizePicks fantasy-score distribution
+# ---------------------------------------------------------------------------
+# Measured over 2,070 confirmed-starter games across eight Sep-2026 slates the
+# league distribution is mean 7.22, median 5, 22.0% zeros, P(>5.5) = 46.8%.
+# By lineup slot P(>5.5) runs 58.3% leading off down to 36.5% batting ninth.
+# A mean alone is misleading against a line that sits near the median, which is
+# where the books put it.
+PP_LINES = (3.5, 4.5, 5.5, 6.5, 7.5, 8.5, 9.5)
+_PP_SIMS = 20000
+_PP_LEAGUE_HIT_MIX = {1: 0.6544, 2: 0.1890, 3: 0.0165, 4: 0.1401}
+
+
+def _pp_hit_mix(ba: float, slg: float, hr_per_pa: float, bb_rate: float) -> dict:
+    """Shares of 1B/2B/3B/HR among a hitter's hits.
+
+    The HR share is pinned to the calibrated hr_per_pa rather than derived from
+    SLG, so the fantasy board and the HR board cannot disagree about how often
+    the same hitter goes deep.
+    """
+    if ba <= 0:
+        return dict(_PP_LEAGUE_HIT_MIX)
+    ab_share = max(0.05, 1.0 - bb_rate - 0.008)
+    hr_per_ab = hr_per_pa / ab_share
+    hr_share = min(0.60, max(0.0, hr_per_ab / ba))
+    s3 = _PP_LEAGUE_HIT_MIX[3]
+    # remaining SLG demand after HR and triples decides the double share
+    target = max(1.05, min(2.60, slg / ba))
+    need = target - 4.0 * hr_share - 3.0 * s3
+    rest = max(0.0, 1.0 - hr_share - s3)
+    s2 = max(0.0, min(rest, need - rest))
+    return {1: max(0.0, rest - s2), 2: s2, 3: s3, 4: hr_share}
+
+
+def _pp_over_probs(pa: float, ba: float, xslg: float, bb_rate: float,
+                   hr_per_pa: float, run_rate: float, rbi_rate: float,
+                   sb_rate: float) -> dict:
+    """P(fantasy score > line) for each standard line, by simulating each PA."""
+    import random as _r
+    rng = _r.Random(0xBEEF)          # fixed seed: same board twice gives same numbers
+    mix = _pp_hit_mix(ba, xslg, hr_per_pa, bb_rate)
+    keys = (1, 2, 3, 4)
+    cum, acc = [], 0.0
+    for k in keys:
+        acc += mix[k]
+        cum.append(acc)
+    pts = {1: 3, 2: 5, 3: 8, 4: 10}
+    whole = int(pa)
+    frac = pa - whole
+    # extra-run and extra-RBI rates per time on base, beyond the automatic
+    # run and RBI a home run always produces
+    extra_run = max(0.0, run_rate - hr_per_pa * pa)
+    extra_rbi = max(0.0, rbi_rate - hr_per_pa * pa)
+
+    counts = {L: 0 for L in PP_LINES}
+    for _ in range(_PP_SIMS):
+        n = whole + (1 if rng.random() < frac else 0)
+        score = 0
+        on_base = 0
+        hrs = 0
+        for _ in range(n):
+            u = rng.random()
+            if u < bb_rate:
+                score += 2; on_base += 1; continue
+            if u < bb_rate + 0.008:
+                score += 2; on_base += 1; continue
+            if rng.random() < ba:
+                v = rng.random()
+                b = 4
+                for i, c in enumerate(cum):
+                    if v <= c:
+                        b = keys[i]; break
+                score += pts[b]; on_base += 1
+                if b == 4:
+                    hrs += 1
+        runs = hrs
+        reached = max(0, on_base - hrs)
+        if reached:
+            per = extra_run / max(1.0, reached)
+            runs += sum(1 for _ in range(reached) if rng.random() < per)
+        rbis = hrs + (1 if rng.random() < extra_rbi else 0)
+        score += runs * 2 + rbis * 2
+        if rng.random() < sb_rate:
+            score += 5
+        for L in PP_LINES:
+            if score > L:
+                counts[L] += 1
+    return {str(L): round(100.0 * counts[L] / _PP_SIMS, 1) for L in PP_LINES}
+
+
 def _proj_stats(batter_id: str, bats: str, pitcher_matchup: dict,
                 batting: dict, xstats: dict, batter_k: dict,
                 batter_hr: dict, sprint_speed: dict,
@@ -399,10 +491,16 @@ def _proj_stats(batter_id: str, bats: str, pitcher_matchup: dict,
 
     # Extra-base hits
     proj_1b  = max(0.0, proj_hits * (1.0 - (xslg / (xba + 0.001) - 1.0) * 0.3))
-    proj_hr_rate = _safe(hr.get("hr_fb_pct")) / 100.0 * _safe(hr.get("fb_pct")) / 100.0
-    if proj_hr_rate == 0.0:
-        proj_hr_rate = max(0.0, (xslg - xba) / (proj_ab + 0.001) * 0.35)
-    proj_hr = proj_hr_rate * proj_ab * park_hr
+
+    # HR rate from xISO, calibrated against actual season HR/PA (r=0.854).
+    # The old path multiplied hr_fb_pct by fb_pct, but Savant returns
+    # hr_fbpercent empty for every hitter, so it always fell through to a crude
+    # ISO fallback that ran about half the HR board's rate with no spread
+    # between a slugger and a contact hitter.
+    xiso_shrunk = shrink_rate(_safe(hr.get("xiso")) or _safe(xs.get("xslg")) - _safe(xs.get("xba")),
+                              xs_pa, 0.156)
+    proj_hr_rate = hr_rate_per_pa(xiso_shrunk)
+    proj_hr = proj_hr_rate * proj_pa * park_hr
 
     # SB projection
     speed = _safe(ss.get("sprint_speed"))
@@ -433,19 +531,40 @@ def _proj_stats(batter_id: str, bats: str, pitcher_matchup: dict,
         + proj_sb   * 6.0
     )
 
-    # PrizePicks scoring — HR excluded to avoid pure power-hitter bias in rankings
-    # Actual PP: 1B=3, 2B=5, 3B=8, HR=10, R=2, RBI=2, BB=2, HBP=2, SB=5
-    # Strip HR's extra-base contribution (each HR = 3 extra TB) before scoring
-    xtra_no_hr = max(0.0, proj_tb - proj_hits - proj_hr * 3.0)
+    # PrizePicks scoring: 1B=3, 2B=5, 3B=8, HR=10, R=2, RBI=2, BB=2, HBP=2, SB=5.
+    #
+    # This used to strip the home run's value out "to avoid pure power-hitter
+    # bias in rankings", which left a HR worth 3 points instead of 10 and made
+    # proj_pp unusable as a projection against a real fantasy-score line. A
+    # power-neutral ranking is a separate question from what the prop pays, so
+    # the score below is the actual scoring and pp_contact keeps the old
+    # HR-stripped number for ranking.
     proj_hbp   = proj_pa * 0.008   # ~0.8% HBP rate league average
+    xtra_bases_all = max(0.0, proj_tb - proj_hits)
     pp_pts = (
-        proj_hits  * 3.0
-        + xtra_no_hr * 2.0    # 2B adds +2, 3B adds ~+4 (approx)
-        + proj_rbi  * 2.0
-        + proj_run  * 2.0
-        + proj_bb   * 2.0
-        + proj_hbp  * 2.0
-        + proj_sb   * 5.0     # SB=+5 per PP scoring (was 4)
+        proj_hits * 3.0
+        + xtra_bases_all * 2.0     # each extra base beyond the single is +2
+        + proj_rbi * 2.0
+        + proj_run * 2.0
+        + proj_bb  * 2.0
+        + proj_hbp * 2.0
+        + proj_sb  * 5.0
+    )
+    xtra_no_hr = max(0.0, proj_tb - proj_hits - proj_hr * 3.0)
+    pp_contact = (
+        proj_hits * 3.0 + xtra_no_hr * 2.0 + proj_rbi * 2.0
+        + proj_run * 2.0 + proj_bb * 2.0 + proj_hbp * 2.0 + proj_sb * 5.0
+    )
+
+    # Distribution, not just the mean. The league-wide fantasy score for a
+    # confirmed starter has mean 7.22 but median 5, with 22% shutouts — so a
+    # projection of 6.8 against a 5.5 line is nowhere near a lock, and ranking
+    # by the mean hides which bats have a floor. Simulating each PA gives the
+    # real P(over) for the lines that actually get posted.
+    pp_probs = _pp_over_probs(
+        pa=proj_pa, ba=xba, xslg=xslg, bb_rate=bb_rate,
+        hr_per_pa=proj_hr_rate * park_hr,
+        run_rate=proj_run, rbi_rate=proj_rbi, sb_rate=proj_sb,
     )
 
     return {
@@ -458,8 +577,12 @@ def _proj_stats(batter_id: str, bats: str, pitcher_matchup: dict,
         "proj_run":   round(proj_run,  2),
         "proj_dk":    round(dk_pts,    1),
         "proj_pp":    round(pp_pts,    1),
+        "pp_contact": round(pp_contact, 1),
+        "pp_over":    pp_probs,
         "xba":        round(xba,  3),
         "xstat_pa":   xs_pa,
+        "xiso":       round(xiso_shrunk, 3),
+        "hr_per_pa":  round(proj_hr_rate, 4),
         "thin_sample": xs_pa < 120,
         "xslg":       round(xslg, 3),
         "xwoba":      round(xwoba, 3),

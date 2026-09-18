@@ -2053,6 +2053,35 @@ def get_batter_pitch_splits(player_id: int, season: int = None) -> dict:
     return load_savant_batter_pitch_splits(season).get(pid, {})
 
 
+
+# ---------------------------------------------------------------------------
+# Home-run rate from expected ISO
+# ---------------------------------------------------------------------------
+# Savant's batter leaderboard returns hr_fbpercent, brl_pa and iso as columns
+# but leaves all three EMPTY — every one of 594 hitters parses to 0.0. Any
+# engine keying off them silently falls through to whatever fallback it has,
+# which is how hitter_fantasy_engine ended up projecting roughly half the home
+# runs the HR board did, with almost no spread between a slugger and a
+# slap hitter (0.041-0.078 across the whole league).
+#
+# xiso IS populated and is the strongest available predictor of home-run rate:
+# fitted against actual 2026 season HR/PA over 302 hitters with 250+ PA it
+# gives r = +0.854, residual sd 0.0072. League mean HR/PA is 0.0314.
+HR_PA_INTERCEPT = -0.005838
+HR_PA_XISO_SLOPE = 0.238685
+LEAGUE_HR_PA = 0.0314
+
+
+def hr_rate_per_pa(xiso: float, league_fallback: bool = True) -> float:
+    """Expected home runs per plate appearance for a hitter's xISO.
+
+    Park and matchup adjustments belong on top of this, not inside it.
+    """
+    if not xiso or xiso <= 0:
+        return LEAGUE_HR_PA if league_fallback else 0.0
+    return max(0.0, HR_PA_INTERCEPT + HR_PA_XISO_SLOPE * xiso)
+
+
 def load_savant_batter_hr(season: int = None) -> dict:
     """HR-profile metrics per batter: brl/bip, pull%, fb%, la, sweet_spot, xiso, xwoba, xslg."""
     global _savant_batter_hr
