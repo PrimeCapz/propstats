@@ -1,0 +1,842 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PropStats — 8/10 Full Slate</title>
+<style>
+:root {
+  --bg: #0d0f14; --bg2: #161920; --bg3: #1e2230;
+  --border: #2a2f40; --muted: #5a6078; --text: #d4d8e8;
+  --accent: #4f8ef7; --green: #3ecf8e; --red: #f05c5c;
+  --gold: #f0b429; --purple: #b57ef7; --orange: #f77b4f;
+  --teal: #4fd1d9;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: 'Courier New', monospace; font-size: 13px; line-height: 1.55; }
+
+.header { background: var(--bg2); border-bottom: 2px solid var(--accent); padding: 20px 28px 16px; }
+.header h1 { font-size: 22px; color: var(--accent); letter-spacing: 2px; text-transform: uppercase; }
+.header .sub { color: var(--muted); font-size: 11px; margin-top: 4px; letter-spacing: 1px; }
+.header .record { color: var(--green); font-size: 12px; margin-top: 8px; }
+.header .record span { color: var(--red); }
+
+.section { margin: 20px 16px; }
+.section-title { font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); border-bottom: 1px solid var(--border); padding-bottom: 6px; margin-bottom: 14px; }
+
+/* Play cards */
+.plays-grid { display: flex; flex-direction: column; gap: 10px; }
+.play-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 4px; padding: 14px 16px; position: relative; }
+.play-card.s3 { border-left: 3px solid var(--gold); }
+.play-card.s2 { border-left: 3px solid var(--accent); }
+.play-card.s1 { border-left: 3px solid var(--muted); }
+.play-header { display: flex; align-items: baseline; gap: 10px; margin-bottom: 6px; }
+.stars { color: var(--gold); font-size: 14px; }
+.play-type { font-size: 10px; letter-spacing: 1px; color: var(--muted); background: var(--bg3); padding: 2px 7px; border-radius: 2px; }
+.play-title { font-size: 15px; color: #fff; font-weight: bold; }
+.play-line { color: var(--green); font-size: 13px; margin-left: auto; }
+.play-desc { color: var(--text); font-size: 12px; margin: 4px 0; }
+.play-signals { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.pill { font-size: 10px; padding: 2px 8px; border-radius: 2px; letter-spacing: 0.5px; }
+.pill.hi { background: #1a3a28; color: var(--green); border: 1px solid #2a5a40; }
+.pill.mid { background: #1a2840; color: var(--accent); border: 1px solid #2a4060; }
+.pill.warn { background: #3a2010; color: var(--orange); border: 1px solid #5a3820; }
+.pill.surge { background: #2a1a3a; color: var(--purple); border: 1px solid #4a3a6a; }
+
+/* Summary table */
+.summary-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+.summary-table th { background: var(--bg3); color: var(--muted); padding: 6px 8px; text-align: left; border-bottom: 1px solid var(--border); letter-spacing: 0.5px; }
+.summary-table td { padding: 5px 8px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.summary-table tr:hover td { background: var(--bg3); }
+.s3c { color: var(--gold); }
+.s2c { color: var(--accent); }
+.s1c { color: var(--muted); }
+.green { color: var(--green); }
+.red { color: var(--red); }
+.gold { color: var(--gold); }
+.purple { color: var(--purple); }
+.orange { color: var(--orange); }
+.teal { color: var(--teal); }
+
+/* Board tables */
+.board-table { width: 100%; border-collapse: collapse; font-size: 11px; overflow-x: auto; display: block; }
+.board-table th { background: var(--bg3); color: var(--muted); padding: 5px 8px; text-align: right; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.board-table th:first-child, .board-table th:nth-child(2) { text-align: left; }
+.board-table td { padding: 4px 8px; border-bottom: 1px solid var(--border); text-align: right; white-space: nowrap; }
+.board-table td:first-child, .board-table td:nth-child(2) { text-align: left; }
+.board-table tr:hover td { background: var(--bg3); }
+.tier-elite { color: var(--gold); }
+.tier-threat { color: var(--accent); }
+.tier-atk { color: var(--red); }
+.tier-nl { color: var(--orange); }
+.tier-sparse { color: var(--purple); }
+
+/* Game grid */
+.game-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+.game-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 4px; padding: 12px 14px; }
+.game-card h4 { font-size: 12px; color: var(--accent); margin-bottom: 8px; letter-spacing: 0.5px; }
+.game-card .pitcher-row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px; font-size: 11px; }
+.game-card .pitcher-name { color: #fff; }
+.game-card .pitcher-score { font-size: 10px; }
+.game-card .nrfi-tag { font-size: 10px; padding: 1px 6px; border-radius: 2px; }
+.nrfi-yes { background: #1a3a28; color: var(--green); }
+.nrfi-lean { background: #2a2a10; color: var(--gold); }
+.nrfi-skip { background: #2a1a10; color: var(--muted); }
+
+/* Post-mortem */
+.pm-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
+.pm-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 4px; padding: 10px 12px; }
+.pm-card .result { font-size: 18px; margin-bottom: 4px; }
+.pm-card .name { font-size: 12px; color: #fff; margin-bottom: 2px; }
+.pm-card .detail { font-size: 11px; color: var(--muted); }
+.pm-card .line { font-size: 11px; }
+.pm-hit { border-left: 3px solid var(--green); }
+.pm-miss { border-left: 3px solid var(--red); }
+.pm-push { border-left: 3px solid var(--gold); }
+
+/* Dividers */
+hr.div { border: none; border-top: 1px solid var(--border); margin: 18px 0; }
+.note { color: var(--muted); font-size: 11px; font-style: italic; }
+.badge { font-size: 9px; padding: 1px 5px; border-radius: 2px; vertical-align: middle; margin-left: 4px; }
+.badge-surge { background: #2a1a3a; color: var(--purple); }
+.badge-dual { background: #1a3020; color: var(--green); }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>PropStats // 8/10/2026 Full Slate</h1>
+  <div class="sub">K · Walk · HR · Fantasy · NRFI — All Engines Run 8/9 @ 11:22PM ET</div>
+  <div class="record">8/9 Results: K 3/3 🔥 | HR 2/4 | NRFI/YRFI 1/3 | Walk cond. | Overall 6–8 <span>(+)</span></div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<!-- 8/9 POST-MORTEM -->
+<!-- ══════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-title">8/9 Post-Mortem</div>
+  <div class="pm-grid">
+    <div class="pm-card pm-hit">
+      <div class="result">✅</div>
+      <div class="name">★★★ Misiorowski K O8.0</div>
+      <div class="line green">9K / 6.0IP — +1K</div>
+      <div class="detail">Clear over. Putaway 32.5% dominant in 2-strike counts.</div>
+    </div>
+    <div class="pm-card pm-hit">
+      <div class="result">✅</div>
+      <div class="name">★★★ Seymour K O6.5</div>
+      <div class="line green">7K / 6.0IP — TB won 4-1</div>
+      <div class="detail">New add validated. SwStr 29.2% showed up vs CLE.</div>
+    </div>
+    <div class="pm-card pm-hit">
+      <div class="result">✅ 🔥</div>
+      <div class="name">★★★ Schwarber HR</div>
+      <div class="line green">2HR / 2-for-3 / 4RBI</div>
+      <div class="detail">Dual-model (hr_score 80.7 + pow 82) delivered big.</div>
+    </div>
+    <div class="pm-card pm-hit">
+      <div class="result">✅</div>
+      <div class="name">★★ Luzardo K O6.0</div>
+      <div class="line green">12K / 7.0IP — crushed</div>
+      <div class="detail">Putaway 23.9% in new formula; edge was +0.43 but 12K smashed projection.</div>
+    </div>
+    <div class="pm-card pm-hit">
+      <div class="result">✅</div>
+      <div class="name">★★ NRFI DET@SF</div>
+      <div class="line green">0-0 first inning</div>
+      <div class="detail">Melton/Webb both dealt early. Model confidence confirmed.</div>
+    </div>
+    <div class="pm-card pm-hit">
+      <div class="result">✅</div>
+      <div class="name">★ Conine HR (MIA)</div>
+      <div class="line green">2HR / 2-for-4</div>
+      <div class="detail">hr_score + pow_score confirmed. 2-HR game, big plus day.</div>
+    </div>
+    <div class="pm-card pm-miss">
+      <div class="result">❌</div>
+      <div class="name">★★ Harper HR</div>
+      <div class="line red">0HR — 0/2 but 4BB</div>
+      <div class="detail">Walk model right (4 walks off PHI pitchers), HR wrong. Matchup = walks, not HR.</div>
+    </div>
+    <div class="pm-card pm-miss">
+      <div class="result">❌</div>
+      <div class="name">★★ Ohtani HR</div>
+      <div class="line red">0HR / 0-for-4 / 0BB</div>
+      <div class="detail">Rodriguez dealt (9K/7IP). Rest-day bounce-back candidate today.</div>
+    </div>
+    <div class="pm-card pm-miss">
+      <div class="result">❌</div>
+      <div class="name">★ NRFI TB@SEA</div>
+      <div class="line red">SEA scored 1st inning</div>
+      <div class="detail">Seymour gave up 1st-inning run despite 7K total. NRFI ≠ total line.</div>
+    </div>
+    <div class="pm-card pm-miss">
+      <div class="result">❌</div>
+      <div class="name">★ YRFI TOR@PHI</div>
+      <div class="line red">0-0 first inning (Luzardo)</div>
+      <div class="detail">Luzardo 12K meant no scoring early. YRFI vs K ELITE = trap.</div>
+    </div>
+    <div class="pm-card pm-push">
+      <div class="result">⚡</div>
+      <div class="name">★★ Ginn Walk</div>
+      <div class="line gold">2BB / 6IP — line-dependent</div>
+      <div class="detail">O1.5 = HIT | O2.5 = MISS. Walk tendency real, low end of range.</div>
+    </div>
+  </div>
+  <div style="margin-top:10px;" class="note">K-SURGE flag added to engine today: would have flagged Luzardo and Seymour as surge plays vs model projection. Ohtani vs Rodriguez = model was right to be cautious (mg=42).</div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<!-- 8/10 RANKED PLAYS -->
+<!-- ══════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-title">8/10 Ranked Plays (19 Total)</div>
+  <div class="plays-grid">
+
+    <!-- ★★★ Skubal -->
+    <div class="play-card s3">
+      <div class="play-header">
+        <span class="stars">★★★</span>
+        <span class="play-type">K PROP</span>
+        <span class="play-title">Tarik Skubal — K OVER 6.5</span>
+        <span class="play-line">LEAN OVER (proj 6.8, edge +0.26)</span>
+      </div>
+      <div class="play-desc">KC@LAD · Skubal (LAD) vs KC lineup (Witt Jr., Pasquantino, Perez). Skubal is today's #1 arm: K ELITE 87.8, putaway 24.4%, whiff/swing 33.3%, K% 30.7%. Recent 6K/6K/12K. The 12K start 07-24 keeps the K-surge flag from firing but his sustained elite metrics give high confidence at 6.5.</div>
+      <div class="play-signals">
+        <span class="pill hi">K ELITE 87.8</span>
+        <span class="pill hi">Putaway 24.4%</span>
+        <span class="pill hi">K% 30.7%</span>
+        <span class="pill mid">Whiff/Sw 33.3%</span>
+        <span class="pill mid">Edge +0.26</span>
+        <span class="pill mid">Recent: 6K / 6K / 12K</span>
+      </div>
+    </div>
+
+    <!-- ★★★ Henderson -->
+    <div class="play-card s3">
+      <div class="play-header">
+        <span class="stars">★★★</span>
+        <span class="play-type">K PROP</span>
+        <span class="play-title">Logan Henderson — K OVER 7.0</span>
+        <span class="play-line">LEAN OVER (proj 7.2, edge +0.19)</span>
+      </div>
+      <div class="play-desc">MIL@SD · Henderson (MIL) at Petco Park vs SD. K ELITE 82.8, putaway 23.9%, p/pa 4.01 (+1 bonus), recent 8K/7K/9K. The consistency is the story — never below 7K in 3 starts, all deep outings. Petco is a pitcher-friendly environment. Edge is thin (+0.19) but the floor is high.</div>
+      <div class="play-signals">
+        <span class="pill hi">K ELITE 82.8</span>
+        <span class="pill hi">Putaway 23.9%</span>
+        <span class="pill hi">Recent: 8K / 7K / 9K</span>
+        <span class="pill mid">P/PA 4.01 (+1)</span>
+        <span class="pill mid">Petco Park (pitcher-friendly)</span>
+        <span class="pill mid">Edge +0.19</span>
+      </div>
+    </div>
+
+    <!-- ★★★ Contreras HR -->
+    <div class="play-card s3">
+      <div class="play-header">
+        <span class="stars">★★★</span>
+        <span class="play-type">HR PROP</span>
+        <span class="play-title">Willson Contreras — HR (vs Taillon)</span>
+        <span class="play-line">DUAL CONFIRM</span>
+      </div>
+      <div class="play-desc">BOS@TOR · Contreras (BOS) faces Jameson Taillon, today's most vulnerable pitcher. Taillon: HR vuln 85.9 ATTACKABLE, GB% 33.7% (fly-ball pitcher). Contreras: hr_score 68.4, brl/BIP 14.5%, EV50 91, pow_score 77, matchup grade 67. Tags: BARREL SIGNAL + AIR PULL. This is the strongest dual-model HR play on the slate — high-vuln pitcher + barrel hitter in a favorable matchup.</div>
+      <div class="play-signals">
+        <span class="pill hi">Taillon Vuln 85.9 ATTACKABLE</span>
+        <span class="pill hi">Brl/BIP 14.5%</span>
+        <span class="pill hi">Matchup Grade 67</span>
+        <span class="pill mid">HR Score 68.4</span>
+        <span class="pill mid">EV50 91mph</span>
+        <span class="pill mid">PwrScore 77</span>
+        <span class="pill warn">BARREL SIGNAL · AIR PULL</span>
+      </div>
+    </div>
+
+    <!-- ★★ Detmers -->
+    <div class="play-card s2">
+      <div class="play-header">
+        <span class="stars">★★</span>
+        <span class="play-type">K PROP</span>
+        <span class="play-title">Reid Detmers — K OVER 6.5</span>
+        <span class="play-line">LEAN OVER (proj 6.7, edge +0.17)</span>
+      </div>
+      <div class="play-desc">TEX@LAA · Detmers (LAA) vs TEX. K Threat 71.1 with the best P/PA on the slate (4.48 — elite deep-count ability). Deep counts = more swing chances = more K volume. Putaway 20.3% is average, so the path to 7 Ks requires the at-bats he typically generates. Recent: 5K/9K/6K — upside demonstrated.</div>
+      <div class="play-signals">
+        <span class="pill hi">K Threat 71.1</span>
+        <span class="pill hi">P/PA 4.48 ★ Best on Slate</span>
+        <span class="pill mid">K% 28.3%</span>
+        <span class="pill mid">Putaway 20.3%</span>
+        <span class="pill mid">Edge +0.17</span>
+        <span class="pill mid">Recent: 5K / 9K / 6K</span>
+      </div>
+    </div>
+
+    <!-- ★★ C-Strand HR -->
+    <div class="play-card s2">
+      <div class="play-header">
+        <span class="stars">★★</span>
+        <span class="play-type">HR PROP</span>
+        <span class="play-title">Christian Encarnacion-Strand — HR (vs Kremer)</span>
+        <span class="play-line">BARREL SIGNAL</span>
+      </div>
+      <div class="play-desc">BAL@MIN · C-Strand (BAL) faces Dean Kremer (MIN). C-Strand has the highest brl/BIP on the entire slate: 22.5%, with EV50 94 (elite contact quality). HR score 74.2, pow_score 85, matchup grade 62. Kremer: Neutral Lean 59.1, GB% 36.1%. Tags: BARREL SIGNAL + SWEET SPOT. The barrel rate alone makes this a standout.</div>
+      <div class="play-signals">
+        <span class="pill hi">Brl/BIP 22.5% ★ Best on Slate</span>
+        <span class="pill hi">EV50 94mph</span>
+        <span class="pill hi">HR Score 74.2</span>
+        <span class="pill mid">Kremer Vuln 59.1 Neutral Lean</span>
+        <span class="pill mid">PwrScore 85</span>
+        <span class="pill mid">Matchup Grade 62</span>
+        <span class="pill warn">BARREL SIGNAL · SWEET SPOT</span>
+      </div>
+    </div>
+
+    <!-- ★★ Christian Scott -->
+    <div class="play-card s2">
+      <div class="play-header">
+        <span class="stars">★★</span>
+        <span class="play-type">K PROP</span>
+        <span class="play-title">Christian Scott — K OVER 6.5</span>
+        <span class="play-line">LEAN OVER (proj 6.7, edge +0.18)</span>
+      </div>
+      <div class="play-desc">NYM@ATL · Scott (NYM) vs ATL. K Threat 63.1, p/pa 4.34 (elite), putaway 21.3%, recent 7K/7K/6K — the most consistent K floor on the slate below ELITE tier. ATL lineup is not K-prone but Scott's deep-count profile limits contact. Edge +0.18 on a 6.5 line that his recent form easily clears.</div>
+      <div class="play-signals">
+        <span class="pill hi">P/PA 4.34 (elite)</span>
+        <span class="pill hi">Recent: 7K / 7K / 6K</span>
+        <span class="pill mid">K Threat 63.1</span>
+        <span class="pill mid">Putaway 21.3%</span>
+        <span class="pill mid">Edge +0.18</span>
+      </div>
+    </div>
+
+    <!-- ★★ NRFI MIL@SD -->
+    <div class="play-card s2">
+      <div class="play-header">
+        <span class="stars">★★</span>
+        <span class="play-type">NRFI</span>
+        <span class="play-title">NRFI — MIL @ SD</span>
+        <span class="play-line">LEAN NRFI</span>
+      </div>
+      <div class="play-desc">Henderson (MIL, K ELITE 82.8) vs Mize (SD, K Threat 64.2). Henderson's recent 8K/7K/9K means he's been dealing early — he's not giving up 1st-inning runs. Mize has K Threat profile; SD's lineup should have manageable contact early. Petco Park is historically one of the best NRFI parks in MLB. Two solid arms + pitcher's park = NRFI value.</div>
+      <div class="play-signals">
+        <span class="pill hi">Henderson K ELITE 82.8</span>
+        <span class="pill hi">Mize K Threat 64.2</span>
+        <span class="pill hi">Petco Park (pitcher-friendly)</span>
+        <span class="pill mid">No first-inning runs in Henderson's last 3 starts</span>
+      </div>
+    </div>
+
+    <!-- ★★ Jacob Lopez Walk -->
+    <div class="play-card s2">
+      <div class="play-header">
+        <span class="stars">★★</span>
+        <span class="play-type">WALK PROP</span>
+        <span class="play-title">Jacob Lopez — Walks OVER 1.5</span>
+        <span class="play-line">WALK THREAT 66.6</span>
+      </div>
+      <div class="play-desc">TB@ATH · Lopez (ATH) faces TB. Walk score 66.6 WALK THREAT, BB% 12.5% — highest on today's slate by a wide margin. At 12.5%, in a standard 25 BF start Lopez projects for 3.1 walks. The 1.5 line gives significant margin. Note: his K-SURGE flag also fires (recent 9K/8K) so he's pitching better overall — the concern is whether improved command reduces walk rate. His season 12.5% BB% suggests the control issues are persistent.</div>
+      <div class="play-signals">
+        <span class="pill hi">Walk Threat 66.6</span>
+        <span class="pill hi">BB% 12.5% (top of slate)</span>
+        <span class="pill mid">Proj ~3.1 BB @ 25BF</span>
+        <span class="pill warn">K-SURGE flag also fires</span>
+      </div>
+    </div>
+
+    <!-- ★★ Pete Alonso HR -->
+    <div class="play-card s2">
+      <div class="play-header">
+        <span class="stars">★★</span>
+        <span class="play-type">HR PROP</span>
+        <span class="play-title">Pete Alonso — HR (vs Kremer)</span>
+        <span class="play-line">BARREL SIGNAL</span>
+      </div>
+      <div class="play-desc">BAL@MIN · Alonso (BAL) vs Kremer (MIN, Neutral Lean 59.1). HR score 63.9, brl/BIP 13.3%, EV50 94 (same elite exit velo as C-Strand), pow_score 81, matchup grade 62. Tags: BARREL SIGNAL + BLASTS. Alonso and C-Strand are both top-tier against Kremer — BAL stacks Kremer well today.</div>
+      <div class="play-signals">
+        <span class="pill hi">EV50 94mph</span>
+        <span class="pill hi">HR Score 63.9</span>
+        <span class="pill mid">Brl/BIP 13.3%</span>
+        <span class="pill mid">PwrScore 81</span>
+        <span class="pill mid">Matchup Grade 62</span>
+        <span class="pill warn">BARREL SIGNAL · BLASTS</span>
+      </div>
+    </div>
+
+    <!-- ★★ NRFI TEX@LAA -->
+    <div class="play-card s2">
+      <div class="play-header">
+        <span class="stars">★★</span>
+        <span class="play-type">NRFI</span>
+        <span class="play-title">NRFI — TEX @ LAA</span>
+        <span class="play-line">LEAN NRFI</span>
+      </div>
+      <div class="play-desc">Detmers (LAA, K Threat 71.1) vs Gore (TEX, K Threat 61.2). Two legitimate strikeout arms facing each other. Detmers' elite p/pa (4.48) means deep counts, fewer early-inning walks. Gore's putaway 21.1% keeps it clean. Neither team scores a lot in 1st innings against strong arms. Moderate confidence — both are K Threat tier, not K ELITE.</div>
+      <div class="play-signals">
+        <span class="pill hi">Detmers K Threat 71.1</span>
+        <span class="pill hi">Gore K Threat 61.2</span>
+        <span class="pill mid">Detmers P/PA 4.48 (deep counts = fewer 1st-inn runs)</span>
+        <span class="pill mid">Both putaway &gt;21%</span>
+      </div>
+    </div>
+
+    <!-- ★ Alvarez hit prop -->
+    <div class="play-card s1">
+      <div class="play-header">
+        <span class="stars">★</span>
+        <span class="play-type">HIT PROP</span>
+        <span class="play-title">Yordan Alvarez — Hit OVER 0.5 / HR</span>
+        <span class="play-line">projH 1.14 / xBA .333</span>
+      </div>
+      <div class="play-desc">HOU@SF · Alvarez (HOU) faces Blade Tidwell (SF, K score 2.5 — near bottom of all tracked pitchers). Fantasy score 84.9, pow_score 95.4, projDK 10.5. Tidwell's recent form: 5IP/3K, 2IP/2K — he's not a strikeout threat. Alvarez with xBA .333 vs a weak arm at Oracle Park (0.74 park factor for HR) — hit prop is better than HR today.</div>
+      <div class="play-signals">
+        <span class="pill hi">Tidwell K Score 2.5 (weak)</span>
+        <span class="pill hi">xBA .333</span>
+        <span class="pill hi">Fantasy Score 84.9</span>
+        <span class="pill mid">projH 1.14</span>
+        <span class="pill mid">PwrScore 95.4</span>
+        <span class="pill warn">Oracle Park HR factor 0.74 (suppresses HR)</span>
+      </div>
+    </div>
+
+    <!-- ★ Burleson HR -->
+    <div class="play-card s1">
+      <div class="play-header">
+        <span class="stars">★</span>
+        <span class="play-type">HR PROP</span>
+        <span class="play-title">Alec Burleson — HR (vs Painter)</span>
+        <span class="play-line">BARREL SIGNAL</span>
+      </div>
+      <div class="play-desc">PHI@STL · Burleson (STL) faces Andrew Painter (PHI, Neutral Lean 56.0). HR score 65.0, brl/BIP 11.5%, EV50 92, pow_score 75, matchup grade 63. Tags: BARREL SIGNAL + BLASTS. Busch Stadium is moderate for HR. Painter's GB% 40.2% is slightly elevated for an HR pitcher but his fly ball rate still gives Burleson opportunities.</div>
+      <div class="play-signals">
+        <span class="pill hi">HR Score 65.0</span>
+        <span class="pill hi">Matchup Grade 63</span>
+        <span class="pill mid">Brl/BIP 11.5%</span>
+        <span class="pill mid">EV50 92mph</span>
+        <span class="pill mid">Painter Vuln 56.0 Neutral Lean</span>
+        <span class="pill warn">BARREL SIGNAL · BLASTS</span>
+      </div>
+    </div>
+
+    <!-- ★ Taillon Walk -->
+    <div class="play-card s1">
+      <div class="play-header">
+        <span class="stars">★</span>
+        <span class="play-type">WALK PROP</span>
+        <span class="play-title">Jameson Taillon — Walks OVER 1.5</span>
+        <span class="play-line">Walk Threat 58.3</span>
+      </div>
+      <div class="play-desc">BOS@TOR · Taillon (TOR) faces BOS lineup. Walk score 58.3 WALK THREAT, BB% 8.4%. Taillon is also HR-vulnerable (85.9 Attackable) — when he falls behind in counts trying to be fine, walks accumulate. BOS's Contreras (mg=67), Abreu (mg=67) are patient OBP hitters. Dual concern: Taillon both walks batters AND gives up HRs in the same game. Recent 4IP/3BB start backs this up.</div>
+      <div class="play-signals">
+        <span class="pill hi">Walk Threat 58.3</span>
+        <span class="pill mid">BB% 8.4%</span>
+        <span class="pill mid">BOS matchup grade 67</span>
+        <span class="pill warn">Also HR Attackable 85.9 — double exposure</span>
+      </div>
+    </div>
+
+    <!-- ★ Noah Cameron K OVER (K-SURGE) -->
+    <div class="play-card s1">
+      <div class="play-header">
+        <span class="stars">★</span>
+        <span class="play-type">K PROP · K-SURGE</span>
+        <span class="play-title">Noah Cameron — K OVER 5.5 <span class="badge badge-surge">⚡ K-SURGE</span></span>
+        <span class="play-line">Model: push / Recent avg: 8K</span>
+      </div>
+      <div class="play-desc">KC@LAD · Cameron (KC) vs LAD. Model scores 50.9 Manageable (push zone at 5.5), but K-SURGE flag fires: recent starts 9K/7K/8K avg 8K. Same pattern as Gage Jump on 8/8 — model undersells a pitcher in a breakout K-generation phase. The 5.5 line is conservative given recent form. LAD has Ohtani, Freeman who can whiff. Use as a dart/secondary play.</div>
+      <div class="play-signals">
+        <span class="pill surge">⚡ K-SURGE (avg 8K recent vs 5.5 proj)</span>
+        <span class="pill mid">Recent: 9K / 7K / 8K</span>
+        <span class="pill mid">Going deep (8IP recent starts)</span>
+        <span class="pill warn">Base score 50.9 Manageable — use caution</span>
+      </div>
+    </div>
+
+    <!-- ★ MacKenzie Gore K -->
+    <div class="play-card s1">
+      <div class="play-header">
+        <span class="stars">★</span>
+        <span class="play-type">K PROP</span>
+        <span class="play-title">MacKenzie Gore — K OVER 6.0</span>
+        <span class="play-line">LEAN OVER (proj 6.3, edge +0.26)</span>
+      </div>
+      <div class="play-desc">TEX@LAA · Gore (TEX) vs LAA. K Threat 61.2, putaway 21.1%, p/pa 4.03 (+1 bonus), edge +0.26. The concern is inconsistency: recent 4K/9K/5K across 3 starts. The 9K ceiling is there but the 4K floor makes the 6.0 line risky. Use if you like NRFI TEX@LAA — if both pitchers are dealing, Gore will K his way through LAA early.</div>
+      <div class="play-signals">
+        <span class="pill hi">K Threat 61.2</span>
+        <span class="pill mid">Edge +0.26</span>
+        <span class="pill mid">P/PA 4.03 (+1)</span>
+        <span class="pill warn">Recent inconsistent: 4K / 9K / 5K</span>
+      </div>
+    </div>
+
+    <!-- ★ YRFI BOS@TOR -->
+    <div class="play-card s1">
+      <div class="play-header">
+        <span class="stars">★</span>
+        <span class="play-type">YRFI</span>
+        <span class="play-title">YRFI — BOS @ TOR</span>
+        <span class="play-line">LEAN YRFI</span>
+      </div>
+      <div class="play-desc">Taillon (TOR, Walk Threat 58.3, HR Attackable 85.9) vs Gray (BOS, Manageable 49.6). Taillon's walk tendency means BOS can work counts, get on base, and score early. Gray is manageable but not a K-heavy arm — TOR has table-setters. This is the most likely YRFI game on today's 10-game slate.</div>
+      <div class="play-signals">
+        <span class="pill hi">Taillon Walk Threat 58.3</span>
+        <span class="pill hi">Taillon HR Vuln 85.9</span>
+        <span class="pill mid">Gray Manageable 49.6</span>
+        <span class="pill warn">Fewer games today = less YRFI selection</span>
+      </div>
+    </div>
+
+    <!-- ★ Ohtani HR -->
+    <div class="play-card s1">
+      <div class="play-header">
+        <span class="stars">★</span>
+        <span class="play-type">HR PROP</span>
+        <span class="play-title">Shohei Ohtani — HR (vs Cameron)</span>
+        <span class="play-line">HR Score 76.6 / PwrScore 91</span>
+      </div>
+      <div class="play-desc">KC@LAD · Ohtani (LAD) vs Cameron (KC, Neutral Lean 51.5). Ohtani: hr_score 76.6, brl/BIP 16.6%, EV50 93, pow_score 91. Tags: BARREL SIGNAL + AIR PULL. The headwind is Cameron's K-SURGE phase (recent 9K/7K/8K) and a weak matchup grade (42). Ohtani went 0/4 yesterday — bounce-back candidate but Cameron's hot form is a real counter. Moderate dart.</div>
+      <div class="play-signals">
+        <span class="pill hi">HR Score 76.6</span>
+        <span class="pill hi">PwrScore 91</span>
+        <span class="pill mid">Brl/BIP 16.6%</span>
+        <span class="pill mid">EV50 93mph</span>
+        <span class="pill warn">Cameron K-SURGE — recent hot form</span>
+        <span class="pill warn">Matchup Grade 42 (weak)</span>
+      </div>
+    </div>
+
+    <!-- ★ Abreu HR -->
+    <div class="play-card s1">
+      <div class="play-header">
+        <span class="stars">★</span>
+        <span class="play-type">HR PROP</span>
+        <span class="play-title">Wilyer Abreu — HR (vs Taillon)</span>
+        <span class="play-line">HR Score 60.7 / mg 67</span>
+      </div>
+      <div class="play-desc">BOS@TOR · Abreu (BOS) vs Taillon (Attackable 85.9). HR score 60.7, brl/BIP 13.1%, pow_score 69, mg 67. Tags: BARREL SIGNAL + HR EDGE: FC CH. If you're stacking the Taillon-attackable angle, Abreu is the secondary BOS bat alongside Contreras. The Taillon game is the best HR opportunity on today's slate by pitcher vulnerability.</div>
+      <div class="play-signals">
+        <span class="pill hi">Taillon Vuln 85.9 ATTACKABLE</span>
+        <span class="pill hi">Matchup Grade 67</span>
+        <span class="pill mid">Brl/BIP 13.1%</span>
+        <span class="pill mid">HR EDGE: FC CH</span>
+      </div>
+    </div>
+
+    <!-- ★ Coby Mayo HR -->
+    <div class="play-card s1">
+      <div class="play-header">
+        <span class="stars">★</span>
+        <span class="play-type">HR PROP</span>
+        <span class="play-title">Coby Mayo — HR (vs Kremer)</span>
+        <span class="play-line">HR Score 65.4</span>
+      </div>
+      <div class="play-desc">BAL@MIN · Mayo (BAL) vs Kremer (MIN, Neutral Lean 59.1). HR score 65.4, brl/BIP 11.8%, EV50 93, pow_score 62, mg 62. Tags: BARREL SIGNAL + AIR PULL. Third BAL power bat attacking Kremer today after C-Strand and Alonso. BAL's lineup is loading up on Kremer — stack value if you're playing DFS.</div>
+      <div class="play-signals">
+        <span class="pill hi">HR Score 65.4</span>
+        <span class="pill mid">EV50 93mph</span>
+        <span class="pill mid">Brl/BIP 11.8%</span>
+        <span class="pill mid">BARREL SIGNAL · AIR PULL</span>
+      </div>
+    </div>
+
+  </div><!-- /plays-grid -->
+</div>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<!-- RANKED SUMMARY TABLE -->
+<!-- ══════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-title">All Plays — Ranked Summary</div>
+  <div style="overflow-x:auto">
+  <table class="summary-table">
+    <thead>
+      <tr>
+        <th>#</th><th>Stars</th><th>Type</th><th>Play</th><th>Game</th><th>Key Signal</th><th>Line/Note</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td>1</td><td class="s3c">★★★</td><td>K</td><td>Skubal OVER 6.5</td><td>KC@LAD</td><td>K ELITE 87.8 / put 24.4%</td><td class="green">edge +0.26</td></tr>
+      <tr><td>2</td><td class="s3c">★★★</td><td>K</td><td>Henderson OVER 7.0</td><td>MIL@SD</td><td>K ELITE 82.8 / 8K-7K-9K</td><td class="green">edge +0.19</td></tr>
+      <tr><td>3</td><td class="s3c">★★★</td><td>HR</td><td>Contreras HR</td><td>BOS@TOR</td><td>Taillon 85.9 Atk / brl 14.5% mg67</td><td class="gold">BARREL</td></tr>
+      <tr><td>4</td><td class="s2c">★★</td><td>K</td><td>Detmers OVER 6.5</td><td>TEX@LAA</td><td>K Threat 71.1 / p/pa 4.48</td><td class="green">edge +0.17</td></tr>
+      <tr><td>5</td><td class="s2c">★★</td><td>HR</td><td>C-Strand HR</td><td>BAL@MIN</td><td>Kremer 59.1 NL / brl 22.5% EV94</td><td class="gold">BARREL</td></tr>
+      <tr><td>6</td><td class="s2c">★★</td><td>K</td><td>Scott OVER 6.5</td><td>NYM@ATL</td><td>K Threat 63.1 / 7K-7K-6K</td><td class="green">edge +0.18</td></tr>
+      <tr><td>7</td><td class="s2c">★★</td><td>NRFI</td><td>NRFI MIL@SD</td><td>MIL@SD</td><td>Henderson ELITE + Mize Threat + Petco</td><td class="teal">★★</td></tr>
+      <tr><td>8</td><td class="s2c">★★</td><td>Walk</td><td>Lopez Walk O1.5</td><td>TB@ATH</td><td>Walk Threat 66.6 / BB% 12.5%</td><td class="teal">WALK THREAT</td></tr>
+      <tr><td>9</td><td class="s2c">★★</td><td>HR</td><td>Pete Alonso HR</td><td>BAL@MIN</td><td>Kremer 59.1 NL / EV94 brl 13.3%</td><td class="gold">BARREL</td></tr>
+      <tr><td>10</td><td class="s2c">★★</td><td>NRFI</td><td>NRFI TEX@LAA</td><td>TEX@LAA</td><td>Detmers 71.1 + Gore 61.2</td><td class="teal">★★</td></tr>
+      <tr><td>11</td><td class="s1c">★</td><td>Hit</td><td>Alvarez Hit O0.5 / HR</td><td>HOU@SF</td><td>Tidwell K score 2.5 / xBA .333</td><td class="green">projH 1.14</td></tr>
+      <tr><td>12</td><td class="s1c">★</td><td>HR</td><td>Burleson HR</td><td>PHI@STL</td><td>Painter 56.0 NL / brl 11.5% mg63</td><td class="gold">BARREL</td></tr>
+      <tr><td>13</td><td class="s1c">★</td><td>Walk</td><td>Taillon Walk O1.5</td><td>BOS@TOR</td><td>Walk Threat 58.3 / BB% 8.4%</td><td class="teal">WALK THREAT</td></tr>
+      <tr><td>14</td><td class="s1c">★</td><td>K</td><td>Cameron OVER 5.5 ⚡</td><td>KC@LAD</td><td>K-SURGE: 9K/7K/8K recent</td><td class="purple">SURGE PLAY</td></tr>
+      <tr><td>15</td><td class="s1c">★</td><td>K</td><td>Gore OVER 6.0</td><td>TEX@LAA</td><td>K Threat 61.2 / edge +0.26</td><td class="green">inconsistent</td></tr>
+      <tr><td>16</td><td class="s1c">★</td><td>YRFI</td><td>YRFI BOS@TOR</td><td>BOS@TOR</td><td>Taillon walk+HR risk / Gray mgbl</td><td class="orange">YRFI</td></tr>
+      <tr><td>17</td><td class="s1c">★</td><td>HR</td><td>Ohtani HR</td><td>KC@LAD</td><td>hr 76.6 pow 91 / Cameron K-SURGE</td><td class="orange">mg 42</td></tr>
+      <tr><td>18</td><td class="s1c">★</td><td>HR</td><td>Abreu HR</td><td>BOS@TOR</td><td>Taillon 85.9 Atk / brl 13.1% mg67</td><td class="gold">stack w/ Contreras</td></tr>
+      <tr><td>19</td><td class="s1c">★</td><td>HR</td><td>Coby Mayo HR</td><td>BAL@MIN</td><td>Kremer 59.1 NL / brl 11.8% EV93</td><td class="gold">BAL stack</td></tr>
+    </tbody>
+  </table>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<!-- K BOARD -->
+<!-- ══════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-title">K Board — All Pitchers (8/10)</div>
+  <div style="overflow-x:auto">
+  <table class="board-table">
+    <thead>
+      <tr>
+        <th>PITCHER</th><th>GAME</th><th>K SCR</th><th>TIER</th>
+        <th>K%</th><th>Whiff/Sw</th><th>Putaway</th><th>P/PA</th><th>BB%</th>
+        <th>PROJ</th><th>LINE</th><th>EDGE</th><th>OPP K%</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td>Tarik Skubal</td><td>KC@LAD</td><td class="tier-elite">87.8</td><td class="tier-elite">★ K ELITE</td><td>30.7%</td><td>33.3%</td><td>24.4%</td><td>3.49</td><td>4.0%</td><td>6.8</td><td>6.5</td><td class="green">+0.26</td><td>21.0%</td></tr>
+      <tr><td>Logan Henderson</td><td>MIL@SD</td><td class="tier-elite">82.8</td><td class="tier-elite">★ K ELITE</td><td>32.3%</td><td>32.1%</td><td>23.9%</td><td>4.01</td><td>5.2%</td><td>7.2</td><td>7.0</td><td class="green">+0.19</td><td>20.5%</td></tr>
+      <tr><td>Reid Detmers</td><td>TEX@LAA</td><td class="tier-threat">71.1</td><td class="tier-threat">◎ K Threat</td><td>28.3%</td><td>30.5%</td><td>20.3%</td><td>4.48</td><td>7.4%</td><td>6.7</td><td>6.5</td><td class="green">+0.17</td><td>22.1%</td></tr>
+      <tr><td>Casey Mize</td><td>MIL@SD</td><td class="tier-threat">64.2</td><td class="tier-threat">◎ K Threat</td><td>23.7%</td><td>27.4%</td><td>20.5%</td><td>4.06</td><td>6.1%</td><td>4.4</td><td>4.0</td><td class="green">+0.35</td><td>22.0%</td></tr>
+      <tr><td>Christian Scott</td><td>NYM@ATL</td><td class="tier-threat">63.1</td><td class="tier-threat">◎ K Threat</td><td>28.8%</td><td>29.3%</td><td>21.3%</td><td>4.34</td><td>10.0%</td><td>6.7</td><td>6.5</td><td class="green">+0.18</td><td>21.5%</td></tr>
+      <tr><td>MacKenzie Gore</td><td>TEX@LAA</td><td class="tier-threat">61.2</td><td class="tier-threat">◎ K Threat</td><td>25.6%</td><td>28.9%</td><td>21.1%</td><td>4.03</td><td>8.6%</td><td>6.3</td><td>6.0</td><td class="green">+0.26</td><td>20.8%</td></tr>
+      <tr><td>Freddy Peralta</td><td>TB@ATH</td><td>53.0</td><td>○ Manageable</td><td>21.8%</td><td>26.4%</td><td>17.3%</td><td>4.17</td><td>9.2%</td><td>4.0</td><td>4.0</td><td>0.00</td><td>21.2%</td></tr>
+      <tr><td>Dean Kremer</td><td>BAL@MIN</td><td>52.1</td><td>○ Manageable</td><td>23.3%</td><td>24.8%</td><td>17.2%</td><td>3.79</td><td>7.6%</td><td>5.3</td><td>5.0</td><td class="green">+0.28</td><td>22.4%</td></tr>
+      <tr><td>Michael Soroka</td><td>COL@AZ</td><td>51.1</td><td>○ Manageable</td><td>—</td><td>23.5%</td><td>20.0%</td><td>3.38</td><td>5.1%</td><td>5.8</td><td>5.5</td><td class="green">+0.26</td><td>22.0%</td></tr>
+      <tr><td>Jameson Taillon</td><td>BOS@TOR</td><td>51.0</td><td>○ Manageable</td><td>—</td><td>24.1%</td><td>18.5%</td><td>3.79</td><td>8.4%</td><td>4.0</td><td>3.5</td><td class="green">+0.47</td><td>21.0%</td></tr>
+      <tr style="background:#1a1428"><td>Noah Cameron ⚡</td><td>KC@LAD</td><td class="purple">50.9</td><td class="purple">○ SURGE</td><td>—</td><td>22.8%</td><td>17.9%</td><td>3.85</td><td>7.6%</td><td>5.5</td><td>5.5</td><td>+0.05</td><td>23.0%</td></tr>
+      <tr><td>Sonny Gray</td><td>BOS@TOR</td><td>49.6</td><td>○ Manageable</td><td>—</td><td>24.8%</td><td>19.9%</td><td>3.37</td><td>6.6%</td><td>5.3</td><td>5.0</td><td class="green">+0.27</td><td>20.2%</td></tr>
+      <tr><td>Hunter Dobbins</td><td>PHI@STL</td><td>44.6</td><td>○ Manageable</td><td>—</td><td>22.7%</td><td>19.3%</td><td>3.55</td><td>8.3%</td><td>5.3</td><td>5.0</td><td class="green">+0.33</td><td>22.5%</td></tr>
+      <tr><td>Bryce Elder</td><td>NYM@ATL</td><td>42.8</td><td>○ Manageable</td><td>—</td><td>21.5%</td><td>21.2%</td><td>3.84</td><td>7.9%</td><td>5.6</td><td>5.5</td><td class="green">+0.10</td><td>22.8%</td></tr>
+      <tr style="background:#1a1428"><td>Jacob Lopez ⚡</td><td>TB@ATH</td><td class="purple">41.5</td><td class="purple">○ SURGE</td><td>—</td><td>22.3%</td><td>16.5%</td><td>4.32</td><td>12.5%</td><td>5.0</td><td>4.5</td><td class="green">+0.49</td><td>20.5%</td></tr>
+      <tr style="background:#1a1428"><td>Trevor Rogers ⚡</td><td>BAL@MIN</td><td class="purple">41.2</td><td class="purple">○ SURGE</td><td>—</td><td>21.8%</td><td>15.2%</td><td>3.72</td><td>6.6%</td><td>5.0</td><td>5.0</td><td>+0.02</td><td>22.0%</td></tr>
+      <tr><td>Gabriel Hughes</td><td>COL@AZ</td><td>39.7</td><td>○ Manageable</td><td>—</td><td>20.4%</td><td>18.7%</td><td>3.72</td><td>7.4%</td><td>5.1</td><td>5.0</td><td class="green">+0.15</td><td>21.5%</td></tr>
+      <tr><td>Andrew Painter</td><td>PHI@STL</td><td>36.9</td><td>○ Manageable</td><td>—</td><td>19.6%</td><td>16.1%</td><td>3.76</td><td>8.3%</td><td>4.0</td><td>3.5</td><td class="green">+0.46</td><td>21.2%</td></tr>
+      <tr><td>Blade Tidwell</td><td>HOU@SF</td><td class="red">2.5</td><td class="red">○ Mgbl (weak)</td><td>—</td><td>12.1%</td><td>15.1%</td><td>3.98</td><td>5.8%</td><td>4.4</td><td>4.0</td><td class="green">+0.40</td><td>22.0%</td></tr>
+      <tr><td class="tier-sparse">Hayden Wesneski</td><td>HOU@SF</td><td class="tier-sparse">0.0</td><td class="tier-sparse">⚠ DATA SPARSE</td><td>—</td><td>—</td><td>24.5%</td><td>3.28</td><td>8.3%</td><td>5.6</td><td>5.5</td><td>+0.11</td><td>—</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <div style="margin-top:6px;" class="note">⚡ K-SURGE: recent avg K/start ≥1.35× model projection. Cameron avg 8K/start vs proj 5.5. Lopez avg 7K vs 5.0. Rogers avg 7K vs 5.0.</div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<!-- WALK BOARD -->
+<!-- ══════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-title">Walk Board — All Pitchers (8/10)</div>
+  <div style="overflow-x:auto">
+  <table class="board-table">
+    <thead>
+      <tr><th>PITCHER</th><th>GAME</th><th>Walk Score</th><th>TIER</th><th>BB%</th><th>Note</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Jacob Lopez</td><td>TB@ATH</td><td class="tier-atk">66.6</td><td class="tier-atk">WALK THREAT</td><td class="red">12.5%</td><td>Top walk play — 12.5% BB is elite-bad; also K-SURGE active</td></tr>
+      <tr><td>Jameson Taillon</td><td>BOS@TOR</td><td class="tier-nl">58.3</td><td class="tier-nl">WALK THREAT</td><td class="orange">8.4%</td><td>Also HR-Attackable. BOS lineup patient (Contreras, Abreu mg=67)</td></tr>
+      <tr><td>Dean Kremer</td><td>BAL@MIN</td><td class="tier-nl">53.5</td><td class="tier-nl">WALK THREAT</td><td class="orange">7.6%</td><td>BAL power lineup adds pressure; see also HR plays vs Kremer</td></tr>
+      <tr><td>Christian Scott</td><td>NYM@ATL</td><td class="tier-nl">53.3</td><td class="tier-nl">WALK THREAT</td><td class="orange">10.0%</td><td>Walk and K threat in same arm — deep-count volatility</td></tr>
+      <tr><td>Freddy Peralta</td><td>TB@ATH</td><td>51.7</td><td>NEUTRAL</td><td>9.2%</td><td>Not enough to recommend; keep watch</td></tr>
+      <tr><td>Hayden Wesneski</td><td>HOU@SF</td><td>50.8</td><td>NEUTRAL</td><td>8.3%</td><td>Data sparse on K side; walk side neutral</td></tr>
+      <tr><td>MacKenzie Gore</td><td>TEX@LAA</td><td>46.4</td><td>NEUTRAL</td><td>8.6%</td><td>Walk-neutral despite K Threat status</td></tr>
+      <tr><td>Skubal</td><td>KC@LAD</td><td>16.5</td><td>NEUTRAL</td><td class="green">4.0%</td><td>Command elite — fade walk props vs Skubal</td></tr>
+    </tbody>
+  </table>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<!-- HR ATTACK BOARD -->
+<!-- ══════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-title">HR Attack Board — Pitchers (8/10)</div>
+  <div style="overflow-x:auto">
+  <table class="board-table">
+    <thead>
+      <tr><th>PITCHER</th><th>GAME</th><th>Vuln Score</th><th>TIER</th><th>GB%</th><th>Top Batter Plays</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Jameson Taillon</td><td>BOS@TOR</td>
+        <td class="tier-atk">85.9</td><td class="tier-atk">ATTACKABLE</td>
+        <td class="green">33.7%</td>
+        <td>Contreras (hr=68.4, brl=14.5%) / Abreu (hr=60.7, brl=13.1%) / Monasterio (hr=56.4)</td>
+      </tr>
+      <tr>
+        <td>Dean Kremer</td><td>BAL@MIN</td>
+        <td class="tier-nl">59.1</td><td class="tier-nl">Neutral Lean</td>
+        <td class="green">36.1%</td>
+        <td>C-Strand (hr=74.2, brl=22.5%) / Alonso (hr=63.9, brl=13.3%) / Mayo (hr=65.4, brl=11.8%)</td>
+      </tr>
+      <tr>
+        <td>Andrew Painter</td><td>PHI@STL</td>
+        <td class="tier-nl">56.0</td><td class="tier-nl">Neutral Lean</td>
+        <td>40.2%</td>
+        <td>Burleson (hr=65.0, brl=11.5%) / Walker (hr=61.6, brl=13.2%) / Pereira (hr=62.9)</td>
+      </tr>
+      <tr>
+        <td>Noah Cameron</td><td>KC@LAD</td>
+        <td class="tier-nl">51.5</td><td class="tier-nl">Neutral Lean</td>
+        <td>39.7%</td>
+        <td>Ohtani (hr=76.6, brl=16.6%) / Muncy (hr=70.6, brl=13.5%) / Freeman (hr=52.0)</td>
+      </tr>
+      <tr>
+        <td>Michael Soroka</td><td>COL@AZ</td>
+        <td class="tier-nl">49.2</td><td class="tier-nl">Neutral Lean</td>
+        <td>38.8%</td>
+        <td>Goodman (hr=71.4, brl=16.3%) / Moniak (hr=63.2, brl=11.4%) — but mg=34 (weak)</td>
+      </tr>
+      <tr>
+        <td>MacKenzie Gore</td><td>TEX@LAA</td>
+        <td>43.9</td><td>Avoid</td>
+        <td>38.7%</td>
+        <td>—</td>
+      </tr>
+      <tr>
+        <td>Reid Detmers</td><td>TEX@LAA</td>
+        <td>43.6</td><td>Avoid</td>
+        <td>35.7%</td>
+        <td>—</td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<!-- FANTASY TOP 15 -->
+<!-- ══════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-title">Fantasy Scores — Top 15 (8/10)</div>
+  <div style="overflow-x:auto">
+  <table class="board-table">
+    <thead>
+      <tr><th>BATTER</th><th>TEAM</th><th>OPP PITCHER</th><th>fs</th><th>pow</th><th>mg</th><th>projDK</th><th>projH</th><th>xBA</th></tr>
+    </thead>
+    <tbody>
+      <tr><td class="gold">Yordan Alvarez</td><td>HOU</td><td>Tidwell (2.5)</td><td class="gold">84.9</td><td class="green">95.4</td><td>56</td><td>10.5</td><td>1.14</td><td>.333</td></tr>
+      <tr><td>Shohei Ohtani</td><td>LAD</td><td>Cameron (50.9⚡)</td><td>71.4</td><td class="green">91.3</td><td>42</td><td>10.0</td><td>1.01</td><td>.297</td></tr>
+      <tr><td>Alec Burleson</td><td>STL</td><td>Painter (56.0 NL)</td><td>66.5</td><td>74.9</td><td class="green">63</td><td>8.9</td><td>1.01</td><td>.295</td></tr>
+      <tr><td>Willson Contreras</td><td>BOS</td><td>Taillon (85.9 ATK)</td><td>64.2</td><td>76.7</td><td class="green">67</td><td>9.0</td><td>0.92</td><td>.266</td></tr>
+      <tr><td class="orange">Junior Caminero</td><td>TB</td><td>Lopez (41.5⚡ WALK)</td><td>62.3</td><td>79.8</td><td>42</td><td>11.0</td><td>1.12</td><td>.276</td></tr>
+      <tr><td>Drake Baldwin</td><td>ATL</td><td>Scott (63.1)</td><td>62.1</td><td>77.1</td><td>43</td><td>8.9</td><td>0.96</td><td>.282</td></tr>
+      <tr><td>Bryce Harper</td><td>PHI</td><td>Dobbins (44.6)</td><td>61.3</td><td>71.1</td><td>51</td><td>9.0</td><td>0.91</td><td>.276</td></tr>
+      <tr><td>Freddie Freeman</td><td>LAD</td><td>Cameron (50.9⚡)</td><td>61.2</td><td>59.7</td><td>42</td><td>8.8</td><td>1.05</td><td>.300</td></tr>
+      <tr><td>Pete Alonso</td><td>BAL</td><td>Kremer (59.1 NL)</td><td>61.1</td><td class="green">80.6</td><td class="green">62</td><td>8.8</td><td>0.93</td><td>.273</td></tr>
+      <tr><td>Bobby Witt Jr.</td><td>KC</td><td>Skubal (87.8 ELITE)</td><td>60.9</td><td>74.1</td><td class="red">26</td><td>9.6</td><td>1.09</td><td>.307</td></tr>
+      <tr><td>C. Encarnacion-Strand</td><td>BAL</td><td>Kremer (59.1 NL)</td><td>60.7</td><td class="green">85.3</td><td class="green">62</td><td>9.2</td><td>0.93</td><td>.267</td></tr>
+      <tr><td>Osleivis Basabe</td><td>SF</td><td>Wesneski (sparse)</td><td>60.3</td><td>74.0</td><td class="green">60</td><td>8.6</td><td>1.04</td><td>.292</td></tr>
+      <tr><td>Wilyer Abreu</td><td>BOS</td><td>Taillon (85.9 ATK)</td><td>59.4</td><td>68.7</td><td class="green">67</td><td>8.9</td><td>0.91</td><td>.260</td></tr>
+      <tr><td>Mike Trout</td><td>LAA</td><td>Gore (61.2)</td><td>59.1</td><td class="green">81.4</td><td>45</td><td>9.2</td><td>0.82</td><td>.256</td></tr>
+      <tr><td>Jake Bauers</td><td>MIL</td><td>Mize (64.2)</td><td>59.1</td><td>75.0</td><td class="green">62</td><td>8.0</td><td>0.84</td><td>.258</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <div style="margin-top:6px;" class="note">mg = matchup grade (0-100). Green = ≥60. Contreras (mg=67 vs Taillon 85.9) is the standout value play today.</div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<!-- NRFI/YRFI GRID -->
+<!-- ══════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-title">NRFI / YRFI Grid (8/10 — 10 Games)</div>
+  <div class="game-grid">
+
+    <div class="game-card">
+      <h4>MIL @ SD</h4>
+      <div class="pitcher-row"><span class="pitcher-name">Henderson (MIL)</span><span class="pitcher-score tier-elite">K ELITE 82.8</span></div>
+      <div class="pitcher-row"><span class="pitcher-name">Mize (SD)</span><span class="pitcher-score tier-threat">K Threat 64.2</span></div>
+      <span class="nrfi-tag nrfi-yes">★★ NRFI — Petco + 2 strong arms</span>
+    </div>
+
+    <div class="game-card">
+      <h4>TEX @ LAA</h4>
+      <div class="pitcher-row"><span class="pitcher-name">Detmers (LAA)</span><span class="pitcher-score tier-threat">K Threat 71.1</span></div>
+      <div class="pitcher-row"><span class="pitcher-name">Gore (TEX)</span><span class="pitcher-score tier-threat">K Threat 61.2</span></div>
+      <span class="nrfi-tag nrfi-yes">★★ NRFI — dual K Threat, deep counts</span>
+    </div>
+
+    <div class="game-card">
+      <h4>KC @ LAD</h4>
+      <div class="pitcher-row"><span class="pitcher-name">Skubal (LAD)</span><span class="pitcher-score tier-elite">K ELITE 87.8</span></div>
+      <div class="pitcher-row"><span class="pitcher-name">Cameron (KC)</span><span class="pitcher-score purple">SURGE 50.9⚡</span></div>
+      <span class="nrfi-tag nrfi-lean">★ LEAN NRFI — Skubal elite but Cameron volatile</span>
+    </div>
+
+    <div class="game-card">
+      <h4>BOS @ TOR</h4>
+      <div class="pitcher-row"><span class="pitcher-name">Gray (BOS)</span><span class="pitcher-score">Mgbl 49.6</span></div>
+      <div class="pitcher-row"><span class="pitcher-name">Taillon (TOR)</span><span class="pitcher-score tier-nl">Walk Threat 58.3</span></div>
+      <span class="nrfi-tag nrfi-skip">★ LEAN YRFI — Taillon walks, BOS patient lineup</span>
+    </div>
+
+    <div class="game-card">
+      <h4>NYM @ ATL</h4>
+      <div class="pitcher-row"><span class="pitcher-name">Scott (NYM)</span><span class="pitcher-score tier-threat">K Threat 63.1</span></div>
+      <div class="pitcher-row"><span class="pitcher-name">Elder (ATL)</span><span class="pitcher-score">Mgbl 42.8</span></div>
+      <span class="nrfi-tag nrfi-lean">LEAN NRFI — Scott strong, Elder inconsistent</span>
+    </div>
+
+    <div class="game-card">
+      <h4>TB @ ATH</h4>
+      <div class="pitcher-row"><span class="pitcher-name">Peralta (TB)</span><span class="pitcher-score">Mgbl 53.0</span></div>
+      <div class="pitcher-row"><span class="pitcher-name">Lopez (ATH)</span><span class="pitcher-score purple">SURGE 41.5⚡</span></div>
+      <span class="nrfi-tag nrfi-skip">SKIP — Lopez volatile (walk+surge), Peralta inconsistent</span>
+    </div>
+
+    <div class="game-card">
+      <h4>BAL @ MIN</h4>
+      <div class="pitcher-row"><span class="pitcher-name">Rogers (BAL)</span><span class="pitcher-score purple">SURGE 41.2⚡</span></div>
+      <div class="pitcher-row"><span class="pitcher-name">Kremer (MIN)</span><span class="pitcher-score">Mgbl 52.1</span></div>
+      <span class="nrfi-tag nrfi-skip">SKIP — BAL power bats attack Kremer; YRFI lean</span>
+    </div>
+
+    <div class="game-card">
+      <h4>PHI @ STL</h4>
+      <div class="pitcher-row"><span class="pitcher-name">Painter (PHI)</span><span class="pitcher-score">Mgbl 36.9</span></div>
+      <div class="pitcher-row"><span class="pitcher-name">Dobbins (STL)</span><span class="pitcher-score">Mgbl 44.6</span></div>
+      <span class="nrfi-tag nrfi-skip">SKIP — both manageable arms, no strong directional signal</span>
+    </div>
+
+    <div class="game-card">
+      <h4>COL @ AZ</h4>
+      <div class="pitcher-row"><span class="pitcher-name">Hughes (COL)</span><span class="pitcher-score">Mgbl 39.7</span></div>
+      <div class="pitcher-row"><span class="pitcher-name">Soroka (AZ)</span><span class="pitcher-score">Mgbl 51.1</span></div>
+      <span class="nrfi-tag nrfi-skip">SKIP — COL lineup can be explosive, Soroka limited data</span>
+    </div>
+
+    <div class="game-card">
+      <h4>HOU @ SF</h4>
+      <div class="pitcher-row"><span class="pitcher-name">Wesneski (HOU)</span><span class="pitcher-score tier-sparse">DATA SPARSE</span></div>
+      <div class="pitcher-row"><span class="pitcher-name">Tidwell (SF)</span><span class="pitcher-score red">2.5 Weak</span></div>
+      <span class="nrfi-tag nrfi-skip">SKIP — Tidwell K score 2.5; Wesneski unknown. Alvarez hits here.</span>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════ -->
+<!-- FADES -->
+<!-- ══════════════════════════════════════════════════════ -->
+<div class="section">
+  <div class="section-title">Fades &amp; Avoids</div>
+  <div style="overflow-x:auto">
+  <table class="summary-table">
+    <thead><tr><th>Fade</th><th>Reason</th></tr></thead>
+    <tbody>
+      <tr><td class="red">Freddy Peralta K OVER</td><td>Score 53.0, putaway 17.3% (below avg), recent 3K/3K/6K — high variance, skip</td></tr>
+      <tr><td class="red">Bryce Elder K OVER</td><td>Score 42.8, recent 3K/3K/8K — massive inconsistency, not reliable at any line</td></tr>
+      <tr><td class="red">Hayden Wesneski K</td><td>DATA SPARSE — no Savant profile, avoid all K/walk props</td></tr>
+      <tr><td class="red">Blade Tidwell K</td><td>Score 2.5, putaway 15.1%, poor whiff metrics. Fade K, take batters hitting off him</td></tr>
+      <tr><td class="red">COL hitters HR vs Hughes/Soroka</td><td>mg=34 — weak matchup grade despite individual batter power. Chase Field helps COL but signal is weak</td></tr>
+      <tr><td class="red">Bobby Witt Jr. fantasy vs Skubal</td><td>fs=60.9 but mg=26 — Skubal K ELITE means Witt's ceiling is suppressed. 1-2 Ks likely for Witt.</td></tr>
+      <tr><td class="red">YRFI TOR@PHI-style traps</td><td>Yesterday's reminder: K ELITE starters (Luzardo) prevent 1st-inning scoring even in high-total games</td></tr>
+    </tbody>
+  </table>
+  </div>
+</div>
+
+<!-- Footer -->
+<div style="padding: 20px 28px; color: var(--muted); font-size: 10px; border-top: 1px solid var(--border); margin-top: 16px;">
+  PropStats // Generated 8/9/2026 — K · Walk · HR · Fantasy engines — Branch: claude/baseball-analysis-engine-BHnOA
+</div>
+
+</body>
+</html>

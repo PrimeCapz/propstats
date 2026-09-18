@@ -1,0 +1,588 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>HR Props Board — August 5, 2026</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{
+  background:#090D14;color:#DDE6F0;
+  font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",Arial,sans-serif;
+  -webkit-font-smoothing:antialiased;min-height:100vh;
+}
+
+/* ── Page header ── */
+.page-hdr{padding:20px 20px 0;max-width:960px;margin:0 auto}
+.page-eyebrow{font-size:10px;font-weight:700;letter-spacing:.18em;
+  text-transform:uppercase;color:#3B5270;margin-bottom:6px}
+.page-title{font-size:clamp(20px,4vw,26px);font-weight:800;color:#DDE6F0;
+  letter-spacing:-.01em;line-height:1.1}
+.page-sub{margin-top:4px;font-size:12px;color:#3B5270}
+
+/* ── Legend ── */
+.legend{display:flex;flex-wrap:wrap;gap:12px;padding:14px 20px;
+  max-width:960px;margin:0 auto;border-bottom:1px solid #1A2A3E}
+.legend-item{display:flex;align-items:center;gap:5px;font-size:10px;color:#3B5270}
+.legend-stripe{width:3px;height:14px;border-radius:2px}
+.legend-label{font-weight:600}
+
+/* ── Board ── */
+.board{max-width:960px;margin:0 auto;padding:0 0 40px}
+
+/* ── Game header ── */
+.game-hdr{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:8px 20px;background:#060910;
+  border-top:1px solid #1A2A3E;border-bottom:1px solid #1A2A3E;margin-top:16px
+}
+.game-hdr:first-child{margin-top:0}
+.game-hdr-left{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.game-teams{font-size:13px;font-weight:800;color:#DDE6F0;letter-spacing:.02em}
+.at{color:#3B5270;font-weight:400}
+.hdr-dot{color:#1A2A3E}
+.game-venue{font-size:11px;color:#3B5270}
+.pitcher-tag{font-size:10px;font-weight:600;letter-spacing:.04em}
+.park-pill{
+  font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+  padding:2px 7px;border:1px solid;border-radius:999px
+}
+
+/* ── Player row ── */
+.player-row{position:relative;display:flex;border-bottom:1px solid #0F1925}
+.stripe{width:3px;flex-shrink:0}
+.row-inner{flex:1;padding:10px 16px 10px 12px;min-width:0}
+.row-top{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.name-area{display:flex;align-items:center;gap:7px;flex-wrap:wrap;min-width:0}
+.pname{font-size:14px;font-weight:700;color:#DDE6F0;white-space:nowrap}
+.bats-badge{font-size:9px;font-weight:700;letter-spacing:.06em;
+  padding:2px 6px;border-radius:3px}
+.badge-lhb{background:rgba(14,165,233,.15);color:#0EA5E9;border:1px solid rgba(14,165,233,.3)}
+.badge-rhb{background:rgba(168,85,247,.15);color:#A855F7;border:1px solid rgba(168,85,247,.3)}
+.hr-pill{font-size:10px;font-weight:700;color:#3B5270;letter-spacing:.04em}
+.row-right{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.team-tag{font-size:11px;font-weight:600;color:#3B5270}
+.grade-badge{font-size:11px;font-weight:800;padding:2px 8px;border-radius:4px}
+.prob-block{display:flex;align-items:baseline;gap:2px}
+.prob-pct{font-size:17px;font-weight:800;color:#DDE6F0;font-variant-numeric:tabular-nums}
+.prob-odds{font-size:11px;color:#3B5270;font-variant-numeric:tabular-nums}
+
+/* ── Metrics row ── */
+.metrics-row{
+  display:flex;flex-wrap:wrap;gap:6px;margin-top:6px
+}
+.metric-pill{
+  font-size:10px;font-weight:500;
+  background:rgba(255,255,255,.03);
+  border:1px solid rgba(255,255,255,.07);
+  border-radius:4px;padding:2px 7px;
+  font-variant-numeric:tabular-nums;
+}
+.metric-pill b{font-weight:700}
+
+/* ── Tags row ── */
+.tags-row{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
+.tag{font-size:9px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;
+  padding:2px 7px;border-radius:4px}
+
+/* ── Outlier rows ── */
+.outlier-prime .pname{color:#F5C842}
+.outlier-prime .prob-pct{color:#F5C842}
+.outlier-strong .pname{color:#93C5FD}
+
+/* ── Footer note ── */
+.foot{max-width:960px;margin:0 auto;padding:0 20px 24px;
+  font-size:10px;color:#1E3050;line-height:1.6}
+</style>
+</head>
+<body>
+<div class="page-hdr">
+  <div class="page-eyebrow">Baseball Analytics · HR Props</div>
+  <div class="page-title">HR Props Board — August 5, 2026</div>
+  <div class="page-sub">Weighted Score = HR% × 0.55 + (Matchup/100) × 45 · Avoid pitcher = ×0.72 penalty · Eff HR% adjusts for park + Avoid · Brl/PA from Statcast · EV50 = 50th pct exit velocity</div>
+</div>
+
+<div class="legend">
+  <div class="legend-item">
+    <div class="legend-stripe" style="background:#D4A017"></div>
+    <span class="legend-label">PRIME OUTLIER</span><span>wt ≥ 50</span>
+  </div>
+  <div class="legend-item">
+    <div class="legend-stripe" style="background:#2563EB"></div>
+    <span class="legend-label">STRONG</span><span>wt ≥ 43</span>
+  </div>
+  <div class="legend-item" style="margin-left:8px;color:#D4A017;font-weight:700;font-size:10px">
+    IDEAL SETUP ✦
+    <span style="font-weight:400;color:#3B5270">= Park ≥×1.15 + Non-Avoid pitcher (4/6 HRs over 2 days)</span>
+  </div>
+  <div class="legend-item">
+    <span style="color:#F59E0B;font-weight:700;font-size:10px">PERSISTENT DUE</span>
+    <span>= 2+ near-miss games in last 3 (air contact, no HR)</span>
+  </div>
+  <div class="legend-item">
+    <span style="color:#6B7280;font-weight:700;font-size:10px">AVOID PENALTY</span>
+    <span>= wt × 0.72 when pitcher tier = Avoid (83% clean-miss rate)</span>
+  </div>
+  <div class="legend-item">
+    <span style="color:#D4A017;font-weight:700;font-size:10px">Brl/PA ≥ 17%</span>
+    <span>= Elite barrel rate (per PA, not per BIP)</span>
+  </div>
+  <div class="legend-item">
+    <span style="color:#F97316;font-weight:700;font-size:10px">EV50 ≥ 105</span>
+    <span>= Power floor elite</span>
+  </div>
+  <div class="legend-item">
+    <span style="color:#EF4444;font-weight:700;font-size:10px">K-RATE RISK</span>
+    <span>= High Brl/BIP but low Brl/PA → heavy strikeouts</span>
+  </div>
+</div>
+
+<div class="board"><div class="game-hdr">
+  <div class="game-hdr-left">
+    <span class="game-teams">TOR <span class="at">@</span> HOU</span>
+    <span class="hdr-dot">·</span>
+    <span class="game-venue">Daikin Park</span>
+    <span class="pitcher-tag" style="color:#84CC16">vs Jameson Taillon · Attackable</span>
+  </div>
+  <div class="game-hdr-right"></div>
+</div><div class="player-row outlier-prime">
+  <div class="stripe" style="background:#D4A017"></div>
+  <div class="row-inner">
+    <div class="row-top">
+      <div class="name-area">
+        <span class="pname">Yordan Alvarez</span>
+        <span class="bats-badge badge-lhb">LHB</span>
+        <span class="hr-pill">◉ HR</span>
+      </div>
+      <div class="row-right">
+        <span class="team-tag">HOU</span>
+        <span class="grade-badge" style="background:#16A34A;color:#22C55E">A+</span>
+        <span class="prob-block"><span class="prob-pct">42.8%</span><span class="prob-odds"> (+133)</span></span>
+      </div>
+    </div>
+    <div class="metrics-row"><span class="metric-pill" style="color:#DDE6F0;">Brl/PA <b>18.0%</b></span><span class="metric-pill" style="color:#DDE6F0;">EV50 <b>105.3</b></span><span class="metric-pill" style="color:#DDE6F0;">HH% <b>53.7%</b></span></div>
+    <div class="tags-row"><span class="tag" style="background:rgba(245,158,11,0.13);color:#F59E0B;border:1px solid rgba(245,158,11,0.3)">PERSISTENT DUE</span><span class="tag" style="background:rgba(168,85,247,0.13);color:#A855F7;border:1px solid rgba(168,85,247,0.3)">ELITE BARREL%</span><span class="tag" style="background:rgba(56,189,248,0.13);color:#38BDF8;border:1px solid rgba(56,189,248,0.3)">BLASTS 47%+</span><span class="tag" style="background:rgba(249,115,22,0.13);color:#F97316;border:1px solid rgba(249,115,22,0.3)">EV50 ELITE</span><span class="tag" style="background:rgba(6,182,212,0.13);color:#06B6D4;border:1px solid rgba(6,182,212,0.3)">PITCH EDGE · CU/FC</span><span class="tag" style="background:rgba(16,185,129,0.13);color:#10B981;border:1px solid rgba(16,185,129,0.3)">ELITE xwOBA</span><span class="tag" style="background:rgba(251,191,36,0.13);color:#FBBF24;border:1px solid rgba(251,191,36,0.3)">MOONSHOT POWER</span><span class="tag" style="background:rgba(239,68,68,0.13);color:#EF4444;border:1px solid rgba(239,68,68,0.3)">HOT STREAK</span><span class="tag" style="background:rgba(132,204,22,0.13);color:#84CC16;border:1px solid rgba(132,204,22,0.3)">SOFT MARKET POWER</span><span class="tag" style="background:rgba(212,160,23,0.13);color:#D4A017;border:1px solid rgba(212,160,23,0.3)">PRIME OUTLIER</span></div>
+  </div>
+</div><div class="player-row">
+  <div class="stripe" style="background:#1C2A3E"></div>
+  <div class="row-inner">
+    <div class="row-top">
+      <div class="name-area">
+        <span class="pname">Taylor Trammell</span>
+        <span class="bats-badge badge-lhb">LHB</span>
+        <span class="hr-pill">◉ HR</span>
+      </div>
+      <div class="row-right">
+        <span class="team-tag">HOU</span>
+        <span class="grade-badge" style="background:#0F766E;color:#2DD4BF">B+</span>
+        <span class="prob-block"><span class="prob-pct">25.9%</span><span class="prob-odds"> (+286)</span></span>
+      </div>
+    </div>
+    <div class="metrics-row"><span class="metric-pill" style="color:#5A7090;">Brl/PA <b>12.0%</b></span><span class="metric-pill" style="color:#5A7090;">EV50 <b>101.1</b></span><span class="metric-pill" style="color:#5A7090;">HH% <b>36.0%</b></span></div>
+    <div class="tags-row"><span class="tag" style="background:rgba(192,132,252,0.13);color:#C084FC;border:1px solid rgba(192,132,252,0.3)">BARREL SIGNAL</span><span class="tag" style="background:rgba(251,191,36,0.13);color:#FBBF24;border:1px solid rgba(251,191,36,0.3)">MOONSHOT POWER</span><span class="tag" style="background:rgba(132,204,22,0.13);color:#84CC16;border:1px solid rgba(132,204,22,0.3)">SOFT MARKET POWER</span></div>
+  </div>
+</div><div class="player-row">
+  <div class="stripe" style="background:#1C2A3E"></div>
+  <div class="row-inner">
+    <div class="row-top">
+      <div class="name-area">
+        <span class="pname">Jeremy Peña</span>
+        <span class="bats-badge badge-rhb">RHB</span>
+        <span class="hr-pill">◉ HR</span>
+      </div>
+      <div class="row-right">
+        <span class="team-tag">HOU</span>
+        <span class="grade-badge" style="background:#15803D;color:#22C55E">A</span>
+        <span class="prob-block"><span class="prob-pct">18.0%</span><span class="prob-odds"> (+457)</span></span>
+      </div>
+    </div>
+    <div class="metrics-row"><span class="metric-pill" style="color:#5A7090;">Brl/PA <b>5.7%</b></span><span class="metric-pill" style="color:#5A7090;">EV50 <b>99.9</b></span><span class="metric-pill" style="color:#5A7090;">HH% <b>41.4%</b></span></div>
+    <div class="tags-row"><span class="tag" style="background:rgba(6,182,212,0.13);color:#06B6D4;border:1px solid rgba(6,182,212,0.3)">PITCH EDGE · FF/FC</span><span class="tag" style="background:rgba(212,160,23,0.13);color:#D4A017;border:1px solid rgba(212,160,23,0.3)">LONG BALL RANGE</span><span class="tag" style="background:rgba(132,204,22,0.13);color:#84CC16;border:1px solid rgba(132,204,22,0.3)">SOFT MARKET POWER</span></div>
+  </div>
+</div><div class="game-hdr">
+  <div class="game-hdr-left">
+    <span class="game-teams">WSH <span class="at">@</span> PHI</span>
+    <span class="hdr-dot">·</span>
+    <span class="game-venue">Citizens Bank Park</span>
+    <span class="pitcher-tag" style="color:#84CC16">vs Jake Irvin · Attackable</span>
+  </div>
+  <div class="game-hdr-right"></div>
+</div><div class="player-row outlier-prime">
+  <div class="stripe" style="background:#D4A017"></div>
+  <div class="row-inner">
+    <div class="row-top">
+      <div class="name-area">
+        <span class="pname">Kyle Schwarber</span>
+        <span class="bats-badge badge-lhb">LHB</span>
+        <span class="hr-pill">◉ HR</span>
+      </div>
+      <div class="row-right">
+        <span class="team-tag">PHI</span>
+        <span class="grade-badge" style="background:#15803D;color:#22C55E">A</span>
+        <span class="prob-block"><span class="prob-pct">32.2%</span><span class="prob-odds"> (+210)</span></span>
+      </div>
+    </div>
+    <div class="metrics-row"><span class="metric-pill" style="color:#DDE6F0;">Brl/PA <b>17.3%</b></span><span class="metric-pill" style="color:#DDE6F0;">EV50 <b>104.1</b></span><span class="metric-pill" style="color:#DDE6F0;">HH% <b>52.3%</b></span><span class="metric-pill" style="color:#22C55E">Park ×1.14</span></div>
+    <div class="tags-row"><span class="tag" style="background:rgba(245,158,11,0.13);color:#F59E0B;border:1px solid rgba(245,158,11,0.3)">PERSISTENT DUE</span><span class="tag" style="background:rgba(168,85,247,0.13);color:#A855F7;border:1px solid rgba(168,85,247,0.3)">ELITE BARREL%</span><span class="tag" style="background:rgba(56,189,248,0.13);color:#38BDF8;border:1px solid rgba(56,189,248,0.3)">BLASTS 47%+</span><span class="tag" style="background:rgba(251,146,60,0.13);color:#FB923C;border:1px solid rgba(251,146,60,0.3)">EV50 STRONG</span><span class="tag" style="background:rgba(132,204,22,0.13);color:#84CC16;border:1px solid rgba(132,204,22,0.3)">PARK BOOST</span><span class="tag" style="background:rgba(6,182,212,0.13);color:#06B6D4;border:1px solid rgba(6,182,212,0.3)">PITCH EDGE · SI</span><span class="tag" style="background:rgba(251,191,36,0.13);color:#FBBF24;border:1px solid rgba(251,191,36,0.3)">MOONSHOT POWER</span><span class="tag" style="background:rgba(132,204,22,0.13);color:#84CC16;border:1px solid rgba(132,204,22,0.3)">SOFT MARKET POWER</span><span class="tag" style="background:rgba(212,160,23,0.13);color:#D4A017;border:1px solid rgba(212,160,23,0.3)">PRIME OUTLIER</span></div>
+  </div>
+</div><div class="player-row outlier-strong">
+  <div class="stripe" style="background:#2563EB"></div>
+  <div class="row-inner">
+    <div class="row-top">
+      <div class="name-area">
+        <span class="pname">Bryce Harper</span>
+        <span class="bats-badge badge-lhb">LHB</span>
+        <span class="hr-pill">◉ HR</span>
+      </div>
+      <div class="row-right">
+        <span class="team-tag">PHI</span>
+        <span class="grade-badge" style="background:#15803D;color:#22C55E">A</span>
+        <span class="prob-block"><span class="prob-pct">30.6%</span><span class="prob-odds"> (+227)</span></span>
+      </div>
+    </div>
+    <div class="metrics-row"><span class="metric-pill" style="color:#5A7090;">Brl/PA <b>11.8%</b></span><span class="metric-pill" style="color:#5A7090;">EV50 <b>101.8</b></span><span class="metric-pill" style="color:#5A7090;">HH% <b>45.1%</b></span><span class="metric-pill" style="color:#22C55E">Park ×1.14</span></div>
+    <div class="tags-row"><span class="tag" style="background:rgba(132,204,22,0.13);color:#84CC16;border:1px solid rgba(132,204,22,0.3)">PARK BOOST</span><span class="tag" style="background:rgba(6,182,212,0.13);color:#06B6D4;border:1px solid rgba(6,182,212,0.3)">PITCH EDGE · FF</span><span class="tag" style="background:rgba(251,191,36,0.13);color:#FBBF24;border:1px solid rgba(251,191,36,0.3)">MOONSHOT POWER</span><span class="tag" style="background:rgba(132,204,22,0.13);color:#84CC16;border:1px solid rgba(132,204,22,0.3)">SOFT MARKET POWER</span><span class="tag" style="background:rgba(163,230,53,0.13);color:#A3E635;border:1px solid rgba(163,230,53,0.3)">STRONG VALUE</span></div>
+  </div>
+</div><div class="player-row">
+  <div class="stripe" style="background:#1C2A3E"></div>
+  <div class="row-inner">
+    <div class="row-top">
+      <div class="name-area">
+        <span class="pname">Andrés Chaparro</span>
+        <span class="bats-badge badge-rhb">RHB</span>
+        <span class="hr-pill">◉ HR</span>
+      </div>
+      <div class="row-right">
+        <span class="team-tag">WSH</span>
+        <span class="grade-badge" style="background:#15803D;color:#22C55E">A</span>
+        <span class="prob-block"><span class="prob-pct">24.9%</span><span class="prob-odds"> (+302)</span></span>
+      </div>
+    </div>
+    <div class="metrics-row"><span class="metric-pill" style="color:#5A7090;">Brl/PA <b>14.3%</b></span><span class="metric-pill" style="color:#5A7090;">EV50 <b>101.7</b></span><span class="metric-pill" style="color:#5A7090;">HH% <b>49.2%</b></span><span class="metric-pill" style="color:#22C55E">Park ×1.14</span></div>
+    <div class="tags-row"><span class="tag" style="background:rgba(192,132,252,0.13);color:#C084FC;border:1px solid rgba(192,132,252,0.3)">BARREL SIGNAL</span><span class="tag" style="background:rgba(56,189,248,0.13);color:#38BDF8;border:1px solid rgba(56,189,248,0.3)">BLASTS 47%+</span><span class="tag" style="background:rgba(132,204,22,0.13);color:#84CC16;border:1px solid rgba(132,204,22,0.3)">PARK BOOST</span><span class="tag" style="background:rgba(6,182,212,0.13);color:#06B6D4;border:1px solid rgba(6,182,212,0.3)">PITCH EDGE · FF</span><span class="tag" style="background:rgba(251,191,36,0.13);color:#FBBF24;border:1px solid rgba(251,191,36,0.3)">MOONSHOT POWER</span><span class="tag" style="background:rgba(245,158,11,0.13);color:#F59E0B;border:1px solid rgba(245,158,11,0.3)">DUE FOR HR</span></div>
+  </div>
+</div><div class="game-hdr">
+  <div class="game-hdr-left">
+    <span class="game-teams">TB <span class="at">@</span> COL</span>
+    <span class="hdr-dot">·</span>
+    <span class="game-venue">Coors Field</span>
+    <span class="pitcher-tag" style="color:#84CC16">vs Tomoyuki Sugano · Attackable</span>
+  </div>
+  <div class="game-hdr-right"><span class="park-pill" style="color:#D4A017;border-color:rgba(212,160,23,0.3)">EXTREME HR PARK ×1.27</span></div>
+</div><div class="player-row outlier-strong">
+  <div class="stripe" style="background:#2563EB"></div>
+  <div class="row-inner">
+    <div class="row-top">
+      <div class="name-area">
+        <span class="pname">Junior Caminero</span>
+        <span class="bats-badge badge-rhb">RHB</span>
+        <span class="hr-pill">◉ HR</span>
+      </div>
+      <div class="row-right">
+        <span class="team-tag">TB</span>
+        <span class="grade-badge" style="background:#15803D;color:#22C55E">A</span>
+        <span class="prob-block"><span class="prob-pct">31.2%</span><span class="prob-odds"> (+221)</span></span>
+      </div>
+    </div>
+    <div class="metrics-row"><span class="metric-pill" style="color:#5A7090;">Brl/PA <b>13.8%</b></span><span class="metric-pill" style="color:#DDE6F0;">EV50 <b>105.7</b></span><span class="metric-pill" style="color:#DDE6F0;">HH% <b>50.9%</b></span><span class="metric-pill" style="color:#D4A017">Park ×1.27</span></div>
+    <div class="tags-row"><span class="tag" style="background:rgba(212,160,23,0.13);color:#D4A017;border:1px solid rgba(212,160,23,0.3)">IDEAL SETUP ✦</span><span class="tag" style="background:rgba(192,132,252,0.13);color:#C084FC;border:1px solid rgba(192,132,252,0.3)">BARREL SIGNAL</span><span class="tag" style="background:rgba(56,189,248,0.13);color:#38BDF8;border:1px solid rgba(56,189,248,0.3)">BLASTS 47%+</span><span class="tag" style="background:rgba(249,115,22,0.13);color:#F97316;border:1px solid rgba(249,115,22,0.3)">EV50 ELITE</span><span class="tag" style="background:rgba(212,160,23,0.13);color:#D4A017;border:1px solid rgba(212,160,23,0.3)">PARK AMPLIFIED</span><span class="tag" style="background:rgba(6,182,212,0.13);color:#06B6D4;border:1px solid rgba(6,182,212,0.3)">PITCH EDGE · FF/SI</span><span class="tag" style="background:rgba(251,191,36,0.13);color:#FBBF24;border:1px solid rgba(251,191,36,0.3)">MOONSHOT POWER</span><span class="tag" style="background:rgba(132,204,22,0.13);color:#84CC16;border:1px solid rgba(132,204,22,0.3)">SOFT MARKET POWER</span><span class="tag" style="background:rgba(163,230,53,0.13);color:#A3E635;border:1px solid rgba(163,230,53,0.3)">STRONG VALUE</span></div>
+  </div>
+</div><div class="player-row outlier-strong">
+  <div class="stripe" style="background:#2563EB"></div>
+  <div class="row-inner">
+    <div class="row-top">
+      <div class="name-area">
+        <span class="pname">Hunter Goodman</span>
+        <span class="bats-badge badge-rhb">RHB</span>
+        <span class="hr-pill">◉ HR</span>
+      </div>
+      <div class="row-right">
+        <span class="team-tag">COL</span>
+        <span class="grade-badge" style="background:#15803D;color:#22C55E">A</span>
+        <span class="prob-block"><span class="prob-pct">26.1%</span><span class="prob-odds"> (+284)</span></span>
+      </div>
+    </div>
+    <div class="metrics-row"><span class="metric-pill" style="color:#5A7090;">Brl/PA <b>16.5%</b></span><span class="metric-pill" style="color:#5A7090;">EV50 <b>102.8</b></span><span class="metric-pill" style="color:#5A7090;">HH% <b>45.4%</b></span><span class="metric-pill" style="color:#D4A017">Park ×1.27</span></div>
+    <div class="tags-row"><span class="tag" style="background:rgba(212,160,23,0.13);color:#D4A017;border:1px solid rgba(212,160,23,0.3)">IDEAL SETUP ✦</span><span class="tag" style="background:rgba(245,158,11,0.13);color:#F59E0B;border:1px solid rgba(245,158,11,0.3)">PERSISTENT DUE</span><span class="tag" style="background:rgba(192,132,252,0.13);color:#C084FC;border:1px solid rgba(192,132,252,0.3)">BARREL SIGNAL</span><span class="tag" style="background:rgba(251,146,60,0.13);color:#FB923C;border:1px solid rgba(251,146,60,0.3)">EV50 STRONG</span><span class="tag" style="background:rgba(212,160,23,0.13);color:#D4A017;border:1px solid rgba(212,160,23,0.3)">PARK AMPLIFIED</span><span class="tag" style="background:rgba(6,182,212,0.13);color:#06B6D4;border:1px solid rgba(6,182,212,0.3)">PITCH EDGE · SI/FC</span><span class="tag" style="background:rgba(251,191,36,0.13);color:#FBBF24;border:1px solid rgba(251,191,36,0.3)">MOONSHOT POWER</span><span class="tag" style="background:rgba(163,230,53,0.13);color:#A3E635;border:1px solid rgba(163,230,53,0.3)">STRONG VALUE</span></div>
+  </div>
+</div><div class="player-row">
+  <div class="stripe" style="background:#1C2A3E"></div>
+  <div class="row-inner">
+    <div class="row-top">
+      <div class="name-area">
+        <span class="pname">Jonathan Aranda</span>
+        <span class="bats-badge badge-lhb">LHB</span>
+        <span class="hr-pill">◉ HR</span>
+      </div>
+      <div class="row-right">
+        <span class="team-tag">TB</span>
+        <span class="grade-badge" style="background:#15803D;color:#22C55E">A</span>
+        <span class="prob-block"><span class="prob-pct">28.5%</span><span class="prob-odds"> (+251)</span></span>
+      </div>
+    </div>
+    <div class="metrics-row"><span class="metric-pill" style="color:#5A7090;">Brl/PA <b>10.1%</b></span><span class="metric-pill" style="color:#5A7090;">EV50 <b>100.9</b></span><span class="metric-pill" style="color:#5A7090;">HH% <b>45.8%</b></span><span class="metric-pill" style="color:#D4A017">Park ×1.27</span></div>
+    <div class="tags-row"><span class="tag" style="background:rgba(212,160,23,0.13);color:#D4A017;border:1px solid rgba(212,160,23,0.3)">IDEAL SETUP ✦</span><span class="tag" style="background:rgba(245,158,11,0.13);color:#F59E0B;border:1px solid rgba(245,158,11,0.3)">PERSISTENT DUE</span><span class="tag" style="background:rgba(212,160,23,0.13);color:#D4A017;border:1px solid rgba(212,160,23,0.3)">PARK AMPLIFIED</span><span class="tag" style="background:rgba(6,182,212,0.13);color:#06B6D4;border:1px solid rgba(6,182,212,0.3)">PITCH EDGE · ST</span><span class="tag" style="background:rgba(212,160,23,0.13);color:#D4A017;border:1px solid rgba(212,160,23,0.3)">LONG BALL RANGE</span><span class="tag" style="background:rgba(132,204,22,0.13);color:#84CC16;border:1px solid rgba(132,204,22,0.3)">SOFT MARKET POWER</span></div>
+  </div>
+</div><div class="game-hdr">
+  <div class="game-hdr-left">
+    <span class="game-teams">STL <span class="at">@</span> NYY</span>
+    <span class="hdr-dot">·</span>
+    <span class="game-venue">Yankee Stadium</span>
+    <span class="pitcher-tag" style="color:#5A7090">vs Will Warren · Neutral Lean</span>
+  </div>
+  <div class="game-hdr-right"><span class="park-pill" style="color:#22C55E;border-color:rgba(34,197,94,0.3)">HITTER FRIENDLY ×1.19</span></div>
+</div><div class="player-row">
+  <div class="stripe" style="background:#1C2A3E"></div>
+  <div class="row-inner">
+    <div class="row-top">
+      <div class="name-area">
+        <span class="pname">Alec Burleson</span>
+        <span class="bats-badge badge-lhb">LHB</span>
+        <span class="hr-pill">◉ HR</span>
+      </div>
+      <div class="row-right">
+        <span class="team-tag">STL</span>
+        <span class="grade-badge" style="background:#0F766E;color:#2DD4BF">B+</span>
+        <span class="prob-block"><span class="prob-pct">23.4%</span><span class="prob-odds"> (+327)</span></span>
+      </div>
+    </div>
+    <div class="metrics-row"><span class="metric-pill" style="color:#5A7090;">Brl/PA <b>11.7%</b></span><span class="metric-pill" style="color:#5A7090;">EV50 <b>102.1</b></span><span class="metric-pill" style="color:#5A7090;">HH% <b>49.0%</b></span><span class="metric-pill" style="color:#22C55E">Park ×1.19</span></div>
+    <div class="tags-row"><span class="tag" style="background:rgba(212,160,23,0.13);color:#D4A017;border:1px solid rgba(212,160,23,0.3)">IDEAL SETUP ✦</span><span class="tag" style="background:rgba(56,189,248,0.13);color:#38BDF8;border:1px solid rgba(56,189,248,0.3)">BLASTS 47%+</span><span class="tag" style="background:rgba(251,146,60,0.13);color:#FB923C;border:1px solid rgba(251,146,60,0.3)">EV50 STRONG</span><span class="tag" style="background:rgba(132,204,22,0.13);color:#84CC16;border:1px solid rgba(132,204,22,0.3)">PARK BOOST</span><span class="tag" style="background:rgba(6,182,212,0.13);color:#06B6D4;border:1px solid rgba(6,182,212,0.3)">PITCH EDGE · FF/SI</span><span class="tag" style="background:rgba(251,191,36,0.13);color:#FBBF24;border:1px solid rgba(251,191,36,0.3)">MOONSHOT POWER</span><span class="tag" style="background:rgba(239,68,68,0.13);color:#EF4444;border:1px solid rgba(239,68,68,0.3)">HOT STREAK</span></div>
+  </div>
+</div><div class="player-row">
+  <div class="stripe" style="background:#1C2A3E"></div>
+  <div class="row-inner">
+    <div class="row-top">
+      <div class="name-area">
+        <span class="pname">Nelson Velázquez</span>
+        <span class="bats-badge badge-rhb">RHB</span>
+        <span class="hr-pill">◉ HR</span>
+      </div>
+      <div class="row-right">
+        <span class="team-tag">STL</span>
+        <span class="grade-badge" style="background:#0F766E;color:#2DD4BF">B+</span>
+        <span class="prob-block"><span class="prob-pct">21.9%</span><span class="prob-odds"> (+357)</span></span>
+      </div>
+    </div>
+    <div class="metrics-row"><span class="metric-pill" style="color:#5A7090;">Brl/PA <b>12.0%</b></span><span class="metric-pill" style="color:#5A7090;">EV50 <b>102.8</b></span><span class="metric-pill" style="color:#DDE6F0;">HH% <b>64.0%</b></span><span class="metric-pill" style="color:#22C55E">Park ×1.19</span></div>
+    <div class="tags-row"><span class="tag" style="background:rgba(212,160,23,0.13);color:#D4A017;border:1px solid rgba(212,160,23,0.3)">IDEAL SETUP ✦</span><span class="tag" style="background:rgba(192,132,252,0.13);color:#C084FC;border:1px solid rgba(192,132,252,0.3)">BARREL SIGNAL</span><span class="tag" style="background:rgba(14,165,233,0.13);color:#0EA5E9;border:1px solid rgba(14,165,233,0.3)">BLASTS 55%+</span><span class="tag" style="background:rgba(251,146,60,0.13);color:#FB923C;border:1px solid rgba(251,146,60,0.3)">EV50 STRONG</span><span class="tag" style="background:rgba(132,204,22,0.13);color:#84CC16;border:1px solid rgba(132,204,22,0.3)">PARK BOOST</span><span class="tag" style="background:rgba(6,182,212,0.13);color:#06B6D4;border:1px solid rgba(6,182,212,0.3)">PITCH EDGE · SI</span><span class="tag" style="background:rgba(251,191,36,0.13);color:#FBBF24;border:1px solid rgba(251,191,36,0.3)">MOONSHOT POWER</span><span class="tag" style="background:rgba(245,158,11,0.13);color:#F59E0B;border:1px solid rgba(245,158,11,0.3)">DUE FOR HR</span></div>
+  </div>
+</div><div class="player-row">
+  <div class="stripe" style="background:#1C2A3E"></div>
+  <div class="row-inner">
+    <div class="row-top">
+      <div class="name-area">
+        <span class="pname">JJ Wetherholt</span>
+        <span class="bats-badge badge-lhb">LHB</span>
+        <span class="hr-pill">◉ HR</span>
+      </div>
+      <div class="row-right">
+        <span class="team-tag">STL</span>
+        <span class="grade-badge" style="background:#0F766E;color:#2DD4BF">B+</span>
+        <span class="prob-block"><span class="prob-pct">17.4%</span><span class="prob-odds"> (+475)</span></span>
+      </div>
+    </div>
+    <div class="metrics-row"><span class="metric-pill" style="color:#5A7090;">Brl/PA <b>6.9%</b></span><span class="metric-pill" style="color:#5A7090;">EV50 <b>99.3</b></span><span class="metric-pill" style="color:#5A7090;">HH% <b>43.8%</b></span><span class="metric-pill" style="color:#22C55E">Park ×1.19</span></div>
+    <div class="tags-row"><span class="tag" style="background:rgba(212,160,23,0.13);color:#D4A017;border:1px solid rgba(212,160,23,0.3)">IDEAL SETUP ✦</span><span class="tag" style="background:rgba(132,204,22,0.13);color:#84CC16;border:1px solid rgba(132,204,22,0.3)">PARK BOOST</span><span class="tag" style="background:rgba(6,182,212,0.13);color:#06B6D4;border:1px solid rgba(6,182,212,0.3)">PITCH EDGE · FF</span><span class="tag" style="background:rgba(212,160,23,0.13);color:#D4A017;border:1px solid rgba(212,160,23,0.3)">LONG BALL RANGE</span></div>
+  </div>
+</div><div class="game-hdr">
+  <div class="game-hdr-left">
+    <span class="game-teams">MIA <span class="at">@</span> ATL</span>
+    <span class="hdr-dot">·</span>
+    <span class="game-venue">Truist Park</span>
+    <span class="pitcher-tag" style="color:#5A7090">vs Eury Pérez · Neutral Lean</span>
+  </div>
+  <div class="game-hdr-right"></div>
+</div><div class="player-row">
+  <div class="stripe" style="background:#1C2A3E"></div>
+  <div class="row-inner">
+    <div class="row-top">
+      <div class="name-area">
+        <span class="pname">Drake Baldwin</span>
+        <span class="bats-badge badge-lhb">LHB</span>
+        <span class="hr-pill">◉ HR</span>
+      </div>
+      <div class="row-right">
+        <span class="team-tag">ATL</span>
+        <span class="grade-badge" style="background:#0F766E;color:#2DD4BF">B+</span>
+        <span class="prob-block"><span class="prob-pct">20.0%</span><span class="prob-odds"> (+400)</span></span>
+      </div>
+    </div>
+    <div class="metrics-row"><span class="metric-pill" style="color:#5A7090;">Brl/PA <b>14.7%</b></span><span class="metric-pill" style="color:#5A7090;">EV50 <b>102.5</b></span><span class="metric-pill" style="color:#DDE6F0;">HH% <b>51.1%</b></span><span class="metric-pill" style="color:#5A7090">Park ×0.98</span></div>
+    <div class="tags-row"><span class="tag" style="background:rgba(245,158,11,0.13);color:#F59E0B;border:1px solid rgba(245,158,11,0.3)">PERSISTENT DUE</span><span class="tag" style="background:rgba(192,132,252,0.13);color:#C084FC;border:1px solid rgba(192,132,252,0.3)">BARREL SIGNAL</span><span class="tag" style="background:rgba(56,189,248,0.13);color:#38BDF8;border:1px solid rgba(56,189,248,0.3)">BLASTS 47%+</span><span class="tag" style="background:rgba(251,146,60,0.13);color:#FB923C;border:1px solid rgba(251,146,60,0.3)">EV50 STRONG</span><span class="tag" style="background:rgba(6,182,212,0.13);color:#06B6D4;border:1px solid rgba(6,182,212,0.3)">PITCH EDGE · SI/FF</span><span class="tag" style="background:rgba(251,191,36,0.13);color:#FBBF24;border:1px solid rgba(251,191,36,0.3)">MOONSHOT POWER</span></div>
+  </div>
+</div><div class="player-row">
+  <div class="stripe" style="background:#1C2A3E"></div>
+  <div class="row-inner">
+    <div class="row-top">
+      <div class="name-area">
+        <span class="pname">Matt Olson</span>
+        <span class="bats-badge badge-lhb">LHB</span>
+        <span class="hr-pill">◉ HR</span>
+      </div>
+      <div class="row-right">
+        <span class="team-tag">ATL</span>
+        <span class="grade-badge" style="background:#0F766E;color:#2DD4BF">B+</span>
+        <span class="prob-block"><span class="prob-pct">22.3%</span><span class="prob-odds"> (+348)</span></span>
+      </div>
+    </div>
+    <div class="metrics-row"><span class="metric-pill" style="color:#5A7090;">Brl/PA <b>14.6%</b></span><span class="metric-pill" style="color:#DDE6F0;">EV50 <b>103.9</b></span><span class="metric-pill" style="color:#DDE6F0;">HH% <b>50.5%</b></span><span class="metric-pill" style="color:#5A7090">Park ×0.98</span></div>
+    <div class="tags-row"><span class="tag" style="background:rgba(192,132,252,0.13);color:#C084FC;border:1px solid rgba(192,132,252,0.3)">BARREL SIGNAL</span><span class="tag" style="background:rgba(56,189,248,0.13);color:#38BDF8;border:1px solid rgba(56,189,248,0.3)">BLASTS 47%+</span><span class="tag" style="background:rgba(251,146,60,0.13);color:#FB923C;border:1px solid rgba(251,146,60,0.3)">EV50 STRONG</span><span class="tag" style="background:rgba(6,182,212,0.13);color:#06B6D4;border:1px solid rgba(6,182,212,0.3)">PITCH EDGE · SI</span><span class="tag" style="background:rgba(251,191,36,0.13);color:#FBBF24;border:1px solid rgba(251,191,36,0.3)">MOONSHOT POWER</span></div>
+  </div>
+</div><div class="player-row">
+  <div class="stripe" style="background:#1C2A3E"></div>
+  <div class="row-inner">
+    <div class="row-top">
+      <div class="name-area">
+        <span class="pname">Griffin Conine</span>
+        <span class="bats-badge badge-lhb">LHB</span>
+        <span class="hr-pill">◉ HR</span>
+      </div>
+      <div class="row-right">
+        <span class="team-tag">MIA</span>
+        <span class="grade-badge" style="background:#0F766E;color:#2DD4BF">B+</span>
+        <span class="prob-block"><span class="prob-pct">18.9%</span><span class="prob-odds"> (+429)</span></span>
+      </div>
+    </div>
+    <div class="metrics-row"><span class="metric-pill" style="color:#5A7090;">Brl/PA <b>16.5%</b></span><span class="metric-pill" style="color:#DDE6F0;">EV50 <b>104.3</b></span><span class="metric-pill" style="color:#DDE6F0;">HH% <b>55.3%</b></span><span class="metric-pill" style="color:#5A7090">Park ×0.98</span><span class="metric-pill" style="color:#5A7090;">Eff HR% <b>13.3%</b></span></div>
+    <div class="tags-row"><span class="tag" style="background:rgba(245,158,11,0.13);color:#F59E0B;border:1px solid rgba(245,158,11,0.3)">PERSISTENT DUE</span><span class="tag" style="background:rgba(192,132,252,0.13);color:#C084FC;border:1px solid rgba(192,132,252,0.3)">BARREL SIGNAL</span><span class="tag" style="background:rgba(14,165,233,0.13);color:#0EA5E9;border:1px solid rgba(14,165,233,0.3)">BLASTS 55%+</span><span class="tag" style="background:rgba(251,146,60,0.13);color:#FB923C;border:1px solid rgba(251,146,60,0.3)">EV50 STRONG</span><span class="tag" style="background:rgba(6,182,212,0.13);color:#06B6D4;border:1px solid rgba(6,182,212,0.3)">PITCH EDGE · FC/SI</span><span class="tag" style="background:rgba(251,191,36,0.13);color:#FBBF24;border:1px solid rgba(251,191,36,0.3)">MOONSHOT POWER</span><span class="tag" style="background:rgba(107,114,128,0.13);color:#6B7280;border:1px solid rgba(107,114,128,0.3)">TOUGH MATCHUP</span></div>
+  </div>
+</div><div class="game-hdr">
+  <div class="game-hdr-left">
+    <span class="game-teams">LAD <span class="at">@</span> CHC</span>
+    <span class="hdr-dot">·</span>
+    <span class="game-venue">Wrigley Field</span>
+    <span class="pitcher-tag" style="color:#5A7090">vs Shota Imanaga · Neutral Lean</span>
+  </div>
+  <div class="game-hdr-right"><span class="park-pill" style="color:#22C55E;border-color:rgba(34,197,94,0.3)">HITTER FRIENDLY ×1.07</span></div>
+</div><div class="player-row">
+  <div class="stripe" style="background:#1C2A3E"></div>
+  <div class="row-inner">
+    <div class="row-top">
+      <div class="name-area">
+        <span class="pname">Shohei Ohtani</span>
+        <span class="bats-badge badge-lhb">LHB</span>
+        <span class="hr-pill">◉ HR</span>
+      </div>
+      <div class="row-right">
+        <span class="team-tag">LAD</span>
+        <span class="grade-badge" style="background:#0F766E;color:#2DD4BF">B+</span>
+        <span class="prob-block"><span class="prob-pct">22.9%</span><span class="prob-odds"> (+337)</span></span>
+      </div>
+    </div>
+    <div class="metrics-row"><span class="metric-pill" style="color:#5A7090;">Brl/PA <b>16.2%</b></span><span class="metric-pill" style="color:#DDE6F0;">EV50 <b>103.7</b></span><span class="metric-pill" style="color:#DDE6F0;">HH% <b>52.7%</b></span><span class="metric-pill" style="color:#22C55E">Park ×1.07</span></div>
+    <div class="tags-row"><span class="tag" style="background:rgba(245,158,11,0.13);color:#F59E0B;border:1px solid rgba(245,158,11,0.3)">PERSISTENT DUE</span><span class="tag" style="background:rgba(192,132,252,0.13);color:#C084FC;border:1px solid rgba(192,132,252,0.3)">BARREL SIGNAL</span><span class="tag" style="background:rgba(56,189,248,0.13);color:#38BDF8;border:1px solid rgba(56,189,248,0.3)">BLASTS 47%+</span><span class="tag" style="background:rgba(251,146,60,0.13);color:#FB923C;border:1px solid rgba(251,146,60,0.3)">EV50 STRONG</span><span class="tag" style="background:rgba(132,204,22,0.13);color:#84CC16;border:1px solid rgba(132,204,22,0.3)">PARK BOOST</span><span class="tag" style="background:rgba(6,182,212,0.13);color:#06B6D4;border:1px solid rgba(6,182,212,0.3)">PITCH EDGE · FF</span><span class="tag" style="background:rgba(52,211,153,0.13);color:#34D399;border:1px solid rgba(52,211,153,0.3)">ELITE CONTACT</span><span class="tag" style="background:rgba(251,191,36,0.13);color:#FBBF24;border:1px solid rgba(251,191,36,0.3)">MOONSHOT POWER</span><span class="tag" style="background:rgba(239,68,68,0.13);color:#EF4444;border:1px solid rgba(239,68,68,0.3)">HOT STREAK</span></div>
+  </div>
+</div><div class="player-row">
+  <div class="stripe" style="background:#1C2A3E"></div>
+  <div class="row-inner">
+    <div class="row-top">
+      <div class="name-area">
+        <span class="pname">Michael Conforto</span>
+        <span class="bats-badge badge-lhb">LHB</span>
+        <span class="hr-pill">◉ HR</span>
+      </div>
+      <div class="row-right">
+        <span class="team-tag">CHC</span>
+        <span class="grade-badge" style="background:#0F766E;color:#2DD4BF">B+</span>
+        <span class="prob-block"><span class="prob-pct">20.0%</span><span class="prob-odds"> (+400)</span></span>
+      </div>
+    </div>
+    <div class="metrics-row"><span class="metric-pill" style="color:#5A7090;">Brl/PA <b>11.5%</b></span><span class="metric-pill" style="color:#5A7090;">EV50 <b>100.7</b></span><span class="metric-pill" style="color:#5A7090;">HH% <b>44.2%</b></span><span class="metric-pill" style="color:#22C55E">Park ×1.07</span></div>
+    <div class="tags-row"><span class="tag" style="background:rgba(132,204,22,0.13);color:#84CC16;border:1px solid rgba(132,204,22,0.3)">PARK BOOST</span><span class="tag" style="background:rgba(6,182,212,0.13);color:#06B6D4;border:1px solid rgba(6,182,212,0.3)">PITCH EDGE · FC</span><span class="tag" style="background:rgba(212,160,23,0.13);color:#D4A017;border:1px solid rgba(212,160,23,0.3)">LONG BALL RANGE</span><span class="tag" style="background:rgba(132,204,22,0.13);color:#84CC16;border:1px solid rgba(132,204,22,0.3)">SOFT MARKET POWER</span></div>
+  </div>
+</div><div class="player-row">
+  <div class="stripe" style="background:#1C2A3E"></div>
+  <div class="row-inner">
+    <div class="row-top">
+      <div class="name-area">
+        <span class="pname">Tyrone Taylor</span>
+        <span class="bats-badge badge-rhb">RHB</span>
+        <span class="hr-pill">◉ HR</span>
+      </div>
+      <div class="row-right">
+        <span class="team-tag">CHC</span>
+        <span class="grade-badge" style="background:#0F766E;color:#2DD4BF">B+</span>
+        <span class="prob-block"><span class="prob-pct">23.4%</span><span class="prob-odds"> (+327)</span></span>
+      </div>
+    </div>
+    <div class="metrics-row"><span class="metric-pill" style="color:#5A7090;">Brl/PA <b>11.7%</b></span><span class="metric-pill" style="color:#5A7090;">EV50 <b>98.9</b></span><span class="metric-pill" style="color:#5A7090;">HH% <b>35.8%</b></span><span class="metric-pill" style="color:#22C55E">Park ×1.07</span></div>
+    <div class="tags-row"><span class="tag" style="background:rgba(132,204,22,0.13);color:#84CC16;border:1px solid rgba(132,204,22,0.3)">PARK BOOST</span><span class="tag" style="background:rgba(251,191,36,0.13);color:#FBBF24;border:1px solid rgba(251,191,36,0.3)">MOONSHOT POWER</span><span class="tag" style="background:rgba(132,204,22,0.13);color:#84CC16;border:1px solid rgba(132,204,22,0.3)">SOFT MARKET POWER</span></div>
+  </div>
+</div><div class="game-hdr">
+  <div class="game-hdr-left">
+    <span class="game-teams">MIN <span class="at">@</span> KC</span>
+    <span class="hdr-dot">·</span>
+    <span class="game-venue">Kauffman Stadium</span>
+    <span class="pitcher-tag" style="color:#5A7090">vs Noah Cameron · Neutral Lean</span>
+  </div>
+  <div class="game-hdr-right"></div>
+</div><div class="player-row">
+  <div class="stripe" style="background:#1C2A3E"></div>
+  <div class="row-inner">
+    <div class="row-top">
+      <div class="name-area">
+        <span class="pname">Ryan Jeffers</span>
+        <span class="bats-badge badge-rhb">RHB</span>
+        <span class="hr-pill">◉ HR</span>
+      </div>
+      <div class="row-right">
+        <span class="team-tag">MIN</span>
+        <span class="grade-badge" style="background:#0F766E;color:#2DD4BF">B+</span>
+        <span class="prob-block"><span class="prob-pct">17.7%</span><span class="prob-odds"> (+465)</span></span>
+      </div>
+    </div>
+    <div class="metrics-row"><span class="metric-pill" style="color:#5A7090;">Brl/PA <b>11.4%</b></span><span class="metric-pill" style="color:#5A7090;">EV50 <b>100.9</b></span><span class="metric-pill" style="color:#5A7090;">HH% <b>40.9%</b></span><span class="metric-pill" style="color:#5A7090">Park ×0.93</span><span class="metric-pill" style="color:#5A7090;">Eff HR% <b>16.5%</b></span></div>
+    <div class="tags-row"><span class="tag" style="background:rgba(245,158,11,0.13);color:#F59E0B;border:1px solid rgba(245,158,11,0.3)">PERSISTENT DUE</span><span class="tag" style="background:rgba(6,182,212,0.13);color:#06B6D4;border:1px solid rgba(6,182,212,0.3)">PITCH EDGE · CU/FC</span><span class="tag" style="background:rgba(212,160,23,0.13);color:#D4A017;border:1px solid rgba(212,160,23,0.3)">LONG BALL RANGE</span></div>
+  </div>
+</div><div class="player-row">
+  <div class="stripe" style="background:#1C2A3E"></div>
+  <div class="row-inner">
+    <div class="row-top">
+      <div class="name-area">
+        <span class="pname">John Rave</span>
+        <span class="bats-badge badge-lhb">LHB</span>
+        <span class="hr-pill">◉ HR</span>
+      </div>
+      <div class="row-right">
+        <span class="team-tag">KC</span>
+        <span class="grade-badge" style="background:#15803D;color:#22C55E">A</span>
+        <span class="prob-block"><span class="prob-pct">26.7%</span><span class="prob-odds"> (+275)</span></span>
+      </div>
+    </div>
+    <div class="metrics-row"><span class="metric-pill" style="color:#DDE6F0;">Brl/PA <b>22.2%</b></span><span class="metric-pill" style="color:#5A7090;">EV50 <b>102.3</b></span><span class="metric-pill" style="color:#5A7090;">HH% <b>40.7%</b></span><span class="metric-pill" style="color:#5A7090">Park ×0.93</span><span class="metric-pill" style="color:#5A7090;">Eff HR% <b>24.8%</b></span></div>
+    <div class="tags-row"><span class="tag" style="background:rgba(245,158,11,0.13);color:#F59E0B;border:1px solid rgba(245,158,11,0.3)">PERSISTENT DUE</span><span class="tag" style="background:rgba(168,85,247,0.13);color:#A855F7;border:1px solid rgba(168,85,247,0.3)">ELITE BARREL%</span><span class="tag" style="background:rgba(251,146,60,0.13);color:#FB923C;border:1px solid rgba(251,146,60,0.3)">EV50 STRONG</span><span class="tag" style="background:rgba(251,191,36,0.13);color:#FBBF24;border:1px solid rgba(251,191,36,0.3)">MOONSHOT POWER</span><span class="tag" style="background:rgba(239,68,68,0.13);color:#EF4444;border:1px solid rgba(239,68,68,0.3)">HOT STREAK</span><span class="tag" style="background:rgba(132,204,22,0.13);color:#84CC16;border:1px solid rgba(132,204,22,0.3)">SOFT MARKET POWER</span></div>
+  </div>
+</div><div class="player-row">
+  <div class="stripe" style="background:#1C2A3E"></div>
+  <div class="row-inner">
+    <div class="row-top">
+      <div class="name-area">
+        <span class="pname">Bobby Witt Jr.</span>
+        <span class="bats-badge badge-rhb">RHB</span>
+        <span class="hr-pill">◉ HR</span>
+      </div>
+      <div class="row-right">
+        <span class="team-tag">KC</span>
+        <span class="grade-badge" style="background:#15803D;color:#22C55E">A</span>
+        <span class="prob-block"><span class="prob-pct">18.1%</span><span class="prob-odds"> (+452)</span></span>
+      </div>
+    </div>
+    <div class="metrics-row"><span class="metric-pill" style="color:#5A7090;">Brl/PA <b>11.9%</b></span><span class="metric-pill" style="color:#DDE6F0;">EV50 <b>103.6</b></span><span class="metric-pill" style="color:#DDE6F0;">HH% <b>52.1%</b></span><span class="metric-pill" style="color:#5A7090">Park ×0.93</span><span class="metric-pill" style="color:#5A7090;">Eff HR% <b>16.8%</b></span></div>
+    <div class="tags-row"><span class="tag" style="background:rgba(245,158,11,0.13);color:#F59E0B;border:1px solid rgba(245,158,11,0.3)">PERSISTENT DUE</span><span class="tag" style="background:rgba(56,189,248,0.13);color:#38BDF8;border:1px solid rgba(56,189,248,0.3)">BLASTS 47%+</span><span class="tag" style="background:rgba(251,146,60,0.13);color:#FB923C;border:1px solid rgba(251,146,60,0.3)">EV50 STRONG</span><span class="tag" style="background:rgba(6,182,212,0.13);color:#06B6D4;border:1px solid rgba(6,182,212,0.3)">PITCH EDGE · FC/FF</span><span class="tag" style="background:rgba(251,191,36,0.13);color:#FBBF24;border:1px solid rgba(251,191,36,0.3)">MOONSHOT POWER</span><span class="tag" style="background:rgba(239,68,68,0.13);color:#EF4444;border:1px solid rgba(239,68,68,0.3)">HOT STREAK</span><span class="tag" style="background:rgba(132,204,22,0.13);color:#84CC16;border:1px solid rgba(132,204,22,0.3)">SOFT MARKET POWER</span></div>
+  </div>
+</div></div>
+
+<div class="foot">
+  Barrel/PA = barrels per plate appearance (Statcast leaderboard) — a strikeout-adjusted contact quality metric.
+  Brl/BIP = barrels per ball in play — ignores strikeout rate, inflated for high-K hitters.
+  EV50 = 50th percentile exit velocity — separates consistent hard contact from peak-only hitters.
+  Park ×factor from PARK_FACTORS table; ×1.27+ = Coors/Sutter Health (significant HR amplifier).
+  K-RATE RISK fires when Brl/BIP ÷ Brl/PA &gt; 2.2, indicating the player needs too many PAs to reach barrel opportunity.
+  AVOID PENALTY: Weighted score multiplied by ×0.72 when pitcher tier = Avoid — derived from 2-day sample (5 of 6 clean misses were Avoid matchups).
+  IDEAL SETUP: Park ×1.15+ AND non-Avoid pitcher — produced 4 of 6 HRs over the 2-day 8/1–8/2 sample.
+  PERSISTENT DUE: Batter had near-miss air contact in 2+ of last 3 games without clearing the wall — regression candidate.
+  Eff HR%: Effective probability adjusted downward for park suppression and/or Avoid pitcher; shown only when &gt;0.5% below raw HR%.
+</div>
+</body>
+</html>
