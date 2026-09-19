@@ -48,6 +48,7 @@ LEAGUE_LD    = 21.5    # MLB avg LD%
 LEAGUE_BABIP = 0.298   # MLB avg BABIP
 LEAGUE_GB    = 44.0    # MLB avg GB%
 LEAGUE_H9    = 8.5     # MLB avg hits allowed per 9 innings
+HIT_SCORE_NEUTRAL = 50.0   # league-average hit score, the shrinkage target
 LEAGUE_AB_SP = 22.0    # avg AB faced by SP (BF 25 minus BB/K)
 LEAGUE_BF_SP = 25.0    # avg SP batters faced
 
@@ -124,13 +125,19 @@ def _batter_hit_score(batter_id: int, xstats: dict, batter_hr_data: dict,
     d   = batter_hr_data.get(pid, {})
     ev  = savant_batting.get(pid, {})
 
-    xba      = _safe(xs.get("xba"))          # expected batting average
-    ba       = _safe(xs.get("ba"))           # actual season BA
+    # Regress the rate inputs by sample size. _proj_hits already did this, but
+    # hit_score is what RANKS the board, and it did not — so a 28-PA call-up with
+    # a hot xBA outranked every established hitter on his team. On the 9/19 slate
+    # six of thirty teams had a sub-40-PA bat listed as their top matchup.
+    xs_pa    = int(xs.get("pa") or 0)
+    bhr_pa   = int(d.get("pa") or 0)
+    xba      = shrink_rate(_safe(xs.get("xba")), xs_pa, LEAGUE_BA)   # expected batting average
+    ba       = shrink_rate(_safe(xs.get("ba")),  xs_pa, LEAGUE_BA)   # actual season BA
     ld_pct   = _safe(d.get("la_avg"))        # proxy for LD% via launch angle
     hh_pct   = _safe(ev.get("hard_hit_pct"))
     gb_pct   = _safe(d.get("fb_pct"))        # we'll use inverse of FB% as GB proxy
     sweet    = _safe(d.get("sweet_spot_pct")) # sweet spot pct is contact quality proxy
-    xslg     = _safe(d.get("xslg"))
+    xslg     = shrink_rate(_safe(d.get("xslg")), bhr_pa, 0.400)
 
     # Use xBA if available, fall back to actual BA
     contact_ba = xba if xba > 0 else ba if ba > 0 else LEAGUE_BA
@@ -164,6 +171,14 @@ def _batter_hit_score(batter_id: int, xstats: dict, batter_hr_data: dict,
         score = (s_xba * 0.35 + s_ld * 0.28 + s_contact * 0.22
                  + s_xslg * 0.10 + min(15.0, gb_bonus) * 0.05)
 
+        # Regress the composite, not just its rate inputs. Shrinking xBA and
+        # xSLG alone was not enough: ld_proxy, sweet-spot and hard-hit come from
+        # other feeds with no sample size attached, so a 28-PA hitter with a
+        # fluky launch angle still ranked top-five. Pulling the finished score
+        # toward league-average by the same PA weight covers every component at
+        # once, including the ones with no PA column to key off.
+        score = shrink_rate(score, max(xs_pa, bhr_pa), HIT_SCORE_NEUTRAL)
+
     if data_sparse:
         tier = "DATA SPARSE"
     elif score >= 70:
@@ -189,6 +204,8 @@ def _batter_hit_score(batter_id: int, xstats: dict, batter_hr_data: dict,
         "xba":         round(contact_ba, 3),
         "ld_proxy":    round(ld_proxy, 1),
         "hh_pct":      round(hh_pct, 1),
+        "xstat_pa": xs_pa,
+        "thin_score": xs_pa < 120,
         "xslg":        round(xslg, 3),
         "tags":        tags,
         "data_sparse": data_sparse,
