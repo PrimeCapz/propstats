@@ -2093,7 +2093,27 @@ FIT_MULTS = {
     "vuln":      [(0, 25, 0.88), (25, 45, 1.02), (45, 63, 1.11), (63, 1e9, 1.04)],
     "park":      [(0, 0.92, 0.92), (0.92, 1.02, 0.87), (1.02, 1.12, 0.99), (1.12, 1e9, 1.26)],
 }
-ORDER_MULTS = [(1, 3, 1.53), (3, 6, 1.31), (6, 10, 0.90)]
+# Batting-order multipliers, NEUTRALIZED.
+#
+# lam is computed as base_rate * exp_pa * feat_mult * order_mult * sig_mult, and
+# exp_pa is ALREADY slot-based (4.56 PA leading off against a 4.09 league mean).
+# Layering ORDER_MULTS on top applied the batting-order effect twice: slots 1-2
+# were getting 1.115 from exp_pa times 1.53 from order_mult, a 1.71x total boost
+# for hitting near the top of the lineup. The remaining 1.53 was presumably
+# picking up "leadoff hitters are good hitters", which feat_mult already measures
+# directly from barrel rate, exit velocity and zone fit.
+#
+# It was also never tested. Across 888 graded picks on three slates every single
+# batter had order=None, because the boards were built in the morning before
+# lineups post — so this path had never once fired on anything that was graded,
+# and every calibration figure measured so far was measured with order_mult=1.0.
+# The first time lineups landed mid-slate (2026-09-19) it fired and moved
+# confirmed batters +3 to +7.5 points while everyone in an unposted game stayed
+# flat, which made the board's own ranking incomparable across games.
+#
+# Neutral until there is evidence. exp_pa already carries the opportunity
+# effect, which is the part that is actually measured.
+ORDER_MULTS = [(1, 3, 1.00), (3, 6, 1.00), (6, 10, 1.00)]
 # Scales the geometric mean so predicted probability matches observed frequency.
 # Ranking is unchanged by this constant (it is a monotonic transform), so it is
 # tuned purely for calibration: at 0.80 the mean prediction is 11.1% against a
