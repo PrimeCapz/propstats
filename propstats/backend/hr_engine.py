@@ -2993,3 +2993,65 @@ def enrich_probable_check(results: list, game_date: str) -> list:
             b["implied_odds"] = _prob_to_odds(b["hr_prob"])
             b.setdefault("tags", []).insert(0, "⚠️ PITCHER TBD" if stale else "⚠️ BULLPEN GAME")
     return results
+
+
+# ---------------------------------------------------------------------------
+# Team-stack HR probability
+# ---------------------------------------------------------------------------
+# WHAT THIS IS NOT: an edge. It was added after a 9/18 card where the individual
+# hitters went 2/12 but the targeted teams homered 11/12 and the targeted
+# pitchers gave one up 10/12 — which looked like strong pitcher-level skill.
+# Tested properly it is not. Over 74 lineup-games (9/16-9/18):
+#
+#   predicted mean P(team HR)  68.2%      actual  59.5%
+#   top third of predictions   72.4% pred  ->  54.2% actual
+#   middle third               68.8% pred  ->  75.0% actual
+#   bottom third               63.7% pred  ->  50.0% actual
+#
+# Non-monotone, so no discrimination, and over-projecting by roughly 9 points
+# because it assumes hitters homer independently when a run environment lifts a
+# whole lineup at once. The 11/12 was a high-HR slate (2.4 HR/game) meeting a
+# base rate near 70%, spread over only 10 distinct teams — about what chance
+# gives, not evidence of skill.
+#
+# It is kept because "will this lineup homer" is a real question and a rough
+# number beats no number, but it must not be presented as a selection signal.
+#
+# What DID survive the same grading, pooled over 888 picks on three slates
+# against a 7.9% board baseline:
+#     HEAVY CHALK  17.7%   (2.2x baseline)
+#     CHALKY        8.0%
+#     LEVERAGE      7.3%   <- below CHALKY, no edge
+#     BALANCED      6.3%
+# The LEVERAGE tier was built to find spots where the model disagrees with the
+# crowd. Empirically those are simply worse bets, so leverage should not drive
+# selection. Popular bats in the model's top tier are where the edge is.
+
+def enrich_stack_probability(results: list) -> list:
+    """Attach P(at least one HR) for the lineup facing each starter.
+
+    Independence across hitters is an approximation — a home-run environment
+    lifts a whole lineup at once, so the true joint probability is slightly
+    higher in good conditions and lower in bad. It is close enough to be useful
+    and it is stated here rather than hidden.
+    """
+    for r in results:
+        bats = [b for b in r.get("top_batters", []) if b.get("in_lineup") is not False]
+        # a lineup is nine hitters; the board may list more than that
+        ranked = sorted(bats, key=lambda b: -(b.get("hr_prob") or 0.0))[:9]
+        probs = [(b.get("hr_prob") or 0.0) / 100.0 for b in ranked]
+        if not probs:
+            r["stack_hr_prob"] = None
+            continue
+        none = 1.0
+        for p in probs:
+            none *= (1.0 - p)
+        stack = 1.0 - none
+        r["stack_hr_prob"] = round(stack * 100, 1)
+        r["stack_hr_odds"] = _prob_to_odds(r["stack_hr_prob"])
+        r["stack_exp_hr"] = round(sum(probs), 2)
+        r["stack_n"] = len(probs)
+        # two- and three-deep, for spreading a bet across one lineup
+        r["stack_top3_prob"] = round((1.0 - (1 - probs[0]) * (1 - probs[1]) * (1 - probs[2])) * 100, 1) \
+            if len(probs) >= 3 else None
+    return results

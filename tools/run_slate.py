@@ -36,7 +36,7 @@ from hr_engine import (
     build_hr_attack_board, enrich_recent_hr_form, enrich_statcast_recent,
     enrich_pitcher_hand_mix, enrich_with_h2h, enrich_context_splits,
     enrich_lineups, enrich_probable_check, calibrate_probabilities,
-    tag_chalk_levels,
+    tag_chalk_levels, enrich_stack_probability,
 )
 from k_engine import build_k_board
 from walk_engine import build_walk_board
@@ -81,7 +81,8 @@ def build_hr(game_date, skip_enrich=False):
             board = res
     for label, fn in [("h2h", enrich_with_h2h),
                       ("calibrate", calibrate_probabilities),
-                      ("chalk tiers", tag_chalk_levels)]:
+                      ("chalk tiers", tag_chalk_levels),
+                      ("stack prob", enrich_stack_probability)]:
         res = _step(label, fn, board)
         if res is not None:
             board = res
